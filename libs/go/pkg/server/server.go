@@ -137,7 +137,7 @@ func recoveryInterceptor(log zerolog.Logger) grpc.UnaryServerInterceptor {
 				err = errors.New("internal error")
 			}
 		}()
-		return handler(ctx, req, info)
+		return handler(ctx, req)
 	}
 }
 

@@ -136,9 +136,12 @@ func (s *Supervisor) evaluate(ctx context.Context, ticketID string) error {
 // here are illustrative; in production they come from a model trained on
 // labelled QoE traces.
 func scoreSession(rebuffers, bitrateKbps, samples int) float64 {
+	// Weights are tuned so that any *one* signal at its extreme is enough to
+	// trip failover, while combinations of mild deficits compound rather than
+	// cancel. Re-tune via the offline trainer when QoE traces update.
 	const (
-		wRebuffer = 0.6
-		wBitrate  = 0.4
+		wRebuffer = 0.5
+		wBitrate  = 0.5
 	)
 	rebufferRate := float64(rebuffers) / float64(samples)
 	bitrateDeficit := 0.0

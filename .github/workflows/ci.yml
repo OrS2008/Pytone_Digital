@@ -1,0 +1,133 @@
+name: ci
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  go:
+    name: Go workspace
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: pytone
+          POSTGRES_PASSWORD: pytone
+          POSTGRES_DB: pytone
+        ports: ["5432:5432"]
+        options: --health-cmd="pg_isready -U pytone" --health-interval=5s --health-timeout=3s --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: |
+            **/go.sum
+      - name: go vet (workspace)
+        run: go vet ./...
+      - name: go test (workspace)
+        env:
+          DATABASE_URL: postgres://pytone:pytone@localhost:5432/pytone?sslmode=disable
+          REDIS_URL: redis://localhost:6379/0
+        run: go test ./... -race -count=1
+
+  proto-lint:
+    name: Proto lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bufbuild/buf-setup-action@v1
+      - run: buf lint libs/proto
+      - run: buf breaking libs/proto --against 'https://github.com/${{ github.repository }}.git#branch=main,subdir=libs/proto'
+        continue-on-error: true
+
+  flutter-tv:
+    name: Flutter TV
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+        working-directory: apps/tv
+      - run: flutter analyze
+        working-directory: apps/tv
+      - run: flutter test
+        working-directory: apps/tv
+
+  web:
+    name: Web (Next.js)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+        working-directory: apps/web
+      - run: npm run typecheck
+        working-directory: apps/web
+      - run: npm run lint
+        working-directory: apps/web
+      - run: npm run build
+        working-directory: apps/web
+
+  docker:
+    name: Docker images
+    runs-on: ubuntu-latest
+    needs: [go]
+    if: github.event_name == 'push'
+    permissions:
+      packages: write
+      contents: read
+    strategy:
+      matrix:
+        service:
+          - gateway
+          - auth
+          - playlist-ingestion
+          - epg
+          - playback
+          - dvr
+          - recording
+          - ai-playback
+          - search
+          - recommendation
+          - metadata
+          - user
+          - sync
+          - sports
+          - analytics
+          - notification
+          - streaming
+          - transcoding
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/docker/Dockerfile.go
+          build-args: |
+            SERVICE=${{ matrix.service }}
+            BINARY=${{ matrix.service == 'recording' && 'worker' || 'server' }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest
+          push: ${{ github.ref == 'refs/heads/main' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

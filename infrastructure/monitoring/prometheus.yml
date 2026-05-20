@@ -1,0 +1,32 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: pytone-dev
+
+scrape_configs:
+  - job_name: pytone-services
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - 'gateway:8080'
+          - 'auth:8080'
+          - 'user:8080'
+          - 'playlist-ingestion:8080'
+          - 'metadata:8080'
+          - 'epg:8080'
+          - 'search:8080'
+          - 'recommendation:8080'
+          - 'playback:8080'
+          - 'streaming:8080'
+          - 'transcoding:8080'
+          - 'recording:8080'
+          - 'dvr:8080'
+          - 'ai-playback:8080'
+          - 'analytics:8080'
+          - 'notification:8080'
+          - 'sports:8080'
+          - 'sync:8080'
+
+rule_files:
+  - /etc/prometheus/rules/*.yml

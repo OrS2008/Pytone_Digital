@@ -1,0 +1,148 @@
+# Local development stack.
+#
+# Brings up the data-store layer and the most important services so the TV
+# / mobile / web clients can talk to a working backend end-to-end on a
+# developer laptop.
+#
+#   make up           # full stack
+#   make up-data      # just data stores
+#   make logs s=gateway
+#
+# Production deployment uses the Helm charts in infrastructure/kubernetes.
+
+services:
+  # --- data stores -------------------------------------------------------
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: pytone
+      POSTGRES_PASSWORD: pytone
+      POSTGRES_DB: pytone
+    ports: ["5432:5432"]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pytone"]
+      interval: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    command: ["redis-server", "--maxmemory", "1gb", "--maxmemory-policy", "allkeys-lru"]
+
+  kafka:
+    image: bitnami/kafka:3.7
+    ports: ["9092:9092"]
+    environment:
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_NODE_ID: 1
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+
+  typesense:
+    image: typesense/typesense:27.0
+    ports: ["8108:8108"]
+    environment:
+      TYPESENSE_API_KEY: pytone-dev-only
+      TYPESENSE_DATA_DIR: /data
+    volumes:
+      - typesense-data:/data
+
+  minio:
+    image: minio/minio:RELEASE.2024-07-16T23-46-41Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: pytone
+      MINIO_ROOT_PASSWORD: pytone-dev-only
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+  # --- observability -----------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    ports: ["9090:9090"]
+    volumes:
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    ports: ["3000:3000"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: pytone
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infrastructure/monitoring/dashboards:/etc/grafana/provisioning/dashboards:ro
+
+  # --- core services -----------------------------------------------------
+  gateway:
+    build: { context: ., dockerfile: infrastructure/docker/Dockerfile.go, args: { SERVICE: gateway } }
+    depends_on: [postgres, redis]
+    environment: &shared-env
+      DATABASE_URL: postgres://pytone:pytone@postgres:5432/pytone?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BROKERS: kafka:9092
+    ports: ["8080:8080"]
+
+  auth:
+    build: { context: ., dockerfile: infrastructure/docker/Dockerfile.go, args: { SERVICE: auth } }
+    depends_on: [postgres, redis]
+    environment:
+      <<: *shared-env
+
+  playlist-ingestion:
+    build: { context: ., dockerfile: infrastructure/docker/Dockerfile.go, args: { SERVICE: playlist-ingestion } }
+    depends_on: [postgres, redis, kafka]
+    environment:
+      <<: *shared-env
+
+  epg:
+    build: { context: ., dockerfile: infrastructure/docker/Dockerfile.go, args: { SERVICE: epg } }
+    depends_on: [postgres, redis]
+    environment:
+      <<: *shared-env
+
+  playback:
+    build: { context: ., dockerfile: infrastructure/docker/Dockerfile.go, args: { SERVICE: playback } }
+    depends_on: [redis]
+    environment:
+      <<: *shared-env
+      TICKET_SIGNING_KEY: pytone-dev-only
+      PROXY_ORIGIN: http://localhost:8090
+
+  recording:
+    build: { context: ., dockerfile: infrastructure/docker/Dockerfile.go, args: { SERVICE: recording, BINARY: worker } }
+    depends_on: [postgres, redis, kafka, minio]
+    environment:
+      <<: *shared-env
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: pytone-dvr
+      WORKER_ID: rec-1
+      RETENTION: "336h"
+
+  dvr:
+    build: { context: ., dockerfile: infrastructure/docker/Dockerfile.go, args: { SERVICE: dvr } }
+    depends_on: [postgres, redis]
+    environment:
+      <<: *shared-env
+
+  ai-playback:
+    build: { context: ., dockerfile: infrastructure/docker/Dockerfile.go, args: { SERVICE: ai-playback } }
+    depends_on: [redis, kafka]
+    environment:
+      <<: *shared-env
+
+volumes:
+  postgres-data:
+  typesense-data:
+  minio-data:
+  grafana-data:

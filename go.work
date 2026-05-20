@@ -1,23 +1,25 @@
-go 1.23
+go 1.24
+
+toolchain go1.24.7
 
 use (
-	./services/gateway
-	./services/auth
-	./services/user
-	./services/playlist-ingestion
-	./services/metadata
-	./services/epg
-	./services/search
-	./services/recommendation
-	./services/playback
-	./services/streaming
-	./services/transcoding
-	./services/recording
-	./services/dvr
+	./libs/go/pkg
 	./services/ai-playback
 	./services/analytics
+	./services/auth
+	./services/dvr
+	./services/epg
+	./services/gateway
+	./services/metadata
 	./services/notification
+	./services/playback
+	./services/playlist-ingestion
+	./services/recommendation
+	./services/recording
+	./services/search
 	./services/sports
+	./services/streaming
 	./services/sync
-	./libs/go/pkg
+	./services/transcoding
+	./services/user
 )

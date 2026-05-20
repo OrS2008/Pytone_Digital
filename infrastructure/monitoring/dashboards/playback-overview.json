@@ -1,0 +1,44 @@
+{
+  "title": "Playback Overview",
+  "schemaVersion": 39,
+  "tags": ["pytone", "playback"],
+  "panels": [
+    {
+      "title": "Channel switch p50/p95/p99",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(channel_switch_ms_bucket[5m])) by (le))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(channel_switch_ms_bucket[5m])) by (le))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(channel_switch_ms_bucket[5m])) by (le))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "title": "Rebuffer rate by region",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(playback_rebuffer_total[5m])) by (region) / sum(rate(playback_segments_total[5m])) by (region)", "legendFormat": "{{ region }}" }
+      ]
+    },
+    {
+      "title": "Active playback sessions",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(playback_active_sessions) by (region)", "legendFormat": "{{ region }}" }
+      ]
+    },
+    {
+      "title": "AI failovers / minute",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(ai_playback_failovers_total[1m])) by (reason)", "legendFormat": "{{ reason }}" }
+      ]
+    },
+    {
+      "title": "Origin error rate",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(origin_request_errors_total[5m])) by (origin) / sum(rate(origin_requests_total[5m])) by (origin)", "legendFormat": "{{ origin }}" }
+      ]
+    }
+  ]
+}

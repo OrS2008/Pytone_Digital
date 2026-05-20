@@ -193,26 +193,24 @@ func splitDuration(s string) (string, string) {
 	return s, ""
 }
 
-// splitNameFromAttrs walks the remainder of an EXTINF line and finds the last
+// splitNameFromAttrs walks the remainder of an EXTINF line and finds the first
 // comma that is NOT inside double-quotes — that comma separates attributes from
-// the display name. This avoids breaking on names like `News, Live`.
+// the display name. Names themselves may contain commas (`News, Live`) and we
+// must preserve them; the EXTINF format only puts one separator before the
+// name.
 func splitNameFromAttrs(s string) (attrs, name string) {
 	inQuote := false
-	lastComma := -1
 	for i, r := range s {
 		switch r {
 		case '"':
 			inQuote = !inQuote
 		case ',':
 			if !inQuote {
-				lastComma = i
+				return s[:i], s[i+1:]
 			}
 		}
 	}
-	if lastComma == -1 {
-		return "", strings.TrimLeft(s, " ,")
-	}
-	return s[:lastComma], s[lastComma+1:]
+	return "", strings.TrimLeft(s, " ,")
 }
 
 // parseAttrs handles the `key="value" key2="value2"` syntax used after EXTINF.

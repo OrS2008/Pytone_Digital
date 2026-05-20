@@ -1,0 +1,54 @@
+# Playback SLO alerts. Two-tier window: the page-on-call alerts target the
+# user-facing SLOs from the README. Background warnings tag potential
+# regressions before they breach.
+
+groups:
+  - name: playback-slo
+    interval: 30s
+    rules:
+      - alert: PlaybackStartupP95High
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(playback_startup_ms_bucket[5m])) by (le, region)
+          ) > 1500
+        for: 5m
+        labels:
+          severity: page
+          slo: playback_startup
+        annotations:
+          summary: "Playback startup p95 >1.5s in {{ $labels.region }}"
+          runbook: "https://runbooks.pytone.tv/playback-startup"
+
+      - alert: PlaybackRebufferRateHigh
+        expr: |
+          sum(rate(playback_rebuffer_total[5m])) by (region) /
+          sum(rate(playback_segments_total[5m])) by (region) > 0.01
+        for: 10m
+        labels:
+          severity: page
+          slo: playback_rebuffer
+        annotations:
+          summary: "Rebuffer rate >1% in {{ $labels.region }}"
+
+      - alert: ChannelSwitchP95High
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(channel_switch_ms_bucket[5m])) by (le)
+          ) > 800
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Channel switch p95 >800ms — target is <500ms"
+
+      - alert: PlaybackFailureRateHigh
+        expr: |
+          sum(rate(playback_failed_total[5m])) /
+          sum(rate(playback_attempted_total[5m])) > 0.001
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Playback failure rate >0.1% (target <0.01%)"

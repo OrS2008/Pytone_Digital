@@ -92,7 +92,8 @@ func (s *Service) Refresh(ctx context.Context, sourceID string) (string, error) 
 			cancel()
 		}()
 		if err := s.runRefresh(jobCtx, src, jobID); err != nil {
-			logging.From(jobCtx).Error().Err(err).Str("source_id", src.ID).Msg("refresh failed")
+			lg := logging.From(jobCtx)
+			lg.Error().Err(err).Str("source_id", src.ID).Msg("refresh failed")
 		}
 	}()
 
@@ -173,7 +174,8 @@ func (s *Service) runRefresh(ctx context.Context, src Source, jobID string) erro
 func (s *Service) validateStreams(ctx context.Context, sourceID string) {
 	streams, err := s.store.ListStreamsForValidation(ctx, sourceID)
 	if err != nil {
-		logging.From(ctx).Error().Err(err).Msg("list streams for validation")
+		lg := logging.From(ctx)
+		lg.Error().Err(err).Msg("list streams for validation")
 		return
 	}
 
@@ -187,7 +189,8 @@ func (s *Service) validateStreams(ctx context.Context, sourceID string) {
 			defer func() { <-sem; wg.Done() }()
 			result := s.validator.Validate(ctx, st)
 			if err := s.store.UpdateStreamHealth(ctx, st.ID, result); err != nil {
-				logging.From(ctx).Warn().Err(err).Str("stream_id", st.ID).Msg("update stream health")
+				lg := logging.From(ctx)
+				lg.Warn().Err(err).Str("stream_id", st.ID).Msg("update stream health")
 				return
 			}
 			if result.Health == HealthDead {

@@ -1,0 +1,48 @@
+# Recording workers are a StatefulSet so each pod has a stable identity
+# (WORKER_ID). The Redis lease manager then knows which leases belong to which
+# pod, which means restart-recovery is deterministic.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: recording
+spec:
+  serviceName: recording
+  replicas: 8
+  selector:
+    matchLabels: { app.kubernetes.io/name: recording }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: recording }
+    spec:
+      containers:
+        - name: recording
+          image: ghcr.io/pytone/recording:latest
+          env:
+            - name: WORKER_ID
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            - { name: MAX_CHANNELS, value: "64" }
+            - { name: RETENTION, value: "336h" } # 14 days
+            - name: DATABASE_URL
+              valueFrom: { secretKeyRef: { name: recording-secrets, key: database_url } }
+            - name: REDIS_URL
+              valueFrom: { secretKeyRef: { name: recording-secrets, key: redis_url } }
+            - name: S3_ENDPOINT
+              valueFrom: { secretKeyRef: { name: recording-secrets, key: s3_endpoint } }
+            - name: S3_BUCKET
+              valueFrom: { secretKeyRef: { name: recording-secrets, key: s3_bucket } }
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom: { secretKeyRef: { name: recording-secrets, key: aws_access_key_id } }
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: recording-secrets, key: aws_secret_access_key } }
+          resources:
+            requests: { cpu: "1000m", memory: "512Mi" }
+            limits:   { cpu: "2000m", memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: recording
+spec:
+  clusterIP: None
+  selector: { app.kubernetes.io/name: recording }
+  ports: [{ port: 8080 }]

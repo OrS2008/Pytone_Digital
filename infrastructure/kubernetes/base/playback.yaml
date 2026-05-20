@@ -1,0 +1,92 @@
+# The playback proxy is on the data plane. Compared to control-plane services
+# it gets:
+#   * higher minReplicas (data plane never wants a cold start),
+#   * larger CPU budget (HMAC + manifest rewriting under load),
+#   * tighter readiness window (slow start drops sessions),
+#   * sticky session affinity at the LB so the same client sticks to the same
+#     proxy pod across manifest + segment fetches (better Redis cache hits).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: playback
+spec:
+  replicas: 12
+  selector:
+    matchLabels: { app.kubernetes.io/name: playback }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 50%
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: playback }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: playback
+          image: ghcr.io/pytone/playback:latest
+          ports:
+            - { containerPort: 8080, name: http }
+            - { containerPort: 50053, name: grpc }
+          env:
+            - { name: HTTP_ADDR, value: ":8080" }
+            - { name: GRPC_ADDR, value: ":50053" }
+            - name: REDIS_URL
+              valueFrom: { secretKeyRef: { name: playback-secrets, key: redis_url } }
+            - name: TICKET_SIGNING_KEY
+              valueFrom: { secretKeyRef: { name: playback-secrets, key: ticket_signing_key } }
+            - { name: PROXY_ORIGIN, value: "https://play.pytone.tv" }
+            - { name: PLAYLIST_GRPC_ADDR, value: "playlist-ingestion:50051" }
+          resources:
+            requests: { cpu: "500m", memory: "512Mi" }
+            limits:   { cpu: "2000m", memory: "1Gi" }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 1
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: playback
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 1800
+  selector: { app.kubernetes.io/name: playback }
+  ports:
+    - { port: 80, targetPort: 8080, name: http }
+    - { port: 50053, targetPort: 50053, name: grpc }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: playback
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: playback
+  minReplicas: 12
+  maxReplicas: 240
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - { type: Percent, value: 100, periodSeconds: 30 }
+    scaleDown:
+      stabilizationWindowSeconds: 600
+      policies:
+        - { type: Percent, value: 10, periodSeconds: 60 }
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 55 } }
