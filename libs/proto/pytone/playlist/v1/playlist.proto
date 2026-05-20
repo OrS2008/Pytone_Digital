@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package pytone.playlist.v1;
+
+import "google/protobuf/timestamp.proto";
+import "pytone/common/v1/common.proto";
+
+option go_package = "github.com/pytone/pytone/services/_generated/go/pytone/playlist/v1;playlistv1";
+
+// Source represents a playlist source (M3U URL, Xtream credentials, OTA tuner, …).
+message Source {
+  string id = 1;
+  string owner_id = 2; // tenant / user id
+  string name = 3;
+  pytone.common.v1.SourceKind kind = 4;
+  string url = 5;
+  string username = 6;
+  string password = 7;
+  // Cron-style schedule for refresh. Empty disables auto-refresh.
+  string refresh_cron = 8;
+  google.protobuf.Timestamp last_refreshed_at = 9;
+  google.protobuf.Timestamp created_at = 10;
+  uint32 channel_count = 11;
+  bool enabled = 12;
+}
+
+// Channel is a logical channel; it may have many backing streams.
+message Channel {
+  string id = 1;
+  string source_id = 2;
+  string name = 3;
+  string display_name = 4;
+  string logo_url = 5;
+  repeated string categories = 6;
+  string country = 7;
+  string language = 8;
+  string epg_id = 9; // matched XMLTV tvg-id
+  uint32 channel_number = 10;
+  repeated Stream streams = 11;
+  bool catchup_enabled = 12;
+  uint32 catchup_days = 13;
+  string catchup_template = 14; // Xtream-style template
+}
+
+// Stream is a concrete playable URL for a channel.
+message Stream {
+  string id = 1;
+  string channel_id = 2;
+  string url = 3;
+  pytone.common.v1.Quality quality = 4;
+  pytone.common.v1.StreamHealth health = 5;
+  google.protobuf.Timestamp last_probed_at = 6;
+  uint32 latency_ms = 7;
+  uint32 priority = 8; // lower = preferred
+  map<string, string> headers = 9; // custom headers for fetching
+}
+
+service PlaylistService {
+  rpc CreateSource(CreateSourceRequest) returns (Source);
+  rpc UpdateSource(UpdateSourceRequest) returns (Source);
+  rpc DeleteSource(DeleteSourceRequest) returns (DeleteSourceResponse);
+  rpc GetSource(GetSourceRequest) returns (Source);
+  rpc ListSources(ListSourcesRequest) returns (ListSourcesResponse);
+
+  rpc TriggerRefresh(TriggerRefreshRequest) returns (TriggerRefreshResponse);
+
+  rpc ListChannels(ListChannelsRequest) returns (ListChannelsResponse);
+  rpc GetChannel(GetChannelRequest) returns (Channel);
+
+  rpc ReportStreamHealth(ReportStreamHealthRequest) returns (ReportStreamHealthResponse);
+}
+
+message CreateSourceRequest { Source source = 1; }
+message UpdateSourceRequest { Source source = 1; }
+message DeleteSourceRequest { string source_id = 1; }
+message DeleteSourceResponse {}
+message GetSourceRequest { string source_id = 1; }
+
+message ListSourcesRequest {
+  string owner_id = 1;
+  pytone.common.v1.Page page = 2;
+}
+message ListSourcesResponse {
+  repeated Source sources = 1;
+  pytone.common.v1.PageInfo page_info = 2;
+}
+
+message TriggerRefreshRequest { string source_id = 1; }
+message TriggerRefreshResponse { string job_id = 1; }
+
+message ListChannelsRequest {
+  string source_id = 1;
+  string category = 2;
+  string query = 3;
+  pytone.common.v1.Page page = 4;
+}
+message ListChannelsResponse {
+  repeated Channel channels = 1;
+  pytone.common.v1.PageInfo page_info = 2;
+}
+
+message GetChannelRequest { string channel_id = 1; }
+
+message ReportStreamHealthRequest {
+  string stream_id = 1;
+  pytone.common.v1.StreamHealth health = 2;
+  uint32 latency_ms = 3;
+  string error = 4;
+}
+message ReportStreamHealthResponse {}

@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package pytone.dvr.v1;
+
+import "google/protobuf/timestamp.proto";
+import "pytone/common/v1/common.proto";
+
+option go_package = "github.com/pytone/pytone/services/_generated/go/pytone/dvr/v1;dvrv1";
+
+enum RecordingState {
+  RECORDING_STATE_UNSPECIFIED = 0;
+  RECORDING_STATE_SCHEDULED = 1;
+  RECORDING_STATE_RECORDING = 2;
+  RECORDING_STATE_COMPLETED = 3;
+  RECORDING_STATE_FAILED = 4;
+  RECORDING_STATE_DELETED = 5;
+}
+
+enum RecordingKind {
+  RECORDING_KIND_UNSPECIFIED = 0;
+  RECORDING_KIND_ONE_OFF = 1;
+  RECORDING_KIND_SERIES = 2;
+  RECORDING_KIND_KEYWORD = 3;
+  RECORDING_KIND_SPORT = 4;
+  RECORDING_KIND_ROLLING = 5; // network 14-day window
+}
+
+message Recording {
+  string id = 1;
+  string user_id = 2;
+  string channel_id = 3;
+  string programme_id = 4;
+  string title = 5;
+  RecordingKind kind = 6;
+  RecordingState state = 7;
+  google.protobuf.Timestamp scheduled_start = 8;
+  google.protobuf.Timestamp scheduled_stop = 9;
+  google.protobuf.Timestamp actual_start = 10;
+  google.protobuf.Timestamp actual_stop = 11;
+  uint64 size_bytes = 12;
+  string manifest_url = 13;
+  string poster_url = 14;
+  uint32 padding_start_seconds = 15;
+  uint32 padding_stop_seconds = 16;
+}
+
+message SeriesRule {
+  string id = 1;
+  string user_id = 2;
+  string channel_id = 3; // empty = any channel
+  string series_id = 4;
+  string keyword = 5; // for KEYWORD kind
+  RecordingKind kind = 6;
+  uint32 max_recordings = 7;
+  uint32 padding_start_seconds = 8;
+  uint32 padding_stop_seconds = 9;
+  bool new_only = 10;
+}
+
+service DvrService {
+  rpc ScheduleRecording(ScheduleRecordingRequest) returns (Recording);
+  rpc CancelRecording(CancelRecordingRequest) returns (CancelRecordingResponse);
+  rpc ListRecordings(ListRecordingsRequest) returns (ListRecordingsResponse);
+  rpc GetRecording(GetRecordingRequest) returns (Recording);
+
+  rpc CreateSeriesRule(CreateSeriesRuleRequest) returns (SeriesRule);
+  rpc DeleteSeriesRule(DeleteSeriesRuleRequest) returns (DeleteSeriesRuleResponse);
+  rpc ListSeriesRules(ListSeriesRulesRequest) returns (ListSeriesRulesResponse);
+
+  // Catch-up: build a VOD manifest for an arbitrary historical window.
+  rpc GetCatchupManifest(GetCatchupManifestRequest) returns (GetCatchupManifestResponse);
+}
+
+message ScheduleRecordingRequest {
+  Recording recording = 1;
+}
+message CancelRecordingRequest { string recording_id = 1; }
+message CancelRecordingResponse {}
+
+message ListRecordingsRequest {
+  string user_id = 1;
+  RecordingState state = 2;
+  pytone.common.v1.Page page = 3;
+}
+message ListRecordingsResponse {
+  repeated Recording recordings = 1;
+  pytone.common.v1.PageInfo page_info = 2;
+}
+message GetRecordingRequest { string recording_id = 1; }
+
+message CreateSeriesRuleRequest { SeriesRule rule = 1; }
+message DeleteSeriesRuleRequest { string rule_id = 1; }
+message DeleteSeriesRuleResponse {}
+message ListSeriesRulesRequest { string user_id = 1; }
+message ListSeriesRulesResponse { repeated SeriesRule rules = 1; }
+
+message GetCatchupManifestRequest {
+  string channel_id = 1;
+  google.protobuf.Timestamp start = 2;
+  google.protobuf.Timestamp stop = 3;
+}
+message GetCatchupManifestResponse {
+  string manifest_url = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}

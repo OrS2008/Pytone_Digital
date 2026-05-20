@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package pytone.epg.v1;
+
+import "google/protobuf/timestamp.proto";
+import "pytone/common/v1/common.proto";
+
+option go_package = "github.com/pytone/pytone/services/_generated/go/pytone/epg/v1;epgv1";
+
+message Programme {
+  string id = 1;
+  string channel_id = 2;
+  string epg_channel_id = 3; // XMLTV id
+  google.protobuf.Timestamp start = 4;
+  google.protobuf.Timestamp stop = 5;
+  string title = 6;
+  string sub_title = 7;
+  string description = 8;
+  repeated string categories = 9;
+  string poster_url = 10;
+  string backdrop_url = 11;
+  uint32 season = 12;
+  uint32 episode = 13;
+  string rating = 14;
+  bool is_live = 15;
+  bool is_new = 16;
+  bool catchup_available = 17;
+}
+
+service EpgService {
+  rpc GetTimeline(GetTimelineRequest) returns (GetTimelineResponse);
+  rpc GetNowNext(GetNowNextRequest) returns (GetNowNextResponse);
+  rpc GetProgramme(GetProgrammeRequest) returns (Programme);
+  rpc SearchProgrammes(SearchProgrammesRequest) returns (SearchProgrammesResponse);
+}
+
+message GetTimelineRequest {
+  repeated string channel_ids = 1;
+  google.protobuf.Timestamp from = 2;
+  google.protobuf.Timestamp to = 3;
+}
+message GetTimelineResponse {
+  // Programmes ordered by (channel_id, start).
+  repeated Programme programmes = 1;
+}
+
+message GetNowNextRequest {
+  repeated string channel_ids = 1;
+}
+message NowNext {
+  string channel_id = 1;
+  Programme now = 2;
+  Programme next = 3;
+}
+message GetNowNextResponse {
+  repeated NowNext entries = 1;
+}
+
+message GetProgrammeRequest { string programme_id = 1; }
+
+message SearchProgrammesRequest {
+  string query = 1;
+  pytone.common.v1.Page page = 2;
+}
+message SearchProgrammesResponse {
+  repeated Programme programmes = 1;
+  pytone.common.v1.PageInfo page_info = 2;
+}

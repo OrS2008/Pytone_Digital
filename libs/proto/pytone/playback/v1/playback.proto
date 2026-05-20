@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package pytone.playback.v1;
+
+import "google/protobuf/timestamp.proto";
+import "pytone/common/v1/common.proto";
+
+option go_package = "github.com/pytone/pytone/services/_generated/go/pytone/playback/v1;playbackv1";
+
+// PlaybackTicket is a short-lived authorization for one playback session.
+message PlaybackTicket {
+  string ticket_id = 1;
+  string playback_url = 2;
+  string token = 3; // HMAC-signed
+  google.protobuf.Timestamp expires_at = 4;
+  pytone.common.v1.Quality quality = 5;
+  repeated AudioTrack audio_tracks = 6;
+  repeated SubtitleTrack subtitle_tracks = 7;
+  // Whether the client should treat this as a live stream (rewind enabled).
+  bool live = 8;
+  // For catch-up / replay: start time within the recording.
+  google.protobuf.Timestamp start_at = 9;
+  google.protobuf.Timestamp end_at = 10;
+}
+
+message AudioTrack {
+  string id = 1;
+  string language = 2;
+  string label = 3;
+  string codec = 4;
+  uint32 channels = 5;
+}
+
+message SubtitleTrack {
+  string id = 1;
+  string language = 2;
+  string label = 3;
+  string format = 4; // webvtt, srt
+  string url = 5;
+  bool forced = 6;
+  bool sdh = 7;
+}
+
+// QoESample is reported by clients periodically.
+message QoESample {
+  string session_id = 1;
+  string user_id = 2;
+  string stream_id = 3;
+  string channel_id = 4;
+  google.protobuf.Timestamp at = 5;
+  uint32 buffer_ms = 6;
+  uint32 bitrate_kbps = 7;
+  uint32 dropped_frames = 8;
+  uint32 rebuffer_count = 9;
+  uint32 rebuffer_ms = 10;
+  uint32 startup_ms = 11;
+  string player_state = 12;
+  string device = 13;
+  string network = 14;
+  string error = 15;
+}
+
+service PlaybackService {
+  rpc GetPlaybackTicket(GetPlaybackTicketRequest) returns (PlaybackTicket);
+  rpc ReportQoE(stream QoESample) returns (ReportQoEResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+}
+
+message GetPlaybackTicketRequest {
+  string user_id = 1;
+  string content_id = 2;
+  pytone.common.v1.ContentKind content_kind = 3;
+  // Optional: requested start time for catch-up.
+  google.protobuf.Timestamp start_at = 4;
+  string device_id = 5;
+  string device_class = 6; // tv, mobile, web
+  uint32 max_bitrate_kbps = 7;
+}
+
+message ReportQoEResponse {
+  // If non-empty, client should switch to this stream id for the same content.
+  string failover_stream_id = 1;
+}
+
+message HeartbeatRequest {
+  string session_id = 1;
+  google.protobuf.Timestamp at = 2;
+  uint64 position_ms = 3;
+}
+message HeartbeatResponse { bool keep_alive = 1; }

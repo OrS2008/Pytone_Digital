@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package pytone.common.v1;
+
+option go_package = "github.com/pytone/pytone/services/_generated/go/pytone/common/v1;commonv1";
+
+// Page describes a forward-only cursor pagination request.
+message Page {
+  // Opaque cursor returned by a previous response. Empty means "from the start".
+  string cursor = 1;
+  // Page size, 1..200. Server clamps.
+  uint32 limit = 2;
+}
+
+// PageInfo is returned alongside results.
+message PageInfo {
+  string next_cursor = 1;
+  bool has_more = 2;
+  uint64 total_estimate = 3;
+}
+
+// Quality describes a stream's measured quality.
+message Quality {
+  uint32 width = 1;
+  uint32 height = 2;
+  uint32 bitrate_kbps = 3;
+  uint32 fps = 4;
+  string video_codec = 5; // h264, h265, av1
+  string audio_codec = 6; // aac, ac3, eac3, opus
+  bool hdr10 = 7;
+  bool dolby_vision = 8;
+  bool atmos = 9;
+}
+
+// StreamHealth represents the current operational state of a stream.
+enum StreamHealth {
+  STREAM_HEALTH_UNSPECIFIED = 0;
+  STREAM_HEALTH_HEALTHY = 1;
+  STREAM_HEALTH_DEGRADED = 2;
+  STREAM_HEALTH_DEAD = 3;
+  STREAM_HEALTH_UNKNOWN = 4;
+}
+
+// SourceKind enumerates supported input source types.
+enum SourceKind {
+  SOURCE_KIND_UNSPECIFIED = 0;
+  SOURCE_KIND_M3U = 1;
+  SOURCE_KIND_XTREAM = 2;
+  SOURCE_KIND_STALKER = 3;
+  SOURCE_KIND_HLS_DIRECT = 4;
+  SOURCE_KIND_DASH_DIRECT = 5;
+  SOURCE_KIND_JELLYFIN = 6;
+  SOURCE_KIND_PLEX = 7;
+  SOURCE_KIND_SMB = 8;
+  SOURCE_KIND_NFS = 9;
+  SOURCE_KIND_OTA = 10;
+  SOURCE_KIND_LOCAL = 11;
+}
+
+// ContentKind discriminates between channel, movie, episode, recording, etc.
+enum ContentKind {
+  CONTENT_KIND_UNSPECIFIED = 0;
+  CONTENT_KIND_LIVE_CHANNEL = 1;
+  CONTENT_KIND_MOVIE = 2;
+  CONTENT_KIND_SERIES = 3;
+  CONTENT_KIND_EPISODE = 4;
+  CONTENT_KIND_SPORTS_EVENT = 5;
+  CONTENT_KIND_RECORDING = 6;
+  CONTENT_KIND_CATCHUP = 7;
+}
