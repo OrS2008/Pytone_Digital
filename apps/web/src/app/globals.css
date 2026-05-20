@@ -1,0 +1,31 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.row-scroll {
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+.row-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.tile {
+  transition: transform 140ms ease-out, box-shadow 140ms ease-out;
+}
+.tile:hover,
+.tile:focus-visible {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 2px #FF3B6E, 0 0 40px rgba(255, 59, 110, 0.4);
+  outline: none;
+}
