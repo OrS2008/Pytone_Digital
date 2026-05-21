@@ -34,8 +34,8 @@ flutter:
     - assets/fonts/
     - assets/animations/
   fonts:
-    - family: Nova StreamDisplay
+    - family: NovaStreamDisplay
       fonts:
-        - asset: assets/fonts/Nova StreamDisplay-Regular.ttf
-        - asset: assets/fonts/Nova StreamDisplay-Bold.ttf
+        - asset: assets/fonts/NovaStreamDisplay-Regular.ttf
+        - asset: assets/fonts/NovaStreamDisplay-Bold.ttf
           weight: 700

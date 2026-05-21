@@ -16,7 +16,7 @@ class NovaStreamTheme {
         surface: surface,
         onSurface: onSurface,
       ),
-      fontFamily: 'Nova StreamDisplay',
+      fontFamily: 'NovaStreamDisplay',
       textTheme: const TextTheme(
         displayLarge: TextStyle(
           fontSize: 56,

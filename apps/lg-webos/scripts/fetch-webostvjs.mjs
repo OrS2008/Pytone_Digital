@@ -12,9 +12,9 @@ const VERSION = '1.2.10';
 const URL = `https://webostv.developer.lge.com/sdkdownload/webostvjs/webOSTV-${VERSION}.js`;
 const OUT = new URL('../webOSTV.js', import.meta.url);
 
-if (existsSync(OUT) && process.env.NOVA STREAM_FORCE_REFETCH !== '1') {
+if (existsSync(OUT) && process.env.NOVASTREAM_FORCE_REFETCH !== '1') {
   // Stub already in place (committed) — only refetch if explicitly asked.
-  console.log(`webOSTV.js already present at ${OUT.pathname} (set NOVA STREAM_FORCE_REFETCH=1 to refresh).`);
+  console.log(`webOSTV.js already present at ${OUT.pathname} (set NOVASTREAM_FORCE_REFETCH=1 to refresh).`);
   process.exit(0);
 }
 
