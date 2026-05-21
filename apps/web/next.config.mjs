@@ -2,7 +2,10 @@
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  typedRoutes: true,
+  // typedRoutes disabled for now: many screens (legal, marketing, the
+  // password-reset flow) live as routes-to-be — typing them ahead of time
+  // would force a Page stub for each. Re-enable when the routing settles.
+  typedRoutes: false,
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.novastream.tv' },

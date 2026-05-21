@@ -14,6 +14,7 @@
 // has its own nav bar.
 
 import type { Metadata } from 'next';
+import './themes.css';
 import './tv.css';
 import TvBoot from '@/components/tv/TvBoot';
 

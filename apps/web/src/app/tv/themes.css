@@ -1,0 +1,233 @@
+/*
+ * The theme system.
+ *
+ * Every visual property the UI cares about is a CSS variable defined here.
+ * Five themes ship by default (apex, aurora, mono, cyber, premium). The
+ * active one is set on <html data-theme="..."> by the ThemeProvider, which
+ * reads the user's preference from localStorage on boot.
+ *
+ * Components only ever reference var(--ns-…) — never hard-coded colours,
+ * fonts, or radii. That keeps the theme switch a single attribute change
+ * and protects the production code from drifting away from the design
+ * system.
+ *
+ * Some themes use a few extras (aurora needs backdrop-filter glass, cyber
+ * needs an overlay, mono+cyber use a monospaced face) — those are surfaced
+ * via theme-specific class hooks rather than additional variables.
+ */
+
+/* --- Default (apex) ------------------------------------------------------ */
+:root,
+:root[data-theme="apex"] {
+  --ns-bg:            #06070A;
+  --ns-bg-elevated:   #0E1015;
+  --ns-bg-input:      #0A0B10;
+  --ns-bg-hover:      #11141B;
+  --ns-hairline:      #11141B;
+  --ns-border:        #1B1E27;
+  --ns-border-strong: #2A2E3B;
+
+  --ns-text:        #E9EBF1;
+  --ns-text-muted:  #B7BEC9;
+  --ns-text-faint:  #6E7480;
+  --ns-text-dim:    #5A6070;
+
+  --ns-accent:        #FF3B6E;
+  --ns-accent-soft:   rgba(255, 59, 110, 0.14);
+  --ns-accent-glow:   0 0 24px rgba(255, 59, 110, 0.45);
+  --ns-accent-grad:   linear-gradient(135deg, #FF3B6E, #8B5CF6);
+  --ns-accent-text-on: #ffffff;
+  --ns-accent-2:      #8B5CF6;
+
+  --ns-ok:      #7DF9C6;
+  --ns-warn:    #FFB020;
+  --ns-danger:  #FF6B7B;
+
+  --ns-radius-sm: 6px;
+  --ns-radius-md: 10px;
+  --ns-radius-lg: 14px;
+  --ns-radius-xl: 18px;
+
+  --ns-font-display: 'Inter', system-ui, sans-serif;
+  --ns-font-body:    'Inter', system-ui, sans-serif;
+  --ns-font-mono:    'JetBrains Mono', ui-monospace, monospace;
+
+  --ns-display-weight: 800;
+  --ns-display-tracking: -1.5px;
+  --ns-display-italic: normal;
+
+  --ns-card-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+
+  /* Effects on/off per theme */
+  --ns-glass-blur: 0px;
+  --ns-overlay-grid: none;
+  --ns-overlay-scanline: none;
+}
+
+/* --- Aurora glass -------------------------------------------------------- */
+:root[data-theme="aurora"] {
+  --ns-bg:            #07091A;
+  --ns-bg-elevated:   rgba(20, 23, 50, 0.55);
+  --ns-bg-input:      rgba(20, 23, 50, 0.4);
+  --ns-bg-hover:      rgba(255, 255, 255, 0.04);
+  --ns-hairline:      rgba(255, 255, 255, 0.06);
+  --ns-border:        rgba(255, 255, 255, 0.08);
+  --ns-border-strong: rgba(167, 139, 250, 0.4);
+
+  --ns-text:        #ECEEFA;
+  --ns-text-muted:  rgba(236, 238, 250, 0.7);
+  --ns-text-faint:  rgba(236, 238, 250, 0.55);
+  --ns-text-dim:    rgba(236, 238, 250, 0.4);
+
+  --ns-accent:        #A78BFA;
+  --ns-accent-soft:   rgba(167, 139, 250, 0.15);
+  --ns-accent-glow:   0 0 28px rgba(167, 139, 250, 0.5);
+  --ns-accent-grad:   linear-gradient(135deg, #7DF9C6, #A78BFA);
+  --ns-accent-text-on: #0A0F25;
+  --ns-accent-2:      #7DF9C6;
+
+  --ns-radius-sm: 10px;
+  --ns-radius-md: 14px;
+  --ns-radius-lg: 22px;
+  --ns-radius-xl: 28px;
+
+  --ns-glass-blur: 28px;
+}
+
+/* --- Editorial mono ----------------------------------------------------- */
+:root[data-theme="mono"] {
+  --ns-bg:            #000000;
+  --ns-bg-elevated:   #0A0A0A;
+  --ns-bg-input:      #0A0A0A;
+  --ns-bg-hover:      rgba(255, 255, 255, 0.04);
+  --ns-hairline:      #0F0F0F;
+  --ns-border:        #1A1A1A;
+  --ns-border-strong: rgba(255, 255, 255, 0.2);
+
+  --ns-text:        #ffffff;
+  --ns-text-muted:  rgba(255, 255, 255, 0.7);
+  --ns-text-faint:  rgba(255, 255, 255, 0.45);
+  --ns-text-dim:    rgba(255, 255, 255, 0.3);
+
+  --ns-accent:        #C7F538;
+  --ns-accent-soft:   rgba(199, 245, 56, 0.10);
+  --ns-accent-glow:   0 0 18px rgba(199, 245, 56, 0.4);
+  --ns-accent-grad:   linear-gradient(90deg, #C7F538, #C7F538);
+  --ns-accent-text-on: #000000;
+  --ns-accent-2:      #ffffff;
+
+  --ns-radius-sm: 0;
+  --ns-radius-md: 0;
+  --ns-radius-lg: 0;
+  --ns-radius-xl: 0;
+
+  --ns-display-weight: 800;
+  --ns-display-tracking: -2px;
+  --ns-font-display: 'Inter', system-ui, sans-serif;
+}
+
+/* --- Cyber HUD ----------------------------------------------------------- */
+:root[data-theme="cyber"] {
+  --ns-bg:            #04080A;
+  --ns-bg-elevated:   #07101A;
+  --ns-bg-input:      #07101A;
+  --ns-bg-hover:      rgba(0, 240, 255, 0.06);
+  --ns-hairline:      rgba(0, 240, 255, 0.10);
+  --ns-border:        rgba(0, 240, 255, 0.30);
+  --ns-border-strong: #00F0FF;
+
+  --ns-text:        #C7E9F2;
+  --ns-text-muted:  rgba(199, 233, 242, 0.75);
+  --ns-text-faint:  rgba(199, 233, 242, 0.55);
+  --ns-text-dim:    rgba(199, 233, 242, 0.35);
+
+  --ns-accent:        #00F0FF;
+  --ns-accent-soft:   rgba(0, 240, 255, 0.10);
+  --ns-accent-glow:   0 0 16px rgba(0, 240, 255, 0.6);
+  --ns-accent-grad:   linear-gradient(90deg, #00F0FF, #00F0FF);
+  --ns-accent-text-on: #04080A;
+  --ns-accent-2:      #FFB020;
+
+  --ns-radius-sm: 0;
+  --ns-radius-md: 0;
+  --ns-radius-lg: 0;
+  --ns-radius-xl: 0;
+
+  --ns-font-display: 'JetBrains Mono', ui-monospace, monospace;
+  --ns-font-body:    'JetBrains Mono', ui-monospace, monospace;
+  --ns-display-weight: 700;
+  --ns-display-tracking: 2px;
+
+  --ns-overlay-grid:
+    linear-gradient(rgba(0, 240, 255, 0.04) 1px, transparent 1px) 0 0 / 48px 48px,
+    linear-gradient(90deg, rgba(0, 240, 255, 0.04) 1px, transparent 1px) 0 0 / 48px 48px;
+  --ns-overlay-scanline: repeating-linear-gradient(
+      0deg, transparent 0px, transparent 2px,
+      rgba(0, 240, 255, 0.025) 2px, rgba(0, 240, 255, 0.025) 3px);
+}
+
+/* --- Premium charcoal ---------------------------------------------------- */
+:root[data-theme="premium"] {
+  --ns-bg:            #14110D;
+  --ns-bg-elevated:   #1F1B14;
+  --ns-bg-input:      #1A170F;
+  --ns-bg-hover:      rgba(200, 163, 92, 0.06);
+  --ns-hairline:      #2A2418;
+  --ns-border:        #2A2418;
+  --ns-border-strong: rgba(200, 163, 92, 0.35);
+
+  --ns-text:        #E8DDC6;
+  --ns-text-muted:  rgba(232, 221, 198, 0.7);
+  --ns-text-faint:  rgba(232, 221, 198, 0.55);
+  --ns-text-dim:    rgba(232, 221, 198, 0.4);
+
+  --ns-accent:        #C8A35C;
+  --ns-accent-soft:   rgba(200, 163, 92, 0.10);
+  --ns-accent-glow:   0 0 20px rgba(200, 163, 92, 0.5);
+  --ns-accent-grad:   linear-gradient(135deg, #C8A35C, #8B6F3A);
+  --ns-accent-text-on: #14110D;
+  --ns-accent-2:      #F4EAD0;
+
+  --ns-radius-sm: 6px;
+  --ns-radius-md: 8px;
+  --ns-radius-lg: 12px;
+  --ns-radius-xl: 18px;
+
+  --ns-font-display: 'Crimson Pro', Georgia, serif;
+  --ns-font-body:    'Inter', system-ui, sans-serif;
+  --ns-display-weight: 500;
+  --ns-display-tracking: -1px;
+  --ns-display-italic: italic;
+}
+
+/* --- Background overlays per theme -------------------------------------- */
+/* Cyber adds a subtle grid + scanline behind everything. Aurora gets
+   coloured blur blobs. The overlays sit on body::before/::after so they
+   don't affect z-stacking of real content. */
+
+body[data-theme="cyber"]::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: var(--ns-overlay-grid);
+  pointer-events: none;
+  z-index: 0;
+}
+body[data-theme="cyber"]::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: var(--ns-overlay-scanline);
+  pointer-events: none;
+  z-index: 0;
+}
+
+body[data-theme="aurora"]::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(circle at 10% 10%, rgba(125, 249, 198, 0.30) 0, transparent 600px),
+    radial-gradient(circle at 90% 30%, rgba(167, 139, 250, 0.35) 0, transparent 700px),
+    radial-gradient(circle at 50% 100%, rgba(240, 171, 252, 0.18) 0, transparent 700px);
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+}

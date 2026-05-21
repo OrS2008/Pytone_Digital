@@ -19,10 +19,25 @@ import { useEffect } from 'react';
  */
 export default function TvBoot() {
   useEffect(() => {
-    // Disable wheel + touch scrolling — TV browsers occasionally route
-    // pointer-y events from accidental remote touches and we never want
-    // the page to scroll natively. All scrolling is JS-driven.
-    const prevent = (e: Event) => e.preventDefault();
+    // Apply the saved theme on first paint so the user never sees a
+    // flash of the default before their preference loads. The choice is
+    // written by /tv/account/appearance to localStorage.
+    try {
+      const saved = localStorage.getItem('ns.theme');
+      if (saved && ['apex','aurora','mono','cyber','premium'].includes(saved)) {
+        document.documentElement.setAttribute('data-theme', saved);
+        document.body.setAttribute('data-theme', saved);
+      }
+    } catch { /* localStorage may be locked */ }
+
+    // Scroll lock — see comment above. (Account screens have their own
+    // managed scrollers; this only suppresses the page-level scroll the
+    // TV remote sometimes triggers via accidental pointer events.)
+    const prevent = (e: Event) => {
+      const target = e.target as Element | null;
+      if (target?.closest('.ac-panel, .ac-sidebar, .ac-rail')) return;
+      e.preventDefault();
+    };
     document.addEventListener('wheel', prevent, { passive: false });
     document.addEventListener('touchmove', prevent, { passive: false });
 
