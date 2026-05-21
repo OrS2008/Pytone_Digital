@@ -6,7 +6,19 @@ on:
   pull_request:
     branches: [main]
 
+# Cancel superseded runs on the same ref — saves a lot of minutes when
+# pushing rapid fixups.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # --- Go workspace -------------------------------------------------------
+  #
+  # `go test ./...` does NOT recurse across modules in a Go workspace; we
+  # have to invoke it per-module. We list the modules from `go list -m` and
+  # iterate. Each step runs in a fresh shell so a single module's failure
+  # surfaces clearly in the GH Actions UI.
   go:
     name: Go workspace
     runs-on: ubuntu-latest
@@ -26,27 +38,46 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.24'
           cache-dependency-path: |
             **/go.sum
-      - name: go vet (workspace)
-        run: go vet ./...
-      - name: go test (workspace)
+      - name: Vet (all modules)
+        run: |
+          set -euo pipefail
+          for d in $(go list -m -f '{{.Dir}}'); do
+            echo "::group::go vet $d"
+            (cd "$d" && go vet ./...)
+            echo "::endgroup::"
+          done
+      - name: Test (all modules)
         env:
           DATABASE_URL: postgres://novastream:novastream@localhost:5432/novastream?sslmode=disable
           REDIS_URL: redis://localhost:6379/0
-        run: go test ./... -race -count=1
+        run: |
+          set -euo pipefail
+          for d in $(go list -m -f '{{.Dir}}'); do
+            echo "::group::go test $d"
+            (cd "$d" && go test ./... -race -count=1)
+            echo "::endgroup::"
+          done
 
+  # --- Proto lint --------------------------------------------------------
   proto-lint:
     name: Proto lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - run: buf lint libs/proto
-      - run: buf breaking libs/proto --against 'https://github.com/${{ github.repository }}.git#branch=main,subdir=libs/proto'
+      - name: Breaking-change check
+        # Compares against main; allowed to fail on feature branches that
+        # have already merged the breaking change locally.
+        run: buf breaking libs/proto --against 'https://github.com/${{ github.repository }}.git#branch=main,subdir=libs/proto'
         continue-on-error: true
 
+  # --- Flutter TV --------------------------------------------------------
   flutter-tv:
     name: Flutter TV
     runs-on: ubuntu-latest
@@ -55,6 +86,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.24.x'
       - run: flutter pub get
         working-directory: apps/tv
       - run: flutter analyze
@@ -62,6 +94,7 @@ jobs:
       - run: flutter test
         working-directory: apps/tv
 
+  # --- Web (Next.js) -----------------------------------------------------
   web:
     name: Web (Next.js)
     runs-on: ubuntu-latest
@@ -76,11 +109,14 @@ jobs:
         working-directory: apps/web
       - run: npm run typecheck
         working-directory: apps/web
+      # `next build` runs ESLint internally with the same config; this
+      # explicit step gives a clearer failure surface for lint issues.
       - run: npm run lint
         working-directory: apps/web
       - run: npm run build
         working-directory: apps/web
 
+  # --- Docker images -----------------------------------------------------
   docker:
     name: Docker images
     runs-on: ubuntu-latest

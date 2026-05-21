@@ -1,0 +1,25 @@
+# Standard Flutter / Dart lint configuration. Tracks the
+# `flutter_lints` package for the curated set, plus a few project-specific
+# tweaks.
+
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    # Allow `const` widgets without explicit `const` since the TV codebase
+    # uses both interchangeably during prototyping. Tighten before GA.
+    prefer_const_constructors: false
+    prefer_const_literals_to_create_immutables: false
+    use_key_in_widget_constructors: true
+    avoid_print: false
+    use_super_parameters: true
+
+analyzer:
+  errors:
+    # Allow withOpacity in light-touch UI work. The replacement (.withValues)
+    # only lands in Flutter 3.27; we target 3.24+ for broader CI compatibility.
+    deprecated_member_use: ignore
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "build/**"

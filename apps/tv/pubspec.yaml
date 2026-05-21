@@ -1,5 +1,5 @@
 name: nova_stream_tv
-description: Nova Stream TV app — Android TV, Google TV, Apple TV, Fire TV, Tizen, WebOS.
+description: Nova Stream TV app — Android TV, Google TV, Apple TV, Fire TV.
 publish_to: 'none'
 version: 0.1.0
 
@@ -30,12 +30,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/fonts/
-    - assets/animations/
-  fonts:
-    - family: NovaStreamDisplay
-      fonts:
-        - asset: assets/fonts/NovaStreamDisplay-Regular.ttf
-        - asset: assets/fonts/NovaStreamDisplay-Bold.ttf
-          weight: 700
+  # Asset packs (custom fonts, lottie animations) are added when the brand
+  # assets are finalised. Until then we rely on system fonts via theme.dart's
+  # fontFamily fallback chain. Adding empty asset directories here would
+  # break `flutter pub get`.

@@ -6,6 +6,14 @@ deps:
 lint:
   use:
     - STANDARD
+  # Deferred while the schema is still evolving — many RPCs currently use
+  # the entity type directly as request/response (e.g. PlaylistService.GetSource
+  # returns Source). The migration to per-RPC Request/Response wrapper
+  # messages is tracked separately and will land before GA.
+  except:
+    - RPC_REQUEST_STANDARD_NAME
+    - RPC_RESPONSE_STANDARD_NAME
+    - RPC_REQUEST_RESPONSE_UNIQUE
 breaking:
   use:
     - FILE
