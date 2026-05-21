@@ -51,7 +51,11 @@ async function attachHls(video: HTMLVideoElement, opts: AttachOpts) {
 }
 
 async function attachShaka(video: HTMLVideoElement, opts: AttachOpts) {
-  const shaka = await import('shaka-player');
+  // shaka-player's ESM build wraps everything under a namespace; its types
+  // do not expose the namespace members at module level, so we type the
+  // imported binding as `any` and reach in.
+  const mod = (await import('shaka-player')) as any;
+  const shaka = mod.default ?? mod;
   shaka.polyfill.installAll();
   const player = new shaka.Player(video);
   if (opts.drm) {

@@ -1,0 +1,6 @@
+Drop the production 1920x1080 splash background here, named `splash.png`.
+
+webOS shows this during cold start, before our launcher's HTML is
+parsed. Keep it close to the launcher's visual: deep #06070A field with
+the PYTONE wordmark; no spinners or motion (webOS draws this as a static
+bitmap).

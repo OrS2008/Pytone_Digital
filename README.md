@@ -26,9 +26,10 @@ network DVR, and an interface that feels invisible.
 
 ```
 apps/
-  tv/        Flutter app for Android TV, Google TV, Apple TV, Fire TV, Tizen, WebOS
+  lg-webos/  LG webOS IPK — thin Web App launcher for the hosted /tv route
+  tv/        Flutter app for Android TV, Google TV, Apple TV, Fire TV
   mobile/    Flutter app for iOS / Android phones and tablets
-  web/       Next.js 15 web client with WASM HLS/DASH player components
+  web/       Next.js 15 — public site, /tv route is the HTTP app the IPK loads
   admin/     Next.js admin console for operators
 
 services/

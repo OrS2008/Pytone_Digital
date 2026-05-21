@@ -141,6 +141,19 @@ services:
     environment:
       <<: *shared-env
 
+  # The HTTP app served to browsers and to the LG webOS IPK launcher (via
+  # /tv). Use `make tv-ipk-preview` to install the IPK on a registered TV
+  # pointed at this dev server.
+  web:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- -H 0.0.0.0"
+    volumes:
+      - ./apps/web:/app
+    ports: ["3000:3000"]
+    environment:
+      NEXT_PUBLIC_GATEWAY_URL: http://gateway:8080
+
 volumes:
   postgres-data:
   typesense-data:

@@ -1,0 +1,5 @@
+Drop the production 130x130 RGBA PNG here, named `largeIcon.png`.
+
+Used by the Smart Home menu and search results. Same content constraints
+as icon.png; LG renders this at 1:1 with no downscaling so do not let an
+80x80 source bilinear-scale into this slot.

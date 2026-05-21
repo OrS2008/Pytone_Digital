@@ -1,0 +1,24 @@
+{
+  "id": "tv.pytone.app",
+  "version": "0.1.0",
+  "vendor": "Pytone Digital",
+  "type": "web",
+  "main": "index.html",
+  "title": "Pytone",
+  "appDescription": "Live TV, VOD, sports, cloud DVR — the next generation of streaming.",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "splashBackground": "splash.png",
+  "iconColor": "#FF3B6E",
+  "bgColor": "#06070A",
+  "bgImage": "",
+  "vendorUrl": "https://pytone.tv",
+  "supportTouchMode": "none",
+  "handlesRelaunch": true,
+  "transparent": false,
+  "disableBackHistoryAPI": true,
+  "requiredPermissions": ["network", "internet"],
+  "accessibility": {
+    "supportsAudioGuidance": true
+  }
+}

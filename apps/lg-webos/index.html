@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+  Pytone webOS launcher.
+
+  This file is the entry point declared by appinfo.json. It is intentionally
+  tiny: its only job is to hand control to the hosted HTTP app at
+  https://app.pytone.tv/tv as quickly as possible. The IPK is therefore a
+  ~30 KB shell whose contents almost never change.
+
+  Why hosted instead of bundled?
+    * The web app ships changes daily; the IPK is gated by LG Content Store
+      review (weeks). Decoupling them lets product velocity stay high while
+      the IPK only needs to change when icons, app metadata or permission
+      manifest change.
+    * Smaller IPK means faster install and faster app cold start.
+
+  Resilience:
+    * The launcher probes connectivity before redirecting. If the network
+      is unreachable we fall through to offline.html, which shows a friendly
+      message and retries every 5 seconds rather than presenting an opaque
+      blank screen.
+    * Launch params (relaunch deep links, EPIC content IDs) are preserved by
+      appending them to the redirect URL — so when LG's voice search asks
+      Pytone to play a specific channel, that intent survives the redirect.
+-->
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1920, initial-scale=1">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Pytone</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #06070A;
+      color: #E9EBF1;
+      font-family: 'LG Smart UI', 'Helvetica Neue', sans-serif;
+      overflow: hidden;
+    }
+    .splash {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column;
+    }
+    .wordmark {
+      color: #FF3B6E;
+      font-weight: 800;
+      font-size: 96px;
+      letter-spacing: 24px;
+      margin-left: 24px; /* compensate for letter-spacing on last char */
+    }
+    .tagline {
+      margin-top: 8px;
+      color: #B7BEC9;
+      font-size: 22px;
+      letter-spacing: 8px;
+    }
+    .spinner {
+      margin-top: 56px;
+      width: 56px;
+      height: 56px;
+      border: 4px solid rgba(255, 59, 110, 0.2);
+      border-top-color: #FF3B6E;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="splash" role="status" aria-label="Loading Pytone">
+    <div class="wordmark">PYTONE</div>
+    <div class="tagline">THE NEXT GENERATION</div>
+    <div class="spinner" aria-hidden="true"></div>
+  </div>
+
+  <script src="webOSTV.js"></script>
+  <script src="boot.js"></script>
+</body>
+</html>

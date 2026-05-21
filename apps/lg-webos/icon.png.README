@@ -1,0 +1,9 @@
+Drop the production 80x80 RGBA PNG here, named `icon.png`.
+
+LG QA rejects icons that:
+  - are not exactly 80x80
+  - have a transparent background (LG renders icons on a glass tile; full
+    opacity reads better)
+  - use the iconColor (#FF3B6E) as the primary mass (LG composites that
+    color behind the icon — duplicate-coloring kills contrast)
+  - include the word "TV" (their style guide forbids it for app icons)

@@ -1,0 +1,197 @@
+/*
+ * TV-specific styles.
+ *
+ * Constraints we are designing for:
+ *   * The canvas is 1920x1080 logical pixels, but the user sits 3 metres
+ *     away. Real readability requires 24px body and 56px hero text.
+ *   * webOS's WebKit is older than current Chromium. Stick to
+ *     well-supported CSS; no :has(), no @container, no logical properties.
+ *   * Hardware GPU compositing is available but limited; prefer transforms
+ *     and opacity for animation, not width/height.
+ *   * Pixel-snap is unreliable on TVs (chroma subsampling) so we avoid
+ *     1px borders. Focus rings are 3px minimum.
+ */
+
+.pytone-tv-root {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #06070A;
+  color: #E9EBF1;
+  font-family: 'Inter', 'LG Smart UI', 'Helvetica Neue', sans-serif;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pytone-tv-root *,
+.pytone-tv-root *::before,
+.pytone-tv-root *::after {
+  box-sizing: border-box;
+}
+
+.pytone-tv-root h1, .pytone-tv-root h2, .pytone-tv-root h3 {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.tv-tile {
+  width: 320px;
+  height: 180px;
+  border-radius: 16px;
+  background: #11141B;
+  overflow: hidden;
+  position: relative;
+  transition: transform 140ms ease-out, box-shadow 140ms ease-out;
+  outline: none;
+  border: 3px solid transparent;
+  flex-shrink: 0;
+}
+
+.tv-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.tv-tile-caption {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  right: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.tv-tile-gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 50%);
+  pointer-events: none;
+}
+
+/* Focused tile. We do not rely on :focus alone because we manage focus in
+   JS (see TvFocus); a `.focused` class is added by our hook so the visual
+   stays in sync with logical focus on TVs that drop browser :focus on
+   non-button elements. */
+.tv-tile.focused {
+  transform: scale(1.06);
+  border-color: #FF3B6E;
+  box-shadow: 0 0 0 1px #FF3B6E, 0 0 48px rgba(255, 59, 110, 0.45);
+}
+
+.tv-row {
+  padding: 0 64px;
+  margin-bottom: 32px;
+}
+.tv-row h2 {
+  font-size: 28px;
+  margin-bottom: 16px;
+}
+.tv-row-strip {
+  display: flex;
+  gap: 16px;
+  overflow: hidden; /* we move the strip with transform, not native scroll */
+  will-change: transform;
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tv-hero {
+  height: 70vh;
+  min-height: 540px;
+  position: relative;
+  overflow: hidden;
+}
+.tv-hero img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.tv-hero-shade {
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(90deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0) 70%),
+    linear-gradient(0deg,  #06070A 0%, rgba(0,0,0,0) 45%);
+}
+.tv-hero-content {
+  position: absolute;
+  left: 64px; bottom: 64px;
+  max-width: 720px;
+}
+.tv-hero-eyebrow {
+  color: #FF3B6E;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+}
+.tv-hero-title {
+  font-size: 56px;
+  line-height: 1.05;
+  margin: 8px 0 12px;
+}
+.tv-hero-sub {
+  font-size: 18px;
+  color: #B7BEC9;
+  line-height: 1.45;
+}
+.tv-hero-actions {
+  margin-top: 24px;
+  display: flex;
+  gap: 12px;
+}
+
+.tv-btn {
+  display: inline-block;
+  padding: 14px 28px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #E9EBF1;
+  font-weight: 700;
+  font-size: 16px;
+  border: 3px solid transparent;
+  outline: none;
+  cursor: pointer;
+}
+.tv-btn-primary {
+  background: #FF3B6E;
+  color: #fff;
+}
+.tv-btn.focused {
+  transform: scale(1.05);
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 24px rgba(255, 59, 110, 0.6);
+}
+
+.tv-nav {
+  display: flex;
+  align-items: center;
+  padding: 36px 64px 28px;
+}
+.tv-nav-wordmark {
+  color: #FF3B6E;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: 6px;
+  margin-right: 56px;
+}
+.tv-nav-link {
+  padding: 8px 18px;
+  font-size: 18px;
+  font-weight: 500;
+  color: rgba(233, 235, 241, 0.7);
+  border-radius: 8px;
+  border: 3px solid transparent;
+  outline: none;
+}
+.tv-nav-link.focused {
+  color: #fff;
+  border-color: #FF3B6E;
+}

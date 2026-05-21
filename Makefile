@@ -42,8 +42,22 @@ tv: ## Run the TV app
 mobile: ## Run the mobile app
 	cd apps/mobile && flutter run
 
-web: ## Run the web app
+web: ## Run the web app (also serves /tv for the LG IPK)
 	cd apps/web && npm run dev
+
+# --- LG webOS --------------------------------------------------------------
+lg-ipk: ## Build the LG webOS IPK
+	cd apps/lg-webos && npm install && make dist
+
+lg-install: ## Install the IPK on a registered TV (DEVICE=pytone-tv)
+	cd apps/lg-webos && make install DEVICE=$${DEVICE:-pytone-tv}
+
+lg-launch: ## Launch the app on the TV
+	cd apps/lg-webos && make launch DEVICE=$${DEVICE:-pytone-tv}
+
+lg-launch-local: ## Launch pointing the TV at this laptop's web dev server
+	cd apps/lg-webos && ares-launch -d $${DEVICE:-pytone-tv} tv.pytone.app \
+	  -p '{"appUrl":"http://$(shell hostname -I | awk '{print $$1}'):3000/tv"}'
 
 # --- migrations ------------------------------------------------------------
 migrate: ## Apply all migrations against the local Postgres
