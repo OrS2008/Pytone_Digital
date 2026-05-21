@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package pytone.playback.v1;
+package novastream.playback.v1;
 
 import "google/protobuf/timestamp.proto";
-import "pytone/common/v1/common.proto";
+import "novastream/common/v1/common.proto";
 
-option go_package = "github.com/pytone/pytone/services/_generated/go/pytone/playback/v1;playbackv1";
+option go_package = "github.com/novastream/novastream/services/_generated/go/novastream/playback/v1;playbackv1";
 
 // PlaybackTicket is a short-lived authorization for one playback session.
 message PlaybackTicket {
@@ -13,7 +13,7 @@ message PlaybackTicket {
   string playback_url = 2;
   string token = 3; // HMAC-signed
   google.protobuf.Timestamp expires_at = 4;
-  pytone.common.v1.Quality quality = 5;
+  novastream.common.v1.Quality quality = 5;
   repeated AudioTrack audio_tracks = 6;
   repeated SubtitleTrack subtitle_tracks = 7;
   // Whether the client should treat this as a live stream (rewind enabled).
@@ -69,7 +69,7 @@ service PlaybackService {
 message GetPlaybackTicketRequest {
   string user_id = 1;
   string content_id = 2;
-  pytone.common.v1.ContentKind content_kind = 3;
+  novastream.common.v1.ContentKind content_kind = 3;
   // Optional: requested start time for catch-up.
   google.protobuf.Timestamp start_at = 4;
   string device_id = 5;

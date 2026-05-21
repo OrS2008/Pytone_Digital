@@ -6,7 +6,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/google/uuid"
 
-	"github.com/pytone/pytone/libs/go/pkg/m3u"
+	"github.com/novastream/novastream/libs/go/pkg/m3u"
 )
 
 // batcher accumulates parsed M3U entries and flushes them to the store in

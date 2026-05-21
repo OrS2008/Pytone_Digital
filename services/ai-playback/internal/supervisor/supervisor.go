@@ -29,7 +29,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/pytone/pytone/libs/go/pkg/logging"
+	"github.com/novastream/novastream/libs/go/pkg/logging"
 )
 
 // Supervisor is the closed-loop controller.

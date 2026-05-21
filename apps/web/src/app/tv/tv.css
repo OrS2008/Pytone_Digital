@@ -12,7 +12,7 @@
  *     1px borders. Focus rings are 3px minimum.
  */
 
-.pytone-tv-root {
+.nova-tv-root {
   position: fixed;
   inset: 0;
   width: 100vw;
@@ -26,13 +26,13 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.pytone-tv-root *,
-.pytone-tv-root *::before,
-.pytone-tv-root *::after {
+.nova-tv-root *,
+.nova-tv-root *::before,
+.nova-tv-root *::after {
   box-sizing: border-box;
 }
 
-.pytone-tv-root h1, .pytone-tv-root h2, .pytone-tv-root h3 {
+.nova-tv-root h1, .nova-tv-root h2, .nova-tv-root h3 {
   margin: 0;
   font-weight: 700;
   letter-spacing: -0.5px;

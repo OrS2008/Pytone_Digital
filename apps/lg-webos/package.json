@@ -1,16 +1,16 @@
 {
-  "name": "pytone-lg-webos",
+  "name": "nova-stream-lg-webos",
   "version": "0.1.0",
   "private": true,
-  "description": "LG webOS IPK launcher for the Pytone hosted Web App.",
+  "description": "LG webOS IPK launcher for the Nova Stream hosted Web App.",
   "scripts": {
     "prepare": "node scripts/fetch-webostvjs.mjs",
     "package": "ares-package . -o dist",
-    "install:tv": "ares-install -d $DEVICE dist/tv.pytone.app_*.ipk",
-    "launch:tv": "ares-launch -d $DEVICE tv.pytone.app",
-    "inspect:tv": "ares-inspect -d $DEVICE -a tv.pytone.app",
+    "install:tv": "ares-install -d $DEVICE dist/tv.novastream.app_*.ipk",
+    "launch:tv": "ares-launch -d $DEVICE tv.novastream.app",
+    "inspect:tv": "ares-inspect -d $DEVICE -a tv.novastream.app",
     "logs:tv": "ares-shell -d $DEVICE -r 'journalctl -f -t WebAppMgr'",
-    "uninstall:tv": "ares-install -d $DEVICE -r tv.pytone.app",
+    "uninstall:tv": "ares-install -d $DEVICE -r tv.novastream.app",
     "preview": "npx --yes serve -l 5050 ."
   },
   "devDependencies": {

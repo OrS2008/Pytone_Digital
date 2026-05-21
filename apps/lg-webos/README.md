@@ -1,8 +1,8 @@
-# Pytone — LG webOS app
+# Nova Stream — LG webOS app
 
 This is the LG TV target. It is a **webOS Web App** packaged as an **IPK**
 that acts as a thin launcher for the hosted HTTP app at
-`https://app.pytone.tv/tv`.
+`https://app.novastream.tv/tv`.
 
 ## Why hosted, not bundled?
 
@@ -41,7 +41,7 @@ You need the webOS TV CLI. Either install it locally via npm
 ```bash
 cd apps/lg-webos
 npm install          # installs ares-cli + drops the real webOSTV.js into place
-make dist            # produces dist/tv.pytone.app_0.1.0_all.ipk
+make dist            # produces dist/tv.novastream.app_0.1.0_all.ipk
 ```
 
 ## Sideload to a TV
@@ -52,15 +52,15 @@ Developer account, toggle Dev Mode on).
 
 ```bash
 # One-time: register your TV
-ares-setup-device --add pytone-tv \
+ares-setup-device --add novastream-tv \
     --info "host=192.168.1.42, port=9922, username=prisoner, passphrase=KEYFROMTV"
 
 # Build, install, launch
-make install DEVICE=pytone-tv
-make launch  DEVICE=pytone-tv
+make install DEVICE=novastream-tv
+make launch  DEVICE=novastream-tv
 
 # Live-debug from your laptop's Chrome:
-make inspect DEVICE=pytone-tv
+make inspect DEVICE=novastream-tv
 ```
 
 ## Pointing at a different environment
@@ -70,7 +70,7 @@ make inspect DEVICE=pytone-tv
 make launch-staging
 
 # Or set a sticky override on the device
-ares-launch -d pytone-tv tv.pytone.app -p '{"target":"staging"}'
+ares-launch -d novastream-tv tv.novastream.app -p '{"target":"staging"}'
 ```
 
 ## Submitting to LG Content Store
@@ -89,7 +89,7 @@ ares-launch -d pytone-tv tv.pytone.app -p '{"target":"staging"}'
 ```
 PalmSystem available?
         │
-        ├─ no   → browser preview, redirect to https://app.pytone.tv/tv
+        ├─ no   → browser preview, redirect to https://app.novastream.tv/tv
         │
         └─ yes  → parse launchParams for deep links + env overrides
                   ↓

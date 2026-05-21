@@ -19,10 +19,10 @@ package main
 import (
 	"context"
 
-	"github.com/pytone/pytone/libs/go/pkg/config"
-	"github.com/pytone/pytone/libs/go/pkg/logging"
-	"github.com/pytone/pytone/libs/go/pkg/server"
-	"github.com/pytone/pytone/services/recording/internal/recorder"
+	"github.com/novastream/novastream/libs/go/pkg/config"
+	"github.com/novastream/novastream/libs/go/pkg/logging"
+	"github.com/novastream/novastream/libs/go/pkg/server"
+	"github.com/novastream/novastream/services/recording/internal/recorder"
 )
 
 func main() {

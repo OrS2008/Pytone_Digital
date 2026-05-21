@@ -18,13 +18,13 @@ import './tv.css';
 import TvBoot from '@/components/tv/TvBoot';
 
 export const metadata: Metadata = {
-  title: 'Pytone',
+  title: 'Nova Stream',
   description: 'The next generation of streaming.',
 };
 
 export default function TvLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="pytone-tv-root">
+    <div className="nova-tv-root">
       <TvBoot />
       {children}
     </div>

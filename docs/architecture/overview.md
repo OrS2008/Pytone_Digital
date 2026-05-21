@@ -1,6 +1,6 @@
 # Architecture Overview
 
-Pytone Digital is a microservices-based streaming platform. Each service owns its
+Nova Stream is a microservices-based streaming platform. Each service owns its
 data, exposes typed gRPC APIs internally, and is reachable from clients only
 through the GraphQL/REST gateway.
 

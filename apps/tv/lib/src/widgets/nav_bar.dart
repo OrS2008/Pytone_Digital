@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-class PytoneNavBar extends StatelessWidget {
-  const PytoneNavBar({super.key});
+class NovaStreamNavBar extends StatelessWidget {
+  const NovaStreamNavBar({super.key});
 
   static const _items = [
     _NavItem('Home', '/'),
@@ -19,7 +19,7 @@ class PytoneNavBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(64, 40, 64, 24),
       child: Row(
         children: [
-          Text('PYTONE',
+          Text('NOVA STREAM',
               style: TextStyle(
                 color: Theme.of(context).colorScheme.primary,
                 fontSize: 22,

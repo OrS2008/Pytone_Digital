@@ -1,18 +1,18 @@
 syntax = "proto3";
 
-package pytone.playlist.v1;
+package novastream.playlist.v1;
 
 import "google/protobuf/timestamp.proto";
-import "pytone/common/v1/common.proto";
+import "novastream/common/v1/common.proto";
 
-option go_package = "github.com/pytone/pytone/services/_generated/go/pytone/playlist/v1;playlistv1";
+option go_package = "github.com/novastream/novastream/services/_generated/go/novastream/playlist/v1;playlistv1";
 
 // Source represents a playlist source (M3U URL, Xtream credentials, OTA tuner, …).
 message Source {
   string id = 1;
   string owner_id = 2; // tenant / user id
   string name = 3;
-  pytone.common.v1.SourceKind kind = 4;
+  novastream.common.v1.SourceKind kind = 4;
   string url = 5;
   string username = 6;
   string password = 7;
@@ -47,8 +47,8 @@ message Stream {
   string id = 1;
   string channel_id = 2;
   string url = 3;
-  pytone.common.v1.Quality quality = 4;
-  pytone.common.v1.StreamHealth health = 5;
+  novastream.common.v1.Quality quality = 4;
+  novastream.common.v1.StreamHealth health = 5;
   google.protobuf.Timestamp last_probed_at = 6;
   uint32 latency_ms = 7;
   uint32 priority = 8; // lower = preferred
@@ -78,11 +78,11 @@ message GetSourceRequest { string source_id = 1; }
 
 message ListSourcesRequest {
   string owner_id = 1;
-  pytone.common.v1.Page page = 2;
+  novastream.common.v1.Page page = 2;
 }
 message ListSourcesResponse {
   repeated Source sources = 1;
-  pytone.common.v1.PageInfo page_info = 2;
+  novastream.common.v1.PageInfo page_info = 2;
 }
 
 message TriggerRefreshRequest { string source_id = 1; }
@@ -92,18 +92,18 @@ message ListChannelsRequest {
   string source_id = 1;
   string category = 2;
   string query = 3;
-  pytone.common.v1.Page page = 4;
+  novastream.common.v1.Page page = 4;
 }
 message ListChannelsResponse {
   repeated Channel channels = 1;
-  pytone.common.v1.PageInfo page_info = 2;
+  novastream.common.v1.PageInfo page_info = 2;
 }
 
 message GetChannelRequest { string channel_id = 1; }
 
 message ReportStreamHealthRequest {
   string stream_id = 1;
-  pytone.common.v1.StreamHealth health = 2;
+  novastream.common.v1.StreamHealth health = 2;
   uint32 latency_ms = 3;
   string error = 4;
 }

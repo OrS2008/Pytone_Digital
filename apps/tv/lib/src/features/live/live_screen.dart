@@ -12,7 +12,7 @@ class LiveScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: Column(children: [PytoneNavBar(), Expanded(child: _EpgGrid())],
+      body: Column(children: [NovaStreamNavBar(), Expanded(child: _EpgGrid())],
       ),
     );
   }

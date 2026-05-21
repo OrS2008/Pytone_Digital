@@ -1,4 +1,4 @@
-module github.com/pytone/pytone/services/playlist-ingestion
+module github.com/novastream/novastream/services/playlist-ingestion
 
 go 1.23
 
@@ -6,7 +6,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.6.0
-	github.com/pytone/pytone/libs/go/pkg v0.0.0
+	github.com/novastream/novastream/libs/go/pkg v0.0.0
 	github.com/redis/go-redis/v9 v9.6.1
 	github.com/segmentio/kafka-go v0.4.47
 	golang.org/x/sync v0.7.0
@@ -39,4 +39,4 @@ require (
 	google.golang.org/protobuf v1.34.2 // indirect
 )
 
-replace github.com/pytone/pytone/libs/go/pkg => ../../libs/go/pkg
+replace github.com/novastream/novastream/libs/go/pkg => ../../libs/go/pkg

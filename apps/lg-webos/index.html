@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <!--
-  Pytone webOS launcher.
+  Nova Stream webOS launcher.
 
   This file is the entry point declared by appinfo.json. It is intentionally
   tiny: its only job is to hand control to the hosted HTTP app at
-  https://app.pytone.tv/tv as quickly as possible. The IPK is therefore a
+  https://app.novastream.tv/tv as quickly as possible. The IPK is therefore a
   ~30 KB shell whose contents almost never change.
 
   Why hosted instead of bundled?
@@ -22,13 +22,13 @@
       blank screen.
     * Launch params (relaunch deep links, EPIC content IDs) are preserved by
       appending them to the redirect URL — so when LG's voice search asks
-      Pytone to play a specific channel, that intent survives the redirect.
+      Nova Stream to play a specific channel, that intent survives the redirect.
 -->
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=1920, initial-scale=1">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title>Pytone</title>
+  <title>Nova Stream</title>
   <style>
     html, body {
       margin: 0;
@@ -71,8 +71,8 @@
   </style>
 </head>
 <body>
-  <div class="splash" role="status" aria-label="Loading Pytone">
-    <div class="wordmark">PYTONE</div>
+  <div class="splash" role="status" aria-label="Loading Nova Stream">
+    <div class="wordmark">NOVA STREAM</div>
     <div class="tagline">THE NEXT GENERATION</div>
     <div class="spinner" aria-hidden="true"></div>
   </div>

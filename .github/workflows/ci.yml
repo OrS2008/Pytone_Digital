@@ -14,11 +14,11 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: pytone
-          POSTGRES_PASSWORD: pytone
-          POSTGRES_DB: pytone
+          POSTGRES_USER: novastream
+          POSTGRES_PASSWORD: novastream
+          POSTGRES_DB: novastream
         ports: ["5432:5432"]
-        options: --health-cmd="pg_isready -U pytone" --health-interval=5s --health-timeout=3s --health-retries=10
+        options: --health-cmd="pg_isready -U novastream" --health-interval=5s --health-timeout=3s --health-retries=10
       redis:
         image: redis:7-alpine
         ports: ["6379:6379"]
@@ -33,7 +33,7 @@ jobs:
         run: go vet ./...
       - name: go test (workspace)
         env:
-          DATABASE_URL: postgres://pytone:pytone@localhost:5432/pytone?sslmode=disable
+          DATABASE_URL: postgres://novastream:novastream@localhost:5432/novastream?sslmode=disable
           REDIS_URL: redis://localhost:6379/0
         run: go test ./... -race -count=1
 

@@ -1,5 +1,5 @@
 /*
- * Pytone webOS launcher boot script.
+ * Nova Stream webOS launcher boot script.
  *
  * Responsibilities, in order:
  *   1. Resolve which URL to load (prod / staging / per-device override).
@@ -18,13 +18,13 @@
   'use strict';
 
   var TARGETS = {
-    prod:    'https://app.pytone.tv/tv',
-    staging: 'https://staging.app.pytone.tv/tv'
+    prod:    'https://app.novastream.tv/tv',
+    staging: 'https://staging.app.novastream.tv/tv'
   };
 
   function getOverride() {
     // Per-device override is set via Developer Mode using
-    //   ares-launch tv.pytone.app -p '{"target":"staging"}'
+    //   ares-launch tv.novastream.app -p '{"target":"staging"}'
     // (or by storing a value in webOS settings storage).
     try {
       if (window.PalmSystem && PalmSystem.launchParams) {
@@ -34,7 +34,7 @@
       }
     } catch (e) { /* malformed launch params — ignore */ }
     try {
-      var saved = localStorage.getItem('pytone.target');
+      var saved = localStorage.getItem('novastream.target');
       if (saved && TARGETS[saved]) return TARGETS[saved];
     } catch (e) { /* localStorage may be locked down */ }
     return TARGETS.prod;

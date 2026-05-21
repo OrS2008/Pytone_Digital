@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Pytone',
+  title: 'Nova Stream',
   description: 'The next generation of streaming.',
 };
 

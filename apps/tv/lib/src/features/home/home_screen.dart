@@ -25,7 +25,7 @@ class HomeScreen extends ConsumerWidget {
       child: Scaffold(
         body: CustomScrollView(
           slivers: [
-            const SliverToBoxAdapter(child: PytoneNavBar()),
+            const SliverToBoxAdapter(child: NovaStreamNavBar()),
             const SliverToBoxAdapter(child: HeroBanner()),
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
             for (final r in rows)

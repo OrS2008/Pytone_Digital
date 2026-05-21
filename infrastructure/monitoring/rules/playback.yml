@@ -18,7 +18,7 @@ groups:
           slo: playback_startup
         annotations:
           summary: "Playback startup p95 >1.5s in {{ $labels.region }}"
-          runbook: "https://runbooks.pytone.tv/playback-startup"
+          runbook: "https://runbooks.novastream.tv/playback-startup"
 
       - alert: PlaybackRebufferRateHigh
         expr: |

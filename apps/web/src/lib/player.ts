@@ -1,4 +1,4 @@
-// Pytone Web player chooser.
+// Nova Stream Web player chooser.
 //
 // Browsers fall into three buckets:
 //

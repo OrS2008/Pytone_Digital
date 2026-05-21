@@ -5,7 +5,7 @@ const nextConfig = {
   typedRoutes: true,
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: '**.pytone.tv' },
+      { protocol: 'https', hostname: '**.novastream.tv' },
       { protocol: 'https', hostname: 'image.tmdb.org' },
     ],
   },

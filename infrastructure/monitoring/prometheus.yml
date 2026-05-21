@@ -2,10 +2,10 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
-    cluster: pytone-dev
+    cluster: novastream-dev
 
 scrape_configs:
-  - job_name: pytone-services
+  - job_name: novastream-services
     metrics_path: /metrics
     static_configs:
       - targets:

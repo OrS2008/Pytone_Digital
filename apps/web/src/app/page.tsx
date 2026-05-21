@@ -1,4 +1,4 @@
-// Pytone Web — Next.js 15, app router, server components.
+// Nova Stream Web — Next.js 15, app router, server components.
 //
 // The web client is the most heterogeneous of our three frontends: it has to
 // support browsers from a 5-year-old Smart TV to the latest Chromebook. We

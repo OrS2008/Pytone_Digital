@@ -1,4 +1,4 @@
-// Pytone Mobile entrypoint.
+// Nova Stream Mobile entrypoint.
 //
 // Shares all data layer and design tokens with the TV app via libs/player-core
 // and libs/ui-kit. The mobile app is *not* a port of the TV app: layouts are
@@ -20,7 +20,7 @@ class MobileApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Pytone',
+      title: 'Nova Stream',
       theme: ThemeData.dark(useMaterial3: true),
       home: const _HomeShell(),
     );
@@ -38,7 +38,7 @@ class _HomeShellState extends State<_HomeShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: const Center(child: Text('Pytone Mobile')),
+      body: const Center(child: Text('Nova Stream Mobile')),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
         onDestinationSelected: (i) => setState(() => _tab = i),

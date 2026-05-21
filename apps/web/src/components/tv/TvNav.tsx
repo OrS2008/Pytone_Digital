@@ -32,7 +32,7 @@ export default function TvNav() {
 
   return (
     <nav className="tv-nav" data-tv-focus="1" onMouseEnter={focusNav}>
-      <span className="tv-nav-wordmark">PYTONE</span>
+      <span className="tv-nav-wordmark">NOVA STREAM</span>
       {ITEMS.map((it, i) => (
         <a
           key={it.href}

@@ -1,6 +1,6 @@
 # libs/ui-kit
 
-The Pytone design system, as a Flutter package, used by both `apps/tv` and
+The Nova Stream design system, as a Flutter package, used by both `apps/tv` and
 `apps/mobile`. Tokens (colors, radii, type ramp, motion curves) are exported
 once; both apps consume the same package.
 

@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package pytone.common.v1;
+package novastream.common.v1;
 
-option go_package = "github.com/pytone/pytone/services/_generated/go/pytone/common/v1;commonv1";
+option go_package = "github.com/novastream/novastream/services/_generated/go/novastream/common/v1;commonv1";
 
 // Page describes a forward-only cursor pagination request.
 message Page {

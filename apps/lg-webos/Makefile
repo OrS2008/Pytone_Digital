@@ -1,8 +1,8 @@
 .DEFAULT_GOAL := help
 
-# Default to the developer's `pytone-tv` named device (registered with
+# Default to the developer's `novastream-tv` named device (registered with
 # ares-setup-device); override with `make install DEVICE=mytv`.
-DEVICE ?= pytone-tv
+DEVICE ?= novastream-tv
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -11,23 +11,23 @@ dist: ## Build the IPK
 	@mkdir -p dist
 	ares-package . -o dist
 
-install: dist ## Install on a registered TV (DEVICE=pytone-tv)
-	ares-install -d $(DEVICE) dist/tv.pytone.app_*.ipk
+install: dist ## Install on a registered TV (DEVICE=novastream-tv)
+	ares-install -d $(DEVICE) dist/tv.novastream.app_*.ipk
 
 launch: ## Launch the installed app on the TV
-	ares-launch -d $(DEVICE) tv.pytone.app
+	ares-launch -d $(DEVICE) tv.novastream.app
 
 launch-staging: ## Launch pointing at staging
-	ares-launch -d $(DEVICE) tv.pytone.app -p '{"target":"staging"}'
+	ares-launch -d $(DEVICE) tv.novastream.app -p '{"target":"staging"}'
 
 inspect: ## Open Chrome devtools attached to the TV
-	ares-inspect -d $(DEVICE) -a tv.pytone.app
+	ares-inspect -d $(DEVICE) -a tv.novastream.app
 
 logs: ## Tail the TV's WebAppMgr logs
 	ares-shell -d $(DEVICE) -r 'journalctl -f -t WebAppMgr'
 
 uninstall: ## Uninstall the app from the TV
-	ares-install -d $(DEVICE) -r tv.pytone.app
+	ares-install -d $(DEVICE) -r tv.novastream.app
 
 preview: ## Serve the launcher locally for a browser preview
 	npx --yes serve -l 5050 .

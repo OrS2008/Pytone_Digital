@@ -37,7 +37,7 @@ import (
 // ManifestBuilder produces signed catch-up manifests.
 type ManifestBuilder struct {
 	pool      *pgxpool.Pool
-	publicURL string // e.g. https://dvr-cdn.pytone.tv
+	publicURL string // e.g. https://dvr-cdn.novastream.tv
 	signKey   []byte
 }
 

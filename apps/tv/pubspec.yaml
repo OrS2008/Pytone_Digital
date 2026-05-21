@@ -1,5 +1,5 @@
-name: pytone_tv
-description: Pytone Digital TV app — Android TV, Google TV, Apple TV, Fire TV, Tizen, WebOS.
+name: nova_stream_tv
+description: Nova Stream TV app — Android TV, Google TV, Apple TV, Fire TV, Tizen, WebOS.
 publish_to: 'none'
 version: 0.1.0
 
@@ -34,8 +34,8 @@ flutter:
     - assets/fonts/
     - assets/animations/
   fonts:
-    - family: PytoneDisplay
+    - family: Nova StreamDisplay
       fonts:
-        - asset: assets/fonts/PytoneDisplay-Regular.ttf
-        - asset: assets/fonts/PytoneDisplay-Bold.ttf
+        - asset: assets/fonts/Nova StreamDisplay-Regular.ttf
+        - asset: assets/fonts/Nova StreamDisplay-Bold.ttf
           weight: 700

@@ -22,7 +22,7 @@ export default function TvHero() {
 
   return (
     <section className="tv-hero" onMouseEnter={focusHero}>
-      <img src="https://picsum.photos/seed/pytone-tv-hero/1920/1080" alt="" />
+      <img src="https://picsum.photos/seed/novastream-tv-hero/1920/1080" alt="" />
       <div className="tv-hero-shade" />
       <div className="tv-hero-content">
         <div className="tv-hero-eyebrow">Live now</div>

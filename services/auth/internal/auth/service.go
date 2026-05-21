@@ -144,7 +144,7 @@ func (s *Service) signAccess(userID string, now time.Time) (string, error) {
 		"sub": userID,
 		"iat": now.Unix(),
 		"exp": now.Add(s.accessTTL).Unix(),
-		"iss": "pytone-auth",
+		"iss": "novastream-auth",
 	}
 	tk := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	return tk.SignedString(s.priv)
@@ -190,6 +190,6 @@ func generateOpaque(n int) string {
 func hashOpaque(s string) []byte {
 	// SHA-256 is sufficient for opaque token lookup; the tokens themselves are
 	// cryptographically random.
-	h := argon2.IDKey([]byte(s), []byte("pytone-refresh"), 1, 8*1024, 2, 32)
+	h := argon2.IDKey([]byte(s), []byte("novastream-refresh"), 1, 8*1024, 2, 32)
 	return h
 }

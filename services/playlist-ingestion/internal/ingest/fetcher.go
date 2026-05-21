@@ -51,7 +51,7 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, src Source) (io.Reader, func(),
 		return nil, nil, err
 	}
 	req.Header.Set("Accept-Encoding", "gzip")
-	req.Header.Set("User-Agent", "Pytone/1.0 (+https://pytone.tv)")
+	req.Header.Set("User-Agent", "NovaStream/1.0 (+https://novastream.tv)")
 
 	resp, err := f.client.Do(req)
 	if err != nil {

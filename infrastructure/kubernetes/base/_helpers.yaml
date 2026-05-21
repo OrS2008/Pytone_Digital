@@ -1,9 +1,9 @@
-# Shared labels for all Pytone resources. We use the recommended
+# Shared labels for all Nova Stream resources. We use the recommended
 # Kubernetes labels — observability tools and dashboards key off these.
 #
 # Apply to every workload object:
 #   labels:
 #     app.kubernetes.io/name: gateway
 #     app.kubernetes.io/component: backend
-#     app.kubernetes.io/part-of: pytone
+#     app.kubernetes.io/part-of: novastream
 #     app.kubernetes.io/managed-by: helm

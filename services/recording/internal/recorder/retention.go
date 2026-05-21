@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/pytone/pytone/libs/go/pkg/logging"
+	"github.com/novastream/novastream/libs/go/pkg/logging"
 )
 
 // RetentionSweeper enforces the 14-day rolling window by deleting segments

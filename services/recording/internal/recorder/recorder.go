@@ -30,7 +30,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/pytone/pytone/libs/go/pkg/logging"
+	"github.com/novastream/novastream/libs/go/pkg/logging"
 )
 
 // Recorder is the per-worker engine that records claimed channels.

@@ -1,16 +1,16 @@
-# Pytone Digital
+# Nova Stream
 
 > A next-generation streaming platform combining the best of Netflix, Apple TV,
 > YouTube TV, Plex, and Formula 1 TV into a single cinematic IPTV + VOD + DVR
 > experience.
 
-Pytone Digital is a TV-first, AI-augmented streaming ecosystem designed for
+Nova Stream is a TV-first, AI-augmented streaming ecosystem designed for
 millions of concurrent users with sub-second channel switching, 14-day rolling
 network DVR, and an interface that feels invisible.
 
 ## What makes this different
 
-| Problem in existing IPTV apps | Pytone Digital approach |
+| Problem in existing IPTV apps | Nova Stream approach |
 | --- | --- |
 | Slow channel switching (3–10s) | Predictive segment prefetch + warm decoder pool, **<500ms target** |
 | Buffering and freezing | AI playback supervisor with multi-source failover |

@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package pytone.epg.v1;
+package novastream.epg.v1;
 
 import "google/protobuf/timestamp.proto";
-import "pytone/common/v1/common.proto";
+import "novastream/common/v1/common.proto";
 
-option go_package = "github.com/pytone/pytone/services/_generated/go/pytone/epg/v1;epgv1";
+option go_package = "github.com/novastream/novastream/services/_generated/go/novastream/epg/v1;epgv1";
 
 message Programme {
   string id = 1;
@@ -60,9 +60,9 @@ message GetProgrammeRequest { string programme_id = 1; }
 
 message SearchProgrammesRequest {
   string query = 1;
-  pytone.common.v1.Page page = 2;
+  novastream.common.v1.Page page = 2;
 }
 message SearchProgrammesResponse {
   repeated Programme programmes = 1;
-  pytone.common.v1.PageInfo page_info = 2;
+  novastream.common.v1.PageInfo page_info = 2;
 }

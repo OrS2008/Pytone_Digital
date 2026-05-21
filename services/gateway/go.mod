@@ -1,10 +1,10 @@
-module github.com/pytone/pytone/services/gateway
+module github.com/novastream/novastream/services/gateway
 
 go 1.23
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.2.1
-	github.com/pytone/pytone/libs/go/pkg v0.0.0
+	github.com/novastream/novastream/libs/go/pkg v0.0.0
 	github.com/redis/go-redis/v9 v9.6.1
 )
 
@@ -32,4 +32,4 @@ require (
 	google.golang.org/protobuf v1.34.2 // indirect
 )
 
-replace github.com/pytone/pytone/libs/go/pkg => ../../libs/go/pkg
+replace github.com/novastream/novastream/libs/go/pkg => ../../libs/go/pkg

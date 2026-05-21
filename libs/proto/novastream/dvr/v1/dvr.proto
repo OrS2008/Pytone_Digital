@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package pytone.dvr.v1;
+package novastream.dvr.v1;
 
 import "google/protobuf/timestamp.proto";
-import "pytone/common/v1/common.proto";
+import "novastream/common/v1/common.proto";
 
-option go_package = "github.com/pytone/pytone/services/_generated/go/pytone/dvr/v1;dvrv1";
+option go_package = "github.com/novastream/novastream/services/_generated/go/novastream/dvr/v1;dvrv1";
 
 enum RecordingState {
   RECORDING_STATE_UNSPECIFIED = 0;
@@ -80,11 +80,11 @@ message CancelRecordingResponse {}
 message ListRecordingsRequest {
   string user_id = 1;
   RecordingState state = 2;
-  pytone.common.v1.Page page = 3;
+  novastream.common.v1.Page page = 3;
 }
 message ListRecordingsResponse {
   repeated Recording recordings = 1;
-  pytone.common.v1.PageInfo page_info = 2;
+  novastream.common.v1.PageInfo page_info = 2;
 }
 message GetRecordingRequest { string recording_id = 1; }
 

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pytone/pytone/libs/go/pkg/logging"
+	"github.com/novastream/novastream/libs/go/pkg/logging"
 )
 
 // ProxyHandler implements the playback proxy. URL scheme:

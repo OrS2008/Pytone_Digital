@@ -1,4 +1,4 @@
-module github.com/pytone/pytone/libs/go/pkg
+module github.com/novastream/novastream/libs/go/pkg
 
 go 1.23
 

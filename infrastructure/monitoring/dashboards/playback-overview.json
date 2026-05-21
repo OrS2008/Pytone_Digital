@@ -1,7 +1,7 @@
 {
   "title": "Playback Overview",
   "schemaVersion": 39,
-  "tags": ["pytone", "playback"],
+  "tags": ["novastream", "playback"],
   "panels": [
     {
       "title": "Channel switch p50/p95/p99",

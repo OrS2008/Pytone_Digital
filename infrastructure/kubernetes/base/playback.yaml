@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: playback
-          image: ghcr.io/pytone/playback:latest
+          image: ghcr.io/novastream/playback:latest
           ports:
             - { containerPort: 8080, name: http }
             - { containerPort: 50053, name: grpc }
@@ -38,7 +38,7 @@ spec:
               valueFrom: { secretKeyRef: { name: playback-secrets, key: redis_url } }
             - name: TICKET_SIGNING_KEY
               valueFrom: { secretKeyRef: { name: playback-secrets, key: ticket_signing_key } }
-            - { name: PROXY_ORIGIN, value: "https://play.pytone.tv" }
+            - { name: PROXY_ORIGIN, value: "https://play.novastream.tv" }
             - { name: PLAYLIST_GRPC_ADDR, value: "playlist-ingestion:50051" }
           resources:
             requests: { cpu: "500m", memory: "512Mi" }

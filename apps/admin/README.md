@@ -1,4 +1,4 @@
-# Pytone Admin
+# Nova Stream Admin
 
 The operator console. Same Next.js stack as the web client, distinct
 deployment, locked behind SSO + IP allowlist.

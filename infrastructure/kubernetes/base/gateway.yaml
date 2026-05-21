@@ -5,7 +5,7 @@ metadata:
   labels:
     app.kubernetes.io/name: gateway
     app.kubernetes.io/component: edge
-    app.kubernetes.io/part-of: pytone
+    app.kubernetes.io/part-of: novastream
 spec:
   replicas: 6
   strategy:
@@ -34,7 +34,7 @@ spec:
               app.kubernetes.io/name: gateway
       containers:
         - name: gateway
-          image: ghcr.io/pytone/gateway:latest
+          image: ghcr.io/novastream/gateway:latest
           imagePullPolicy: IfNotPresent
           ports:
             - { containerPort: 8080, name: http }

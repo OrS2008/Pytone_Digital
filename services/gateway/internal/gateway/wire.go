@@ -15,7 +15,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/pytone/pytone/libs/go/pkg/config"
+	"github.com/novastream/novastream/libs/go/pkg/config"
 	"github.com/redis/go-redis/v9"
 )
 

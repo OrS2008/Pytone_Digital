@@ -11,7 +11,7 @@ import (
 type Config struct {
 	RedisURL           string
 	TicketSigningKey   []byte
-	ProxyOrigin        string // public URL the client should hit, e.g. https://play.pytone.tv
+	ProxyOrigin        string // public URL the client should hit, e.g. https://play.novastream.tv
 	PlaylistGRPCAddr   string
 	AIPlaybackGRPCAddr string
 }

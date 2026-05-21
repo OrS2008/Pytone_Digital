@@ -15,15 +15,15 @@ services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_USER: pytone
-      POSTGRES_PASSWORD: pytone
-      POSTGRES_DB: pytone
+      POSTGRES_USER: novastream
+      POSTGRES_PASSWORD: novastream
+      POSTGRES_DB: novastream
     ports: ["5432:5432"]
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./infrastructure/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pytone"]
+      test: ["CMD-SHELL", "pg_isready -U novastream"]
       interval: 5s
       retries: 12
 
@@ -50,7 +50,7 @@ services:
     image: typesense/typesense:27.0
     ports: ["8108:8108"]
     environment:
-      TYPESENSE_API_KEY: pytone-dev-only
+      TYPESENSE_API_KEY: novastream-dev-only
       TYPESENSE_DATA_DIR: /data
     volumes:
       - typesense-data:/data
@@ -59,8 +59,8 @@ services:
     image: minio/minio:RELEASE.2024-07-16T23-46-41Z
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: pytone
-      MINIO_ROOT_PASSWORD: pytone-dev-only
+      MINIO_ROOT_USER: novastream
+      MINIO_ROOT_PASSWORD: novastream-dev-only
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -78,7 +78,7 @@ services:
     image: grafana/grafana:11.1.0
     ports: ["3000:3000"]
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: pytone
+      GF_SECURITY_ADMIN_PASSWORD: novastream
     volumes:
       - grafana-data:/var/lib/grafana
       - ./infrastructure/monitoring/dashboards:/etc/grafana/provisioning/dashboards:ro
@@ -88,7 +88,7 @@ services:
     build: { context: ., dockerfile: infrastructure/docker/Dockerfile.go, args: { SERVICE: gateway } }
     depends_on: [postgres, redis]
     environment: &shared-env
-      DATABASE_URL: postgres://pytone:pytone@postgres:5432/pytone?sslmode=disable
+      DATABASE_URL: postgres://novastream:novastream@postgres:5432/novastream?sslmode=disable
       REDIS_URL: redis://redis:6379/0
       KAFKA_BROKERS: kafka:9092
     ports: ["8080:8080"]
@@ -116,7 +116,7 @@ services:
     depends_on: [redis]
     environment:
       <<: *shared-env
-      TICKET_SIGNING_KEY: pytone-dev-only
+      TICKET_SIGNING_KEY: novastream-dev-only
       PROXY_ORIGIN: http://localhost:8090
 
   recording:
@@ -125,7 +125,7 @@ services:
     environment:
       <<: *shared-env
       S3_ENDPOINT: http://minio:9000
-      S3_BUCKET: pytone-dvr
+      S3_BUCKET: novastream-dvr
       WORKER_ID: rec-1
       RETENTION: "336h"
 

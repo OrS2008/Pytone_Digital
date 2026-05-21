@@ -1,4 +1,4 @@
-module github.com/pytone/pytone/services/recording
+module github.com/novastream/novastream/services/recording
 
 go 1.24
 
@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.17
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.58.1
 	github.com/jackc/pgx/v5 v5.6.0
-	github.com/pytone/pytone/libs/go/pkg v0.0.0
+	github.com/novastream/novastream/libs/go/pkg v0.0.0
 	github.com/redis/go-redis/v9 v9.6.1
 	golang.org/x/sync v0.7.0
 )
@@ -56,4 +56,4 @@ require (
 	google.golang.org/protobuf v1.34.2 // indirect
 )
 
-replace github.com/pytone/pytone/libs/go/pkg => ../../libs/go/pkg
+replace github.com/novastream/novastream/libs/go/pkg => ../../libs/go/pkg

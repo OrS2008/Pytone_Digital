@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/pytone/pytone/libs/go/pkg/logging"
-	"github.com/pytone/pytone/libs/go/pkg/xmltv"
+	"github.com/novastream/novastream/libs/go/pkg/logging"
+	"github.com/novastream/novastream/libs/go/pkg/xmltv"
 )
 
 // Scheduler pulls XMLTV sources on a fixed cadence.

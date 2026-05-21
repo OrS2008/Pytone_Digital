@@ -49,14 +49,14 @@ web: ## Run the web app (also serves /tv for the LG IPK)
 lg-ipk: ## Build the LG webOS IPK
 	cd apps/lg-webos && npm install && make dist
 
-lg-install: ## Install the IPK on a registered TV (DEVICE=pytone-tv)
-	cd apps/lg-webos && make install DEVICE=$${DEVICE:-pytone-tv}
+lg-install: ## Install the IPK on a registered TV (DEVICE=novastream-tv)
+	cd apps/lg-webos && make install DEVICE=$${DEVICE:-novastream-tv}
 
 lg-launch: ## Launch the app on the TV
-	cd apps/lg-webos && make launch DEVICE=$${DEVICE:-pytone-tv}
+	cd apps/lg-webos && make launch DEVICE=$${DEVICE:-novastream-tv}
 
 lg-launch-local: ## Launch pointing the TV at this laptop's web dev server
-	cd apps/lg-webos && ares-launch -d $${DEVICE:-pytone-tv} tv.pytone.app \
+	cd apps/lg-webos && ares-launch -d $${DEVICE:-novastream-tv} tv.novastream.app \
 	  -p '{"appUrl":"http://$(shell hostname -I | awk '{print $$1}'):3000/tv"}'
 
 # --- migrations ------------------------------------------------------------
@@ -64,7 +64,7 @@ migrate: ## Apply all migrations against the local Postgres
 	@for s in playlist-ingestion epg recording dvr auth user; do \
 	  if [ -d "services/$$s/migrations" ]; then \
 	    echo "=== $$s ==="; \
-	    PGURI=postgres://pytone:pytone@localhost:5432/$${s//-/_}; \
+	    PGURI=postgres://novastream:novastream@localhost:5432/$${s//-/_}; \
 	    for f in services/$$s/migrations/*.sql; do \
 	      psql "$$PGURI" -f "$$f"; \
 	    done; \

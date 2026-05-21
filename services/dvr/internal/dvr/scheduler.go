@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/pytone/pytone/libs/go/pkg/logging"
+	"github.com/novastream/novastream/libs/go/pkg/logging"
 )
 
 // RecordingScheduler reacts to series rules and EPG updates by inserting

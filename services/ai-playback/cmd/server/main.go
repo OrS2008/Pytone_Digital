@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 
-	"github.com/pytone/pytone/libs/go/pkg/config"
-	"github.com/pytone/pytone/libs/go/pkg/logging"
-	"github.com/pytone/pytone/libs/go/pkg/server"
-	"github.com/pytone/pytone/services/ai-playback/internal/supervisor"
+	"github.com/novastream/novastream/libs/go/pkg/config"
+	"github.com/novastream/novastream/libs/go/pkg/logging"
+	"github.com/novastream/novastream/libs/go/pkg/server"
+	"github.com/novastream/novastream/services/ai-playback/internal/supervisor"
 )
 
 func main() {

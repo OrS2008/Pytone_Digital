@@ -1,8 +1,8 @@
-module github.com/pytone/pytone/services/sync
+module github.com/novastream/novastream/services/sync
 
 go 1.23
 
-require github.com/pytone/pytone/libs/go/pkg v0.0.0
+require github.com/novastream/novastream/libs/go/pkg v0.0.0
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -27,4 +27,4 @@ require (
 	google.golang.org/protobuf v1.34.2 // indirect
 )
 
-replace github.com/pytone/pytone/libs/go/pkg => ../../libs/go/pkg
+replace github.com/novastream/novastream/libs/go/pkg => ../../libs/go/pkg

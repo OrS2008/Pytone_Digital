@@ -14,7 +14,7 @@ class HeroBanner extends StatelessWidget {
           // recommendation's backdrop; auto-plays a 30s trailer after 5s of
           // focus on the same item.
           Image.network(
-            'https://picsum.photos/seed/pytone-hero/1920/1080',
+            'https://picsum.photos/seed/novastream-hero/1920/1080',
             fit: BoxFit.cover,
           ),
           const DecoratedBox(

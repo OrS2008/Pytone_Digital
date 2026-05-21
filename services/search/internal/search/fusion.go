@@ -1,4 +1,4 @@
-// Package search provides unified, multi-corpus search across the Pytone
+// Package search provides unified, multi-corpus search across the Nova Stream
 // catalogue.
 package search
 

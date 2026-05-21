@@ -25,7 +25,7 @@ We use the **hosted Web App** pattern:
                 ▼
    ┌─────────────────────────────┐
    │  HTTP app                   │   served by apps/web at /tv
-   │  https://app.pytone.tv/tv   │   cached at the edge
+   │  https://app.novastream.tv/tv   │   cached at the edge
    └─────────────────────────────┘
 ```
 

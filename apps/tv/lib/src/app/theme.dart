@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-class PytoneTheme {
+class NovaStreamTheme {
   static ThemeData dark() {
-    const accent = Color(0xFFFF3B6E); // signature Pytone pink
+    const accent = Color(0xFFFF3B6E); // signature Nova Stream pink
     const surface = Color(0xFF06070A);
     const surfaceContainer = Color(0xFF0E1015);
     const onSurface = Color(0xFFE9EBF1);
@@ -16,7 +16,7 @@ class PytoneTheme {
         surface: surface,
         onSurface: onSurface,
       ),
-      fontFamily: 'PytoneDisplay',
+      fontFamily: 'Nova StreamDisplay',
       textTheme: const TextTheme(
         displayLarge: TextStyle(
           fontSize: 56,

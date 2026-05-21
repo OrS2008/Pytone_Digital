@@ -58,7 +58,7 @@ export default function TvBoot() {
     // we want to refresh the now/next strip so EPG isn't stale.
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
-        window.dispatchEvent(new CustomEvent('pytone:resume'));
+        window.dispatchEvent(new CustomEvent('novastream:resume'));
       }
     };
     document.addEventListener('visibilitychange', onVisibility);

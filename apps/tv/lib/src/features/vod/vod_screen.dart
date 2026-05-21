@@ -8,7 +8,7 @@ class VodScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Column(children: [
-        const PytoneNavBar(),
+        const NovaStreamNavBar(),
         Expanded(
           child: Center(
             child: Text('Movies + Series. Hero + rows like Home.',

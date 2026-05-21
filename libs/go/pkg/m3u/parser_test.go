@@ -8,7 +8,7 @@ import (
 
 const sample = `#EXTM3U
 #EXTINF:-1 tvg-id="bbc1.uk" tvg-name="BBC One HD" tvg-logo="https://example.com/bbc1.png" group-title="UK | Entertainment" catchup="default" catchup-days="7" catchup-source="https://catchup.example/{start}-{duration}.ts" tvg-chno="101",BBC One HD
-#EXTVLCOPT:http-user-agent=PytoneTV/1.0
+#EXTVLCOPT:http-user-agent=NovaStreamTV/1.0
 #EXTVLCOPT:http-referrer=https://provider.example/
 https://stream.example/bbc1/playlist.m3u8
 #EXTINF:-1 tvg-id="news.global" group-title="News",News, Live & Loud
@@ -43,7 +43,7 @@ func TestParserExtractsAttrs(t *testing.T) {
 	if bbc.ChannelNumber != 101 {
 		t.Errorf("channel-number: %d", bbc.ChannelNumber)
 	}
-	if bbc.Headers["User-Agent"] != "PytoneTV/1.0" {
+	if bbc.Headers["User-Agent"] != "NovaStreamTV/1.0" {
 		t.Errorf("user-agent: %v", bbc.Headers)
 	}
 	if bbc.Headers["Referer"] != "https://provider.example/" {

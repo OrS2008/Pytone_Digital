@@ -2,7 +2,7 @@ export default function HeroBanner() {
   return (
     <section className="relative h-[70vh] min-h-[480px] w-full overflow-hidden">
       <img
-        src="https://picsum.photos/seed/pytone-web-hero/1920/1080"
+        src="https://picsum.photos/seed/nova-stream-web-hero/1920/1080"
         alt=""
         className="absolute inset-0 h-full w-full object-cover"
       />

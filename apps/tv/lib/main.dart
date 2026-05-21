@@ -1,4 +1,4 @@
-// Pytone TV entrypoint.
+// Nova Stream TV entrypoint.
 //
 // TV apps run for hours, on cold devices, with a 5-button remote and no
 // pointer. Everything we do here is shaped by that:
@@ -28,20 +28,20 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  runApp(const ProviderScope(child: PytoneApp()));
+  runApp(const ProviderScope(child: NovaStreamApp()));
 }
 
-class PytoneApp extends ConsumerWidget {
-  const PytoneApp({super.key});
+class NovaStreamApp extends ConsumerWidget {
+  const NovaStreamApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     return MaterialApp.router(
-      title: 'Pytone',
+      title: 'Nova Stream',
       debugShowCheckedModeBanner: false,
-      theme: PytoneTheme.dark(),
-      darkTheme: PytoneTheme.dark(),
+      theme: NovaStreamTheme.dark(),
+      darkTheme: NovaStreamTheme.dark(),
       themeMode: ThemeMode.dark,
       routerConfig: router,
     );

@@ -6,7 +6,7 @@
 #
 # Usage:
 #   docker build -f infrastructure/docker/Dockerfile.go \
-#                --build-arg SERVICE=gateway -t pytone/gateway .
+#                --build-arg SERVICE=gateway -t novastream/gateway .
 
 ARG GO_VERSION=1.23
 
@@ -29,7 +29,7 @@ RUN go build -ldflags="-s -w" -o /out/${BINARY} ./cmd/${BINARY}
 FROM gcr.io/distroless/static-debian12:nonroot
 ARG BINARY=server
 WORKDIR /
-COPY --from=builder /out/${BINARY} /pytone-service
+COPY --from=builder /out/${BINARY} /novastream-service
 USER nonroot:nonroot
 EXPOSE 8080 50051
-ENTRYPOINT ["/pytone-service"]
+ENTRYPOINT ["/novastream-service"]

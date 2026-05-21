@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: recording
-          image: ghcr.io/pytone/recording:latest
+          image: ghcr.io/novastream/recording:latest
           env:
             - name: WORKER_ID
               valueFrom: { fieldRef: { fieldPath: metadata.name } }

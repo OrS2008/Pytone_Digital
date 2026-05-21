@@ -24,8 +24,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
-	"github.com/pytone/pytone/libs/go/pkg/logging"
-	"github.com/pytone/pytone/libs/go/pkg/m3u"
+	"github.com/novastream/novastream/libs/go/pkg/logging"
+	"github.com/novastream/novastream/libs/go/pkg/m3u"
 )
 
 // Service orchestrates ingestion.

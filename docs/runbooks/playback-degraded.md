@@ -24,7 +24,7 @@
 | --- | --- | --- |
 | One origin's error rate >5%, others fine | Provider outage on that origin | Demote (`SADD play:demoted`); file ticket with provider |
 | All origins for one channel red | Channel itself broken | Disable channel; alert content team |
-| Whole region red, ai-playback inactive | Supervisor pod crashlooping | Check `kubectl logs -n pytone ai-playback`; restart |
+| Whole region red, ai-playback inactive | Supervisor pod crashlooping | Check `kubectl logs -n novastream ai-playback`; restart |
 | Whole region red, ai-playback active | Redis pub/sub broken | Failover Redis primary; supervisor reconnects automatically |
 | Rebuffer rate slowly climbing | Pod saturation | Check HPA; manually bump if HPA hasn't reacted yet |
 

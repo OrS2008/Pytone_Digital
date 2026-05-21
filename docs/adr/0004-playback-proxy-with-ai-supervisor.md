@@ -16,7 +16,7 @@ All playback flows through a server-side proxy that:
 1. Issues short-lived HMAC-signed tickets so origin URLs are never exposed
    to clients.
 2. Rewrites HLS/DASH manifests on the fly so segment requests flow back
-   through us. The client only ever sees `https://play.pytone.tv/play/...`.
+   through us. The client only ever sees `https://play.novastream.tv/play/...`.
 3. Samples QoE telemetry per session (sampling rate: every manifest, 1% of
    segments) into Redis.
 4. Allows hot-swapping the upstream origin associated with a ticket without

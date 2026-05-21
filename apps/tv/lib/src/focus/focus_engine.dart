@@ -1,4 +1,4 @@
-// The Pytone focus engine.
+// The Nova Stream focus engine.
 //
 // Flutter's stock focus traversal works, but on TVs it is too unpredictable:
 // it can land on an unexpected widget when the layout shifts, dead-end on

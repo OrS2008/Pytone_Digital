@@ -1,5 +1,5 @@
 // Package server provides a standardized gRPC + HTTP server harness used by
-// every Pytone backend service.
+// every Nova Stream backend service.
 //
 // It wires together:
 //   - graceful shutdown on SIGINT/SIGTERM
@@ -26,7 +26,7 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/pytone/pytone/libs/go/pkg/logging"
+	"github.com/novastream/novastream/libs/go/pkg/logging"
 )
 
 // Config configures the harness.
