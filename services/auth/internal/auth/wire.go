@@ -17,12 +17,23 @@ type Config struct {
 	AccessTTL      time.Duration
 	RefreshTTL     time.Duration
 	PasswordPepper []byte
+	// Email sender config. If SMTPHost is empty we use StdoutMailer
+	// (development); otherwise we use SMTPMailer.
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUser     string
+	SMTPPassword string
+	MailFrom     string
+	AppURL       string
+	BrandName    string
 }
 
 type Deps struct {
 	DB      *pgxpool.Pool
 	Redis   *redis.Client
 	Service *Service
+	Devices *DeviceManager
+	Mailer  Mailer
 }
 
 func Wire(ctx context.Context, cfg Config) (*Deps, error) {
@@ -40,8 +51,30 @@ func Wire(ctx context.Context, cfg Config) (*Deps, error) {
 	if err != nil {
 		return nil, err
 	}
-	svc := NewService(db, priv, cfg.PasswordPepper, cfg.AccessTTL, cfg.RefreshTTL)
-	return &Deps{DB: db, Redis: rdb, Service: svc}, nil
+
+	var mailer Mailer
+	if cfg.SMTPHost == "" {
+		mailer = &StdoutMailer{AppURL: orDefault(cfg.AppURL, "http://localhost:3000")}
+	} else {
+		mailer = &SMTPMailer{
+			Host: cfg.SMTPHost, Port: cfg.SMTPPort,
+			Username: cfg.SMTPUser, Password: cfg.SMTPPassword,
+			From:      cfg.MailFrom,
+			AppURL:    cfg.AppURL,
+			BrandName: orDefault(cfg.BrandName, "Nova Stream"),
+		}
+	}
+
+	devices := NewDeviceManager(rdb)
+	svc := NewService(db, rdb, mailer, priv, cfg.PasswordPepper, cfg.AccessTTL, cfg.RefreshTTL)
+	return &Deps{DB: db, Redis: rdb, Service: svc, Devices: devices, Mailer: mailer}, nil
+}
+
+func orDefault(s, d string) string {
+	if s == "" {
+		return d
+	}
+	return s
 }
 
 func (d *Deps) RegisterGRPC(g *grpc.Server) {

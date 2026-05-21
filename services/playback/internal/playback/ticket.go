@@ -96,6 +96,37 @@ func (t *TicketService) SwapOrigin(ctx context.Context, ticketID, newOrigin stri
 	return t.rdb.HSet(ctx, ticketKey(ticketID), "origin_url", newOrigin).Err()
 }
 
+// RememberURL stores a (hash → upstream URL) mapping scoped to one ticket.
+// The proxy uses this to translate the short opaque hashes it embeds in
+// rewritten manifests back into the actual upstream URL to fetch. Crucially
+// the upstream URL is **never** taken from the request — only from this
+// table, populated when we parsed the master / variant manifest server-side.
+// That's what closes the SSRF that the previous `?u=…` scheme allowed.
+func (t *TicketService) RememberURL(ctx context.Context, ticketID, hash, upstreamURL string) error {
+	key := urlRecallKey(ticketID)
+	pipe := t.rdb.TxPipeline()
+	pipe.HSet(ctx, key, hash, upstreamURL)
+	pipe.Expire(ctx, key, 30*time.Minute)
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+// RecallURL retrieves the upstream URL for a ticket-scoped hash. If the hash
+// isn't present we return an error rather than guessing — there is no path
+// from "I have a token + an unrecognised hash" to "I get a URL fetched".
+func (t *TicketService) RecallURL(ctx context.Context, ticketID, hash string) (string, error) {
+	v, err := t.rdb.HGet(ctx, urlRecallKey(ticketID), hash).Result()
+	if err != nil {
+		return "", err
+	}
+	if v == "" {
+		return "", errors.New("unknown hash for ticket")
+	}
+	return v, nil
+}
+
+func urlRecallKey(id string) string { return "play:urls:" + id }
+
 // --- internals --------------------------------------------------------------
 
 func (t *TicketService) persist(ctx context.Context, tk Ticket) error {

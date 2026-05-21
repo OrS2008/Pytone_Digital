@@ -89,19 +89,30 @@ func Wire(ctx context.Context, cfg Config) (*Deps, error) {
 }
 
 // RegisterHTTP mounts the gateway routes.
+//
+// Middleware order (outermost first):
+//   SecurityHeaders → CORS → AuthMW → RateLimiter → handler
+//
+// SecurityHeaders runs first so even error responses carry the headers.
+// CORS runs before Auth so preflights succeed without a bearer token.
+// AuthMW skips public routes (login, register, activate, webhooks).
 func (d *Deps) RegisterHTTP(mux *http.ServeMux) {
-	// GraphQL endpoint (handler implemented elsewhere; mounted here for clarity).
-	mux.Handle("/graphql", d.middleware(graphqlHandler()))
-	mux.Handle("/api/", d.middleware(restHandler()))
+	allowedOrigins := []string{
+		"https://app.novastream.tv",
+		"https://staging.app.novastream.tv",
+		"http://localhost:3000",
+	}
+	cors := CORS(allowedOrigins)
+
+	stack := func(h http.Handler) http.Handler {
+		return SecurityHeaders(cors(d.Auth.Wrap(d.Limit.Wrap(h))))
+	}
+	mux.Handle("/graphql", stack(graphqlHandler()))
+	mux.Handle("/api/", stack(restHandler()))
 }
 
 func (d *Deps) Close() {
 	_ = d.Redis.Close()
-}
-
-// middleware chains auth + rate-limiting around handlers.
-func (d *Deps) middleware(h http.Handler) http.Handler {
-	return d.Auth.Wrap(d.Limit.Wrap(h))
 }
 
 // graphqlHandler is mounted at /graphql. The actual schema definitions live in

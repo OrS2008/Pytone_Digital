@@ -33,7 +33,11 @@ func Wire(ctx context.Context, cfg Config) (*Deps, error) {
 	}
 
 	tickets := NewTicketService(rdb, cfg.TicketSigningKey, cfg.ProxyOrigin)
-	proxy := NewProxyHandler(tickets, NewABRSteering(rdb))
+	// Reuse the ticket signing key as the URL-hash key — same trust domain,
+	// fewer secrets to rotate. The hashes are not security-critical on their
+	// own (they index into a per-ticket whitelist), but HMAC keeps them
+	// unguessable.
+	proxy := NewProxyHandler(tickets, NewABRSteering(rdb), cfg.TicketSigningKey)
 	return &Deps{Redis: rdb, Tickets: tickets, Proxy: proxy}, nil
 }
 

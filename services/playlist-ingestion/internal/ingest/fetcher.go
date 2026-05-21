@@ -3,18 +3,25 @@ package ingest
 import (
 	"compress/gzip"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/novastream/novastream/libs/go/pkg/safehttp"
 )
 
 // HTTPFetcher retrieves a playlist body over HTTP, transparently handling
 // gzip-encoded responses and (for Xtream sources) the get.php endpoint.
+//
+// Uses safehttp.Client: the dialer refuses to connect to internal /
+// link-local / loopback / cloud-metadata addresses even when DNS resolution
+// is attacker-controlled (DNS-rebinding defence). Without this, a tenant
+// could enrol a playlist source URL pointing at 169.254.169.254 or another
+// internal address and have the ingester pull bytes from it.
 type HTTPFetcher struct {
-	client *http.Client
+	client *safehttp.Client
 }
 
 // NewHTTPFetcher returns a fetcher with sensible defaults.
@@ -23,17 +30,11 @@ func NewHTTPFetcher(timeout time.Duration) *HTTPFetcher {
 		timeout = 60 * time.Second
 	}
 	return &HTTPFetcher{
-		client: &http.Client{
-			Timeout: timeout,
-			// We disable the default redirect cap (10) — providers in the wild
-			// occasionally chain a dozen redirects before serving the playlist.
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) > 20 {
-					return errors.New("too many redirects")
-				}
-				return nil
-			},
-		},
+		client: safehttp.New(safehttp.Options{
+			Timeout:      timeout,
+			MaxBodyBytes: 256 << 20, // 256 MB; huge IPTV catalogues exist
+			MaxRedirects: 5,
+		}),
 	}
 }
 
@@ -85,3 +86,9 @@ func xtreamGetPHP(src Source) string {
 	return fmt.Sprintf("%s/get.php?username=%s&password=%s&type=m3u_plus&output=ts",
 		base, src.Username, src.Password)
 }
+
+// Compile-time guard that we still satisfy the Fetcher interface in service.go.
+var _ Fetcher = (*HTTPFetcher)(nil)
+
+// keep time imported even if future edits drop usage
+var _ = time.Second
