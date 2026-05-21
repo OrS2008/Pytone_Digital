@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useCurrentZone, useSetZone } from './TvFocus';
 
 const ITEMS = [
-  { label: 'Home',   href: '/tv' },
   { label: 'Live',   href: '/tv/live' },
+  { label: 'Home',   href: '/tv' },
   { label: 'Sports', href: '/tv/sports' },
   { label: 'Movies', href: '/tv/vod' },
   { label: 'DVR',    href: '/tv/dvr' },
