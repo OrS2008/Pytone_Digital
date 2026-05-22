@@ -19,9 +19,20 @@ import { useEffect } from 'react';
  */
 export default function TvBoot() {
   useEffect(() => {
+    // Detect a real TV launch — only there should we lock scroll, force
+    // initial focus, and translate remote keycodes. In a regular browser
+    // (phone, laptop, desktop) the user expects native scrolling and
+    // pointer focus, and any of the TV-specific hijacks make the page
+    // feel broken.
+    const ua = navigator.userAgent || '';
+    const isTv =
+      /webOS|Web0S|SmartTV|Tizen|HbbTV|CrKey|AppleTV/i.test(ua) ||
+      typeof (window as unknown as { webOS?: unknown }).webOS !== 'undefined';
+
     // Apply the saved theme on first paint so the user never sees a
     // flash of the default before their preference loads. The choice is
-    // written by /tv/account/appearance to localStorage.
+    // written by /tv/account/appearance to localStorage. This runs on
+    // every device — theme persistence is not TV-specific.
     try {
       const saved = localStorage.getItem('ns.theme');
       if (saved && ['apex','aurora','mono','cyber','premium'].includes(saved)) {
@@ -29,6 +40,10 @@ export default function TvBoot() {
         document.body.setAttribute('data-theme', saved);
       }
     } catch { /* localStorage may be locked */ }
+
+    if (!isTv) return;
+
+    // --- below this line, TV-only behaviour ---
 
     // Scroll lock — see comment above. (Account screens have their own
     // managed scrollers; this only suppresses the page-level scroll the
