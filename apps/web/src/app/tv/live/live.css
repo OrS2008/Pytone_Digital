@@ -344,3 +344,97 @@
 .player-error-hint {
   margin-top: 14px; font-size: 12px; color: #6E7480; max-width: 540px; line-height: 1.5;
 }
+
+/* --- Browsing mode: small preview card next to the rail ------------- */
+.live-preview {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center;
+  padding: 48px 32px;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255,59,110,0.18), transparent 60%),
+    #0A0B10;
+  border-left: 1px solid #161A22;
+  color: #E9EBF1;
+  cursor: pointer;
+  gap: 14px;
+}
+.live-preview-logo {
+  width: 140px; height: 96px; object-fit: contain;
+}
+.live-preview-num {
+  font-size: 96px; font-weight: 800; letter-spacing: -3px;
+  color: #2B3142;
+}
+.live-preview-name {
+  font-size: 28px; font-weight: 800; letter-spacing: -0.5px;
+}
+.live-preview-now {
+  font-size: 15px; color: #B7BEC9;
+  max-width: 520px; line-height: 1.4;
+}
+.live-preview-play {
+  margin-top: 14px;
+  background: #FF3B6E; color: #fff;
+  border: 0; padding: 14px 28px;
+  border-radius: 10px;
+  font-size: 16px; font-weight: 800;
+  cursor: pointer;
+}
+.live-preview-play:hover { transform: scale(1.04); }
+.live-preview-hint {
+  font-size: 12px; color: #6E7480; margin-top: 6px;
+}
+
+/* --- Watching mode: fullscreen player overlay ----------------------- */
+.live-layout.watching .live-body { display: none; }
+.live-layout.watching .live-status { display: none; }
+.live-player-overlay {
+  position: fixed; inset: 0;
+  background: #000;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+}
+.live-player-overlay .player-surface {
+  position: absolute; inset: 0;
+  width: 100vw; height: 100vh;
+}
+.live-close {
+  position: absolute;
+  top: 16px; right: 16px;
+  z-index: 90;
+  width: 44px; height: 44px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.2);
+  font-size: 24px; line-height: 1;
+  cursor: pointer;
+}
+.live-close:hover { background: rgba(0, 0, 0, 0.85); }
+
+/* --- Unmute prompt -------------------------------------------------- */
+.player-unmute {
+  position: absolute;
+  top: 24px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 14px; font-weight: 600;
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid rgba(255,255,255,0.15);
+  z-index: 3;
+  pointer-events: none;
+}
+
+@media (max-width: 900px) {
+  .live-preview { padding: 24px 16px; }
+  .live-preview-logo { width: 100px; height: 72px; }
+  .live-preview-num  { font-size: 56px; }
+  .live-preview-name { font-size: 20px; }
+  .live-preview-now  { font-size: 13px; }
+  .live-close { width: 36px; height: 36px; font-size: 20px; }
+}

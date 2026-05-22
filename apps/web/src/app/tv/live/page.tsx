@@ -3,18 +3,15 @@
 /*
  * Live TV — the channel-list-first IPTV experience.
  *
- * In production the channel list comes from the playlist-ingestion
- * microservice via gRPC-Web. Until that backend is reachable we fall
- * back to a frontend-only path:
+ * Two viewing modes:
+ *   - "browsing" (default) — rail on the left, a small preview tile on
+ *      the right showing what would play.
+ *   - "watching"           — player goes full-screen, rail dismissed.
+ *      Esc / Back / click-on-edge returns to browsing.
  *
- *   1. Read the user's saved M3U URL from localStorage (written by
- *      /tv/account/sources).
- *   2. Fetch it through /api/m3u (a Netlify edge proxy that adds CORS
- *      and refuses private/loopback hosts).
- *   3. Parse with lib/m3u, hand the channels to the rail and player.
- *
- * If no M3U is saved or the fetch fails we render the mock channel set
- * so the UX is still demonstrable.
+ * Clicking a channel ("OK" on the remote) tunes + enters watching mode
+ * + starts playback. Up arrow from inside the player brings the rail
+ * back so the user can keep zapping.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -43,11 +40,11 @@ export default function LivePage() {
   const [channels, setChannels] = useState<Channel[]>(MOCK_CHANNELS);
   const [activeIdx, setActiveIdx] = useState(0);
   const [infoVisible, setInfoVisible] = useState(true);
+  const [watching, setWatching] = useState(false);
   const [load, setLoad] = useState<LoadState>({ kind: 'idle' });
 
   const active = channels[activeIdx];
 
-  // On mount: look for a saved live-source and load it.
   useEffect(() => {
     let cancelled = false;
     async function run() {
@@ -57,7 +54,6 @@ export default function LivePage() {
         if (raw) stored = JSON.parse(raw) as StoredSource[];
       } catch { /* corrupt storage */ }
 
-      // Only treat URLs the user typed themselves (not the seeded example).
       const userSource = stored.find((s) =>
         s.id !== 'live-1' &&
         typeof s.sub === 'string' &&
@@ -74,9 +70,7 @@ export default function LivePage() {
         }
         const text = await resp.text();
         const parsed = parseM3U(text);
-        if (parsed.length === 0) {
-          throw new Error('No channels found in playlist. Check the URL.');
-        }
+        if (parsed.length === 0) throw new Error('No channels found in playlist.');
         if (cancelled) return;
         setChannels(parsed);
         setActiveIdx(0);
@@ -96,48 +90,60 @@ export default function LivePage() {
     return () => clearTimeout(t);
   }, [infoVisible, activeIdx]);
 
+  // Tuning behaviour. Clicking / pressing OK on a channel selects it AND
+  // enters watching mode so the player goes full-screen and starts
+  // playback. Pressing Up while watching brings the rail back so the
+  // user can switch channels without losing what they're on (player keeps
+  // playing in the background).
   const tune = useCallback(
-    (idx: number) => {
+    (idx: number, opts?: { enterWatching?: boolean }) => {
       if (idx < 0 || idx >= channels.length) return;
       setActiveIdx(idx);
       setInfoVisible(true);
+      if (opts?.enterWatching) setWatching(true);
     },
     [channels.length],
   );
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'PageUp')   tune(activeIdx - 1);
-      if (e.key === 'PageDown') tune(activeIdx + 1);
+      if (e.key === 'PageUp')   tune(activeIdx - 1, { enterWatching: watching });
+      if (e.key === 'PageDown') tune(activeIdx + 1, { enterWatching: watching });
       if (e.key === 'i' || e.key === 'Info') setInfoVisible((v) => !v);
+      if ((e.key === 'Escape' || e.key === 'GoBack') && watching) {
+        setWatching(false);
+      }
+      if (e.key === 'ArrowUp' && watching) {
+        setWatching(false);
+      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [activeIdx, tune]);
+  }, [activeIdx, tune, watching]);
 
   const tuneByNumber = useCallback(
     (num: number) => {
       const i = channels.findIndex((c) => c.number === num);
-      if (i >= 0) tune(i);
+      if (i >= 0) tune(i, { enterWatching: true });
     },
     [channels, tune],
   );
 
-  const layout = useMemo(() => 'live-layout', []);
+  const layout = useMemo(() => 'live-layout' + (watching ? ' watching' : ''), [watching]);
   return (
     <TvFocusProvider>
       <div className={layout}>
-        <TvNav />
+        {!watching && <TvNav />}
 
-        {load.kind === 'loading' && (
+        {!watching && load.kind === 'loading' && (
           <div className="live-status">Loading your playlist…</div>
         )}
-        {load.kind === 'ready' && (
+        {!watching && load.kind === 'ready' && (
           <div className="live-status live-status-ok">
-            {load.sourceTitle} · {load.count} channels loaded.
+            {load.sourceTitle} · {load.count} channels loaded. Click a channel to play.
           </div>
         )}
-        {load.kind === 'mock' && (
+        {!watching && load.kind === 'mock' && (
           <div className="live-status">
             Showing demo channels.{' '}
             <Link href="/tv/account/sources" className="live-status-link">
@@ -145,7 +151,7 @@ export default function LivePage() {
             </Link>
           </div>
         )}
-        {load.kind === 'error' && (
+        {!watching && load.kind === 'error' && (
           <div className="live-status live-status-err">
             Could not load your playlist: {load.message}.{' '}
             <Link href="/tv/account/sources" className="live-status-link">
@@ -158,18 +164,41 @@ export default function LivePage() {
           <ChannelRail
             channels={channels}
             activeIdx={activeIdx}
-            onTune={tune}
+            onTune={(i) => tune(i, { enterWatching: true })}
           />
-          <PlayerSurface channel={active} />
+          {!watching && (
+            <div className="live-preview" onClick={() => setWatching(true)} role="button" tabIndex={0}>
+              {active?.logoUrl
+                ? <img className="live-preview-logo" src={active.logoUrl} alt="" />
+                : <div className="live-preview-num">{active?.number}</div>}
+              <div className="live-preview-name">{active?.name}</div>
+              <div className="live-preview-now">{active?.now?.title ?? 'No programme info'}</div>
+              <button className="live-preview-play">▶  Watch</button>
+              <div className="live-preview-hint">Or click any channel on the left</div>
+            </div>
+          )}
         </div>
-        <InfoBar
-          channel={active}
-          visible={infoVisible}
-          onDismiss={() => setInfoVisible(false)}
-          onTune={tune}
-          activeIdx={activeIdx}
-          channels={channels}
-        />
+
+        {watching && (
+          <div className="live-player-overlay">
+            <PlayerSurface channel={active} autoPlay />
+            <button
+              className="live-close"
+              onClick={() => setWatching(false)}
+              title="Back to channel list (Esc)"
+              aria-label="Close player"
+            >×</button>
+            <InfoBar
+              channel={active}
+              visible={infoVisible}
+              onDismiss={() => setInfoVisible(false)}
+              onTune={(i) => tune(i, { enterWatching: true })}
+              activeIdx={activeIdx}
+              channels={channels}
+            />
+          </div>
+        )}
+
         <NumberZap onCommit={tuneByNumber} />
       </div>
     </TvFocusProvider>

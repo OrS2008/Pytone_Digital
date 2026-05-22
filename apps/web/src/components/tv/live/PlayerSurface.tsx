@@ -6,20 +6,31 @@ import type { Channel } from './types';
 /*
  * The player surface.
  *
- * In production the URL we attach to <video> is a one-time playback
- * ticket from /api/playback/ticket. Until the playback service is up,
- * we attach the channel's M3U stream URL directly:
+ * Autoplay reality:
+ *   Every modern browser blocks autoplay-with-sound unless the user
+ *   has interacted with the document very recently. We side-step that
+ *   by starting muted (always allowed) and surfacing a one-click
+ *   "Tap to unmute" overlay. As soon as the user clicks anywhere in
+ *   the player, audio comes on.
  *
- *   - Safari / iOS support HLS natively → just set the src.
- *   - Everywhere else we lazy-load hls.js and feed segments to MSE.
+ * Streaming:
+ *   - Safari / iOS / many smart TVs play HLS natively → just set src.
+ *   - Everywhere else, hls.js is lazy-imported and feeds MSE.
  *
- * On failure we render a clear message and a placeholder card so the
- * user knows the channel + name even when decode breaks.
+ * Errors are surfaced as a card with the channel + the reason (geo
+ * block, auth, CORS on segments, etc.) so the user understands why a
+ * given channel isn't playing.
  */
-export default function PlayerSurface({ channel }: { channel?: Channel }) {
+interface Props {
+  channel?: Channel;
+  autoPlay?: boolean;
+}
+
+export default function PlayerSurface({ channel, autoPlay = true }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
+  const [muted, setMuted] = useState(true);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -38,9 +49,11 @@ export default function PlayerSurface({ channel }: { channel?: Channel }) {
 
     async function attach() {
       if (!video) return;
+      // Muted is required for reliable autoplay across browsers.
+      video.muted = true;
       if (isHls && !canNative) {
         try {
-          const mod = (await import('hls.js')) as unknown as { default: new (cfg?: unknown) => unknown };
+          const mod = (await import('hls.js')) as unknown as { default: unknown };
           if (cancelled) return;
           const Hls = mod.default as unknown as {
             new (cfg?: unknown): {
@@ -62,7 +75,9 @@ export default function PlayerSurface({ channel }: { channel?: Channel }) {
             const data = args[1] as { fatal?: boolean; details?: string } | undefined;
             if (data?.fatal) setErr(`Stream error: ${data.details ?? 'fatal'}`);
           });
-          h.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {/* autoplay blocked */}); });
+          h.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (autoPlay) video.play().catch(() => {/* user gesture required */});
+          });
           h.loadSource(channel!.streamUrl!);
           h.attachMedia(video);
         } catch (e) {
@@ -70,7 +85,7 @@ export default function PlayerSurface({ channel }: { channel?: Channel }) {
         }
       } else {
         video.src = channel!.streamUrl!;
-        video.play().catch(() => {/* user gesture required, ignore */});
+        if (autoPlay) video.play().catch(() => {/* user gesture required */});
       }
     }
     attach();
@@ -81,17 +96,29 @@ export default function PlayerSurface({ channel }: { channel?: Channel }) {
       video.removeAttribute('src');
       video.load();
     };
-  }, [channel?.streamUrl]);
+  }, [channel?.streamUrl, autoPlay]);
+
+  // Click anywhere on the surface to unmute. We deliberately don't
+  // toggle pause on click — the native <video controls> is below and
+  // already has a pause button.
+  function unmute() {
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = false;
+    v.volume = 1;
+    setMuted(false);
+    v.play().catch(() => {/* ignore */});
+  }
 
   return (
-    <div className="player-surface">
+    <div className="player-surface" onClick={muted ? unmute : undefined}>
       {channel?.streamUrl ? (
         <>
           <video
             ref={videoRef}
-            autoPlay
+            autoPlay={autoPlay}
             playsInline
-            muted={false}
+            muted
             controls
             style={{ width: '100%', height: '100%', background: '#000', objectFit: 'contain' }}
             onPlaying={() => setPlaying(true)}
@@ -100,9 +127,15 @@ export default function PlayerSurface({ channel }: { channel?: Channel }) {
           {!playing && !err && (
             <div className="player-loading">Tuning {channel.number} · {channel.name}…</div>
           )}
+          {playing && muted && (
+            <div className="player-unmute">
+              <span>🔇</span>
+              <span>Tap to unmute</span>
+            </div>
+          )}
           {err && (
             <div className="player-error">
-              <div className="player-error-title">Can't play {channel.name}</div>
+              <div className="player-error-title">Can&apos;t play {channel.name}</div>
               <div className="player-error-msg">{err}</div>
               <div className="player-error-hint">
                 The stream URL may be geo-blocked, require credentials, or block cross-origin playback.
