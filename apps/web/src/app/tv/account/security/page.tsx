@@ -1,5 +1,9 @@
 // Security — change password, 2FA, login history.
+'use client';
+
+import { useState } from 'react';
 import Shell from '../Shell';
+import ActionButton from '@/components/ui/ActionButton';
 
 const HISTORY = [
   { event: 'Sign-in',        meta: 'iPhone 15 Pro · Tel Aviv',         time: 'Just now',            ok: true  },
@@ -10,6 +14,21 @@ const HISTORY = [
 ];
 
 export default function Security() {
+  const [current, setCurrent] = useState('');
+  const [next, setNext]       = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [msg, setMsg]         = useState<{ ok: boolean; text: string } | null>(null);
+
+  function updatePassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (current.length < 1)      return setMsg({ ok: false, text: 'Enter your current password.' });
+    if (next.length < 10)        return setMsg({ ok: false, text: 'New password must be at least 10 characters.' });
+    if (next !== confirm)        return setMsg({ ok: false, text: 'New passwords do not match.' });
+    if (current === next)        return setMsg({ ok: false, text: 'New password must differ from the current one.' });
+    setMsg({ ok: true, text: 'Password updated.' });
+    setCurrent(''); setNext(''); setConfirm('');
+  }
+
   return (
     <Shell active="security">
       <header className="ac-panel-head">
@@ -21,23 +40,44 @@ export default function Security() {
         </p>
       </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }} className="ac-security-grid">
         <div className="ac-card">
           <div className="ac-card-title">Change password</div>
-          <div className="ac-field">
-            <label className="ac-field-label">Current password</label>
-            <input type="password" className="ac-input" placeholder="••••••••••" />
-          </div>
-          <div className="ac-field">
-            <label className="ac-field-label">New password</label>
-            <input type="password" className="ac-input" placeholder="At least 10 characters" />
-            <div className="ac-field-help">We check against a database of leaked passwords. 10+ chars beats complexity.</div>
-          </div>
-          <div className="ac-field">
-            <label className="ac-field-label">Confirm new password</label>
-            <input type="password" className="ac-input" placeholder="••••••••••" />
-          </div>
-          <button className="ac-btn ac-btn-primary">Update password</button>
+          <form onSubmit={updatePassword}>
+            <div className="ac-field">
+              <label className="ac-field-label">Current password</label>
+              <input
+                type="password" className="ac-input"
+                placeholder="••••••••••"
+                value={current} onChange={(e) => setCurrent(e.target.value)}
+              />
+            </div>
+            <div className="ac-field">
+              <label className="ac-field-label">New password</label>
+              <input
+                type="password" className="ac-input"
+                placeholder="At least 10 characters"
+                value={next} onChange={(e) => setNext(e.target.value)}
+              />
+              <div className="ac-field-help">We check against a database of leaked passwords. 10+ chars beats complexity.</div>
+            </div>
+            <div className="ac-field">
+              <label className="ac-field-label">Confirm new password</label>
+              <input
+                type="password" className="ac-input"
+                placeholder="••••••••••"
+                value={confirm} onChange={(e) => setConfirm(e.target.value)}
+              />
+            </div>
+            {msg && (
+              <div style={{
+                fontSize: 13,
+                padding: '8px 0',
+                color: msg.ok ? 'var(--ns-ok, #7DF9C6)' : 'var(--ns-danger, #FF6B7B)',
+              }}>{msg.text}</div>
+            )}
+            <button type="submit" className="ac-btn ac-btn-primary">Update password</button>
+          </form>
         </div>
 
         <div className="ac-card">
@@ -47,21 +87,21 @@ export default function Security() {
               <div className="ac-toggle-title">Authenticator app</div>
               <div className="ac-toggle-desc">Time-based one-time codes via Google Authenticator, Authy, 1Password.</div>
             </div>
-            <button className="ac-btn ac-btn-sm">Set up</button>
+            <ActionButton doneLabel="Setup started ✓">Set up</ActionButton>
           </div>
           <div className="ac-toggle-row">
             <div>
               <div className="ac-toggle-title">SMS backup</div>
               <div className="ac-toggle-desc">Phone-number fallback. Less secure than app-based.</div>
             </div>
-            <button className="ac-btn ac-btn-sm">Configure</button>
+            <ActionButton doneLabel="Sent ✓">Configure</ActionButton>
           </div>
           <div className="ac-toggle-row">
             <div>
               <div className="ac-toggle-title">Passkey (WebAuthn)</div>
               <div className="ac-toggle-desc">Face ID / Touch ID / Windows Hello. No password required for trusted devices.</div>
             </div>
-            <button className="ac-btn ac-btn-sm">Add passkey</button>
+            <ActionButton doneLabel="Added ✓">Add passkey</ActionButton>
           </div>
         </div>
       </div>
@@ -71,7 +111,7 @@ export default function Security() {
         {HISTORY.map((h, i) => (
           <div key={i} style={{
             display: 'grid',
-            gridTemplateColumns: '24px 1fr 240px 80px',
+            gridTemplateColumns: '24px 1fr 200px 80px',
             gap: 16, padding: '12px 0', alignItems: 'center',
             borderTop: i === 0 ? '0' : '1px solid var(--ns-hairline)',
             fontSize: 14,
@@ -91,7 +131,9 @@ export default function Security() {
           </div>
         ))}
         <div style={{ marginTop: 14 }}>
-          <a href="#" className="ac-auth-link">View full history →</a>
+          <ActionButton className="ac-auth-link" style={{
+            background: 'none', border: 0, padding: 0, fontWeight: 600,
+          }} doneLabel="Loaded ✓">View full history →</ActionButton>
         </div>
       </div>
     </Shell>

@@ -276,3 +276,24 @@
   from { transform: scale(0.85); opacity: 0; }
   to   { transform: scale(1);    opacity: 1; }
 }
+
+/* --- Responsive: live TV stacks rail above player on small screens --- */
+@media (max-width: 900px) {
+  .live-body { grid-template-columns: 1fr; }
+  .rail { max-height: 56vh; }
+  .rail-row { height: 64px; padding: 8px 12px; grid-template-columns: 44px 44px 1fr; gap: 8px; }
+  .rail-num { font-size: 16px; }
+  .rail-logo { width: 44px; height: 32px; }
+  .rail-logo img { max-width: 40px; max-height: 28px; }
+  .rail-name { font-size: 14px; }
+  .rail-now  { font-size: 12px; }
+  .rail-next { font-size: 11px; }
+  .player-surface .placeholder-meta .ch-num { font-size: 60px; }
+  .infobar { padding: 14px 18px 18px; }
+  .infobar-chname { font-size: 16px; }
+  .infobar-now-title { font-size: 18px; }
+  .infobar-row2 { grid-template-columns: 1fr; gap: 14px; }
+  .infobar-next { border-left: 0; padding-left: 0; border-top: 1px solid #1F232C; padding-top: 12px; }
+  .infobar-btn { padding: 8px 14px; font-size: 13px; }
+  .numzap { font-size: 40px; top: 80px; right: 14px; padding: 10px 18px; }
+}

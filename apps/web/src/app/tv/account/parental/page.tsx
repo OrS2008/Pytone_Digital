@@ -1,8 +1,24 @@
 // Parental controls — PIN-protected profiles, content rating cap, kids
 // profile, channel block list, sign-out timer.
+'use client';
+
+import { useState } from 'react';
 import Shell from '../Shell';
+import Toggle from '@/components/ui/Toggle';
+import ActionButton from '@/components/ui/ActionButton';
 
 export default function Parental() {
+  const [blocked, setBlocked] = useState(['Sport 18+', 'Adult Movies', 'Erotica HD']);
+  const [query,   setQuery]   = useState('');
+
+  function addBlock() {
+    const q = query.trim();
+    if (!q) return;
+    if (!blocked.includes(q)) setBlocked([...blocked, q]);
+    setQuery('');
+  }
+  function remove(n: string) { setBlocked(blocked.filter((b) => b !== n)); }
+
   return (
     <Shell active="parental">
       <header className="ac-panel-head">
@@ -21,23 +37,23 @@ export default function Parental() {
             <div className="ac-toggle-title">Require PIN for adult content</div>
             <div className="ac-toggle-desc">Anything rated 18+ (TV-MA, R, NC-17) prompts for a 4-digit PIN.</div>
           </div>
-          <div className="ac-toggle ac-toggle-on" />
+          <Toggle initialOn />
         </div>
         <div className="ac-toggle-row">
           <div>
             <div className="ac-toggle-title">Require PIN to leave the Kids profile</div>
             <div className="ac-toggle-desc">Stops kids switching profiles to access the full catalogue.</div>
           </div>
-          <div className="ac-toggle ac-toggle-on" />
+          <Toggle initialOn />
         </div>
         <div className="ac-toggle-row">
           <div>
             <div className="ac-toggle-title">Require PIN to change subscription / billing</div>
             <div className="ac-toggle-desc">Prevents accidental upgrades / cancellations.</div>
           </div>
-          <div className="ac-toggle ac-toggle-on" />
+          <Toggle initialOn />
         </div>
-        <button className="ac-btn" style={{ marginTop: 14 }}>Change PIN</button>
+        <ActionButton className="ac-btn" style={{ marginTop: 14 }} doneLabel="PIN updated ✓">Change PIN</ActionButton>
       </div>
 
       <div className="ac-card">
@@ -47,7 +63,7 @@ export default function Parental() {
             <div className="ac-toggle-title">Maximum rating allowed without PIN</div>
             <div className="ac-toggle-desc">Movies and TV beyond this rating require the PIN to open.</div>
           </div>
-          <select className="ac-input" style={{ width: 220 }}>
+          <select className="ac-input" style={{ width: 220 }} defaultValue="16+ (TV-14 / PG-13)">
             <option>16+ (TV-14 / PG-13)</option>
             <option>18+ (TV-MA / R)</option>
             <option>13+ (TV-PG)</option>
@@ -64,7 +80,7 @@ export default function Parental() {
             <div className="ac-device-name">Or <span className="ac-device-tag">PRIMARY</span></div>
             <div className="ac-device-sub">Adult · all ratings · no PIN required for this profile</div>
           </div>
-          <button className="ac-btn ac-btn-sm">Edit</button>
+          <ActionButton>Edit</ActionButton>
         </div>
         <div className="ac-device">
           <div className="ac-device-icon">🧒</div>
@@ -72,9 +88,9 @@ export default function Parental() {
             <div className="ac-device-name">Kids</div>
             <div className="ac-device-sub">Kids profile · cap at PG · 22 channels visible · 90 min/day limit</div>
           </div>
-          <button className="ac-btn ac-btn-sm">Edit</button>
+          <ActionButton>Edit</ActionButton>
         </div>
-        <button className="ac-btn ac-btn-primary" style={{ marginTop: 14 }}>+ Add profile</button>
+        <ActionButton className="ac-btn ac-btn-primary" style={{ marginTop: 14 }} doneLabel="Profile added ✓">+ Add profile</ActionButton>
       </div>
 
       <div className="ac-card">
@@ -82,19 +98,34 @@ export default function Parental() {
         <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, marginTop: 0 }}>
           Hide specific channels from this profile entirely (they don't appear in the rail or search).
         </p>
-        <input className="ac-input" placeholder="Search and block channels…" />
+        <form onSubmit={(e) => { e.preventDefault(); addBlock(); }}>
+          <input
+            className="ac-input"
+            placeholder="Search and block channels…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </form>
         <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {['Sport 18+', 'Adult Movies', 'Erotica HD'].map(n => (
-            <div key={n} style={{
-              padding: '6px 12px',
-              background: 'var(--ns-bg-hover)',
-              border: '1px solid var(--ns-border)',
-              borderRadius: 999,
-              fontSize: 13,
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}>
+          {blocked.map(n => (
+            <button
+              key={n}
+              onClick={() => remove(n)}
+              style={{
+                padding: '6px 12px',
+                background: 'var(--ns-bg-hover)',
+                border: '1px solid var(--ns-border)',
+                borderRadius: 999,
+                fontSize: 13,
+                display: 'flex', alignItems: 'center', gap: 6,
+                color: 'var(--ns-text)',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+              title="Click to remove"
+            >
               {n} <span style={{ color: 'var(--ns-text-faint)' }}>×</span>
-            </div>
+            </button>
           ))}
         </div>
       </div>

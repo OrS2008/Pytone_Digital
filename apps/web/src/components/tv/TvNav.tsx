@@ -8,7 +8,6 @@ const ITEMS = [
   { label: 'Home',    href: '/tv' },
   { label: 'Sports',  href: '/tv/sports' },
   { label: 'Movies',  href: '/tv/vod' },
-  { label: 'DVR',     href: '/tv/dvr' },
   { label: 'Search',  href: '/tv/search' },
   { label: 'Account', href: '/tv/account' },
 ];

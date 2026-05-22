@@ -195,3 +195,49 @@
   color: #fff;
   border-color: #FF3B6E;
 }
+
+/* --- Responsive: phone/laptop fallbacks for the 1920x1080 TV canvas -- */
+@media (max-width: 900px) {
+  .tv-nav {
+    flex-wrap: wrap;
+    padding: 16px 16px 12px;
+    gap: 4px;
+  }
+  .tv-nav-wordmark {
+    margin-right: 12px;
+    font-size: 16px;
+    letter-spacing: 3px;
+  }
+  .tv-nav-link {
+    padding: 6px 10px;
+    font-size: 13px;
+    border-width: 2px;
+  }
+  .tv-hero {
+    height: auto;
+    min-height: 320px;
+    aspect-ratio: 16 / 10;
+  }
+  .tv-hero-content {
+    left: 18px; right: 18px; bottom: 18px;
+    max-width: none;
+  }
+  .tv-hero-eyebrow { font-size: 11px; letter-spacing: 4px; }
+  .tv-hero-title   { font-size: 26px; }
+  .tv-hero-sub     { font-size: 14px; }
+  .tv-hero-actions { gap: 8px; flex-wrap: wrap; }
+  .tv-btn {
+    padding: 10px 16px;
+    font-size: 13px;
+    border-width: 2px;
+  }
+  .tv-tile {
+    width: 200px;
+    height: 112px;
+    border-radius: 12px;
+  }
+  .tv-tile-caption { font-size: 13px; left: 10px; right: 10px; bottom: 10px; }
+  .tv-row { padding: 0 16px; margin-bottom: 18px; }
+  .tv-row h2 { font-size: 18px; margin-bottom: 10px; }
+  .tv-row-strip { gap: 10px; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
+}

@@ -1,4 +1,6 @@
 import Shell from '../Shell';
+import Toggle from '@/components/ui/Toggle';
+
 export default function Notifications() {
   return (
     <Shell active="notifications">
@@ -11,14 +13,14 @@ export default function Notifications() {
       <div className="ac-card">
         <div className="ac-card-title">Content alerts</div>
         {[
-          ['Favourite team match starting',     '10-min countdown before kickoff of marked teams.'],
-          ['New episode of a watched series',   'When the next episode lands on any source you have.'],
-          ['Live programme starts on a favourite channel', 'Premium / sports events on starred channels.'],
-          ['DVR recording started / failed',    'Heads-up if anything went wrong with a planned recording.'],
-        ].map(([t, d], i) => (
+          { t: 'Favourite team match starting',                     d: '10-min countdown before kickoff of marked teams.',         on: true  },
+          { t: 'New episode of a watched series',                   d: 'When the next episode lands on any source you have.',      on: true  },
+          { t: 'Live programme starts on a favourite channel',      d: 'Premium events on starred channels.',                       on: true  },
+          { t: 'Recording started / failed',                        d: 'Heads-up if anything went wrong with a planned recording.', on: false },
+        ].map((r, i) => (
           <div key={i} className="ac-toggle-row">
-            <div><div className="ac-toggle-title">{t}</div><div className="ac-toggle-desc">{d}</div></div>
-            <div className={`ac-toggle ${i < 3 ? 'ac-toggle-on' : ''}`} />
+            <div><div className="ac-toggle-title">{r.t}</div><div className="ac-toggle-desc">{r.d}</div></div>
+            <Toggle initialOn={r.on} />
           </div>
         ))}
       </div>
@@ -26,14 +28,14 @@ export default function Notifications() {
       <div className="ac-card">
         <div className="ac-card-title">Account & security</div>
         {[
-          ['New device sign-in',                'Email + push for every new device. Recommended on.'],
-          ['Failed sign-in attempts',           'Multiple failures from an unknown IP.'],
-          ['Payment receipts',                  'After each successful charge.'],
-          ['Card expiring soon',                '14 days before your card expires.'],
-        ].map(([t, d], i) => (
+          { t: 'New device sign-in',           d: 'Email + push for every new device. Recommended on.' },
+          { t: 'Failed sign-in attempts',      d: 'Multiple failures from an unknown IP.' },
+          { t: 'Payment receipts',             d: 'After each successful charge.' },
+          { t: 'Card expiring soon',           d: '14 days before your card expires.' },
+        ].map((r, i) => (
           <div key={i} className="ac-toggle-row">
-            <div><div className="ac-toggle-title">{t}</div><div className="ac-toggle-desc">{d}</div></div>
-            <div className="ac-toggle ac-toggle-on" />
+            <div><div className="ac-toggle-title">{r.t}</div><div className="ac-toggle-desc">{r.d}</div></div>
+            <Toggle initialOn />
           </div>
         ))}
       </div>
@@ -42,7 +44,7 @@ export default function Notifications() {
         <div className="ac-card-title">Product updates</div>
         <div className="ac-toggle-row">
           <div><div className="ac-toggle-title">New features &amp; tips</div><div className="ac-toggle-desc">Monthly, never spammy. Unsub anytime.</div></div>
-          <div className="ac-toggle" />
+          <Toggle />
         </div>
       </div>
     </Shell>

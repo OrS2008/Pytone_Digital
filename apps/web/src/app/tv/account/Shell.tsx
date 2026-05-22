@@ -34,7 +34,6 @@ export default function Shell({ active, children }: { active: string; children: 
           <Link href="/tv/live" className="ac-link">Live</Link>
           <Link href="/tv/vod" className="ac-link">Movies</Link>
           <Link href="/tv/sports" className="ac-link">Sports</Link>
-          <Link href="/tv/dvr" className="ac-link">DVR</Link>
           <Link href="/tv/account" className="ac-link ac-link-active">Account</Link>
         </nav>
         <div className="ac-account">

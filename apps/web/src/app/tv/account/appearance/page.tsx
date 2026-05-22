@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import Shell from '../Shell';
+import Toggle from '@/components/ui/Toggle';
 
 type ThemeId = 'apex' | 'aurora' | 'mono' | 'cyber' | 'premium';
 
@@ -68,28 +69,28 @@ export default function Appearance() {
             <div className="ac-toggle-title">Match system dark / light</div>
             <div className="ac-toggle-desc">Follow your device's appearance setting. Light variants of each theme are coming.</div>
           </div>
-          <div className="ac-toggle" />
+          <Toggle />
         </div>
         <div className="ac-toggle-row">
           <div>
             <div className="ac-toggle-title">High contrast</div>
             <div className="ac-toggle-desc">Boosts text against backgrounds for low-light viewing.</div>
           </div>
-          <div className="ac-toggle" />
+          <Toggle />
         </div>
         <div className="ac-toggle-row">
           <div>
             <div className="ac-toggle-title">Reduce motion</div>
             <div className="ac-toggle-desc">Disables fade and scale animations. Saves on older TVs.</div>
           </div>
-          <div className="ac-toggle" />
+          <Toggle />
         </div>
         <div className="ac-toggle-row">
           <div>
             <div className="ac-toggle-title">Bigger text</div>
             <div className="ac-toggle-desc">Increases body text by 15% — better for far seating.</div>
           </div>
-          <div className="ac-toggle" />
+          <Toggle />
         </div>
       </div>
     </Shell>

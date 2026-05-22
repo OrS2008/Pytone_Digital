@@ -2,6 +2,9 @@
 // side. This is reached both from the upgrade flow and from "manage
 // subscription". The "Single" card is marked as Recommended for the most
 // common buyer.
+'use client';
+
+import { useState } from 'react';
 import Shell from '../Shell';
 
 const FEATURES_SINGLE = [
@@ -25,6 +28,37 @@ const FEATURES_MULTI = [
 ];
 
 export default function Plans() {
+  const [chosen, setChosen] = useState<'single' | 'multi' | null>(null);
+
+  if (chosen) {
+    return (
+      <Shell active="plans">
+        <header className="ac-panel-head">
+          <div className="ac-panel-eyebrow">Confirmation</div>
+          <h1 className="ac-panel-title">You're on {chosen === 'single' ? 'Single' : 'Multi'} ✓</h1>
+          <p className="ac-panel-sub">
+            Welcome. Your trial continues for 5 more days — billing for the{' '}
+            {chosen === 'single' ? '₪39/mo Single' : '₪69/mo Multi'} plan starts after that.
+            You can change your plan or cancel any time from{' '}
+            <a className="ac-auth-link" href="/tv/account/subscription">Subscription</a>.
+          </p>
+        </header>
+        <div className="ac-card">
+          <div className="ac-card-title">What's next</div>
+          <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, lineHeight: 1.6 }}>
+            Head to <a className="ac-auth-link" href="/tv/account/sources">Playlists &amp; EPG</a> to
+            connect your M3U / Xtream provider, then back to{' '}
+            <a className="ac-auth-link" href="/tv/live">Live TV</a> to start watching.
+          </p>
+          <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
+            <a className="ac-btn ac-btn-primary" href="/tv/account/sources">Connect a playlist</a>
+            <button className="ac-btn" onClick={() => setChosen(null)}>Back to plans</button>
+          </div>
+        </div>
+      </Shell>
+    );
+  }
+
   return (
     <Shell active="plans">
       <header className="ac-panel-head">
@@ -56,7 +90,11 @@ export default function Plans() {
               </li>
             ))}
           </ul>
-          <button className="ac-btn ac-btn-primary" style={{ justifyContent: 'center', padding: '16px 24px' }}>
+          <button
+            className="ac-btn ac-btn-primary"
+            style={{ justifyContent: 'center', padding: '16px 24px' }}
+            onClick={() => setChosen('single')}
+          >
             Start Single — ₪39/mo
           </button>
           <div style={{ marginTop: 12, fontSize: 12, color: 'var(--ns-text-faint)', textAlign: 'center' }}>
@@ -82,7 +120,11 @@ export default function Plans() {
               </li>
             ))}
           </ul>
-          <button className="ac-btn" style={{ justifyContent: 'center', padding: '16px 24px' }}>
+          <button
+            className="ac-btn"
+            style={{ justifyContent: 'center', padding: '16px 24px' }}
+            onClick={() => setChosen('multi')}
+          >
             Start Multi — ₪69/mo
           </button>
           <div style={{ marginTop: 12, fontSize: 12, color: 'var(--ns-text-faint)', textAlign: 'center' }}>

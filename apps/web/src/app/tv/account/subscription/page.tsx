@@ -1,6 +1,10 @@
 // Subscription — current plan, next billing, payment method, history,
 // cancel.
+'use client';
+
+import { useState } from 'react';
 import Shell from '../Shell';
+import ActionButton from '@/components/ui/ActionButton';
 
 const INVOICES = [
   { id: 'inv_8FQK29B', date: 'Aug 14, 2026', amount: '₪39.00', plan: 'Single · month', status: 'Paid' },
@@ -10,6 +14,9 @@ const INVOICES = [
 ];
 
 export default function Subscription() {
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelled,  setCancelled]  = useState(false);
+
   return (
     <Shell active="subscription">
       <header className="ac-panel-head">
@@ -18,7 +25,7 @@ export default function Subscription() {
         <p className="ac-panel-sub">Trial active. You haven't been charged. Pick a paid plan any time to keep watching when the trial ends.</p>
       </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 18 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 18 }} className="ac-sub-grid">
         <div className="ac-card">
           <div className="ac-card-title">Current plan</div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 6 }}>
@@ -34,9 +41,24 @@ export default function Subscription() {
             <dt>Device limit</dt><dd>1 of 1 used</dd>
             <dt>Cost so far</dt><dd>₪0.00</dd>
           </dl>
-          <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 24, flexWrap: 'wrap' }}>
             <a className="ac-btn ac-btn-primary" href="/tv/account/plans">Choose a paid plan</a>
-            <a className="ac-btn ac-btn-ghost" href="#">Cancel trial</a>
+            {cancelled ? (
+              <span style={{
+                padding: '12px 18px', borderRadius: 10,
+                background: 'var(--ns-accent-soft)', color: 'var(--ns-accent)',
+                fontSize: 13, fontWeight: 700,
+              }}>Trial cancelled — access continues until May 21.</span>
+            ) : cancelling ? (
+              <>
+                <button className="ac-btn ac-btn-ghost" onClick={() => setCancelling(false)}>Keep trial</button>
+                <button className="ac-btn ac-btn-danger" onClick={() => { setCancelling(false); setCancelled(true); }}>
+                  Yes, cancel
+                </button>
+              </>
+            ) : (
+              <button className="ac-btn ac-btn-ghost" onClick={() => setCancelling(true)}>Cancel trial</button>
+            )}
           </div>
         </div>
 
@@ -57,12 +79,12 @@ export default function Subscription() {
                 <div style={{ color: 'var(--ns-text-faint)', fontSize: 12 }}>Expires 12 / 2028</div>
               </div>
             </div>
-            <button className="ac-btn ac-btn-sm" style={{ marginTop: 12 }}>Update card</button>
+            <ActionButton className="ac-btn ac-btn-sm" style={{ marginTop: 12 }} doneLabel="Sent to billing portal ✓">Update card</ActionButton>
           </div>
           <div className="ac-card">
             <div className="ac-card-title">Billing email</div>
             <div style={{ marginBottom: 10 }}>ors2008@gmail.com</div>
-            <button className="ac-btn ac-btn-sm">Change</button>
+            <ActionButton doneLabel="Verification sent ✓">Change</ActionButton>
           </div>
         </div>
       </div>

@@ -24,7 +24,7 @@ export default function AccountOverview() {
         <a href="/tv/account/plans" className="ac-btn ac-btn-primary">Choose a plan</a>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 18 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 18 }} className="ac-sub-grid">
         <div>
           <div className="ac-card">
             <div className="ac-card-title">Account</div>
