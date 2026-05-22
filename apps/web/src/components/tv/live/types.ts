@@ -20,6 +20,7 @@ export interface Channel {
   name: string;
   logoUrl: string;
   category: string;
+  streamUrl?: string;
   now?: Programme;
   next1?: Programme;
   next2?: Programme;

@@ -297,3 +297,50 @@
   .infobar-btn { padding: 8px 14px; font-size: 13px; }
   .numzap { font-size: 40px; top: 80px; right: 14px; padding: 10px 18px; }
 }
+
+/* Live source status banner shown above the player when the user's M3U
+   is loading, succeeded, errored or absent. */
+.live-status {
+  padding: 8px 18px;
+  font-size: 13px;
+  color: var(--ns-text-muted, #B7BEC9);
+  background: rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.live-status-ok  { color: var(--ns-ok,     #7DF9C6); }
+.live-status-err { color: var(--ns-danger, #FF6B7B); }
+.live-status-link {
+  color: var(--ns-accent, #FF3B6E);
+  text-decoration: none;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.player-loading {
+  position: absolute;
+  inset: auto 0 16px 0;
+  text-align: center;
+  font-size: 14px;
+  color: rgba(255,255,255,0.7);
+  z-index: 2;
+  pointer-events: none;
+}
+.player-error {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 24px;
+  text-align: center;
+  background: rgba(6, 7, 10, 0.75);
+  z-index: 2;
+}
+.player-error-title {
+  font-size: 22px; font-weight: 800; color: #FF6B7B;
+  margin-bottom: 8px;
+}
+.player-error-msg {
+  font-size: 14px; color: #E9EBF1; max-width: 540px; line-height: 1.5;
+}
+.player-error-hint {
+  margin-top: 14px; font-size: 12px; color: #6E7480; max-width: 540px; line-height: 1.5;
+}

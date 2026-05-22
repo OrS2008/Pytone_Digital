@@ -3,31 +3,22 @@
 /*
  * Live TV — the channel-list-first IPTV experience.
  *
- * This is the screen IPTV users actually live in (HOT / YES / FreeTV
- * style): a sticky left rail with the channel list (logo · number · name ·
- * now/next), a player taking the rest of the screen, and a "info bar" that
- * surfaces at the bottom on channel change or info-key press, with:
+ * In production the channel list comes from the playlist-ingestion
+ * microservice via gRPC-Web. Until that backend is reachable we fall
+ * back to a frontend-only path:
  *
- *   - channel number + logo + name
- *   - current programme title + start–stop time + progress bar
- *   - the next two programmes
- *   - "Restart from beginning" button (uses catch-up)
- *   - "Record" button (one-tap to schedule)
- *   - "More info" button (opens the programme card)
+ *   1. Read the user's saved M3U URL from localStorage (written by
+ *      /tv/account/sources).
+ *   2. Fetch it through /api/m3u (a Netlify edge proxy that adds CORS
+ *      and refuses private/loopback hosts).
+ *   3. Parse with lib/m3u, hand the channels to the rail and player.
  *
- * Remote behaviour mirrors HOT/YES/FreeTV:
- *   - Up/Down on channel list moves the highlighted channel.
- *   - OK on a channel switches the player to it AND surfaces the info bar.
- *   - Info button toggles the bar.
- *   - Channel up/down on the remote (CHANNEL_+/-, mapped to PageUp/Down)
- *     zaps without opening the list.
- *   - Number keys 0-9 compose a channel-number jump (200ms idle commits).
- *
- * For the dev preview the player is a static placeholder block; the real
- * client wires the playback ticket flow from libs/proto/playback.
+ * If no M3U is saved or the fetch fails we render the mock channel set
+ * so the UX is still demonstrable.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import TvNav from '@/components/tv/TvNav';
 import { TvFocusProvider } from '@/components/tv/TvFocus';
 import ChannelRail from '@/components/tv/live/ChannelRail';
@@ -35,17 +26,69 @@ import PlayerSurface from '@/components/tv/live/PlayerSurface';
 import InfoBar from '@/components/tv/live/InfoBar';
 import NumberZap from '@/components/tv/live/NumberZap';
 import { MOCK_CHANNELS } from '@/components/tv/live/mockChannels';
+import type { Channel } from '@/components/tv/live/types';
+import { parseM3U } from '@/lib/m3u';
 import './live.css';
 
+interface StoredSource { id: string; kind: string; title: string; sub: string; stat: string; }
+
+type LoadState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'ready'; count: number; sourceTitle: string }
+  | { kind: 'mock' }
+  | { kind: 'error'; message: string };
+
 export default function LivePage() {
-  const channels = MOCK_CHANNELS;
+  const [channels, setChannels] = useState<Channel[]>(MOCK_CHANNELS);
   const [activeIdx, setActiveIdx] = useState(0);
-  // Show the info banner for 5 seconds on entry and on every channel
-  // change, then hide it. Matches HOT / YES / Sting behaviour — the
-  // playback surface should be unobstructed during normal viewing.
   const [infoVisible, setInfoVisible] = useState(true);
+  const [load, setLoad] = useState<LoadState>({ kind: 'idle' });
 
   const active = channels[activeIdx];
+
+  // On mount: look for a saved live-source and load it.
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      let stored: StoredSource[] = [];
+      try {
+        const raw = localStorage.getItem('ns.sources.live');
+        if (raw) stored = JSON.parse(raw) as StoredSource[];
+      } catch { /* corrupt storage */ }
+
+      // Only treat URLs the user typed themselves (not the seeded example).
+      const userSource = stored.find((s) =>
+        s.id !== 'live-1' &&
+        typeof s.sub === 'string' &&
+        (s.sub.startsWith('http://') || s.sub.startsWith('https://')),
+      );
+      if (!userSource) { setLoad({ kind: 'mock' }); return; }
+
+      setLoad({ kind: 'loading' });
+      try {
+        const resp = await fetch('/api/m3u?url=' + encodeURIComponent(userSource.sub));
+        if (!resp.ok) {
+          const body = await resp.text();
+          throw new Error(`HTTP ${resp.status} — ${body || resp.statusText}`);
+        }
+        const text = await resp.text();
+        const parsed = parseM3U(text);
+        if (parsed.length === 0) {
+          throw new Error('No channels found in playlist. Check the URL.');
+        }
+        if (cancelled) return;
+        setChannels(parsed);
+        setActiveIdx(0);
+        setLoad({ kind: 'ready', count: parsed.length, sourceTitle: userSource.title });
+      } catch (e) {
+        if (cancelled) return;
+        setLoad({ kind: 'error', message: (e as Error).message });
+      }
+    }
+    run();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (!infoVisible) return;
@@ -62,7 +105,6 @@ export default function LivePage() {
     [channels.length],
   );
 
-  // Channel zap (PageUp / PageDown / Channel+ / Channel-).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'PageUp')   tune(activeIdx - 1);
@@ -86,6 +128,32 @@ export default function LivePage() {
     <TvFocusProvider>
       <div className={layout}>
         <TvNav />
+
+        {load.kind === 'loading' && (
+          <div className="live-status">Loading your playlist…</div>
+        )}
+        {load.kind === 'ready' && (
+          <div className="live-status live-status-ok">
+            {load.sourceTitle} · {load.count} channels loaded.
+          </div>
+        )}
+        {load.kind === 'mock' && (
+          <div className="live-status">
+            Showing demo channels.{' '}
+            <Link href="/tv/account/sources" className="live-status-link">
+              Add your M3U →
+            </Link>
+          </div>
+        )}
+        {load.kind === 'error' && (
+          <div className="live-status live-status-err">
+            Could not load your playlist: {load.message}.{' '}
+            <Link href="/tv/account/sources" className="live-status-link">
+              Edit the URL →
+            </Link>
+          </div>
+        )}
+
         <div className="live-body">
           <ChannelRail
             channels={channels}
