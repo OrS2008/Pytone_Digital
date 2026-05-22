@@ -5,6 +5,8 @@ import { TvFocusProvider, useSetZone } from '@/components/tv/TvFocus';
 import TvNav from '@/components/tv/TvNav';
 import TvHero from '@/components/tv/TvHero';
 import TvHomeRow from '@/components/tv/TvHomeRow';
+import ContinueWatchingRow from '@/components/tv/ContinueWatchingRow';
+import { useT } from '@/lib/i18n';
 
 /*
  * /tv — the TV-optimised home screen.
@@ -18,25 +20,26 @@ import TvHomeRow from '@/components/tv/TvHomeRow';
  * is the right call for an app the IPK loads once per session.
  */
 
-const ROWS = [
-  { id: 'home-continue',   title: 'Continue Watching' },
-  { id: 'home-live',       title: 'Live Now' },
-  { id: 'home-sports',     title: 'Sports' },
-  { id: 'home-trending',   title: 'Trending' },
-  { id: 'home-recommended',title: 'Recommended for You' },
-  { id: 'home-recent',     title: 'Recently Added' },
-  { id: 'home-replay',     title: 'Replay Highlights' },
-];
-
 function TvHomeInner() {
   const focusHero = useSetZone('hero');
+  const { t } = useT();
   useEffect(() => { focusHero(); }, [focusHero]);
+
+  const ROWS = [
+    { id: 'home-live',       title: t('home.liveNow') },
+    { id: 'home-sports',     title: t('home.sports') },
+    { id: 'home-trending',   title: t('home.trending') },
+    { id: 'home-recommended',title: t('home.recommended') },
+    { id: 'home-recent',     title: t('home.recent') },
+    { id: 'home-replay',     title: t('home.replay') },
+  ];
 
   return (
     <main style={{ minHeight: '100vh' }}>
       <div style={{ height: 100 }}><TvNav /></div>
       <TvHero />
       <div style={{ marginTop: 32, paddingBottom: 64 }}>
+        <ContinueWatchingRow />
         {ROWS.map((r, i) => (
           <TvHomeRow
             key={r.id}

@@ -1,0 +1,42 @@
+const he: Record<string, string> = {
+  'nav.live':      'שידור חי',
+  'nav.home':      'בית',
+  'nav.sports':    'ספורט',
+  'nav.movies':    'סרטים',
+  'nav.search':    'חיפוש',
+  'nav.account':   'חשבון',
+  'nav.signIn':    'התחברות',
+
+  'auth.welcomeBack':    'ברוך שובך',
+  'auth.signInSub':      'התחבר כדי להמשיך לצפות מהמקום שבו עצרת.',
+  'auth.startWatching':  'התחל לצפות',
+  'auth.email':          'אימייל',
+  'auth.password':       'סיסמה',
+  'auth.forgot':         'שכחת?',
+  'auth.signIn':         'התחבר',
+  'auth.signingIn':      'מתחבר…',
+  'auth.signOut':        'התנתק',
+  'auth.or':             'או',
+
+  'home.continue':       'המשך לצפות',
+  'home.liveNow':        'משדרים עכשיו',
+  'home.sports':         'ספורט',
+  'home.trending':       'פופולרי',
+  'home.recommended':    'מומלץ עבורך',
+  'home.recent':         'נוסף לאחרונה',
+  'home.replay':         'הדגשים',
+
+  'live.addPlaylist':    'הוסף פלייליסט כדי לראות את הערוצים שלך ←',
+  'live.watch':          'צפה',
+  'live.restart':        'הפעל מההתחלה',
+  'live.record':         'הקלט',
+  'live.moreInfo':       'פרטים נוספים',
+  'live.comingUp':       'בהמשך',
+  'live.tapToUnmute':    'הקש לבטל השתקה',
+
+  'pref.spoilerProtection': 'הסתרת ספוילרים',
+  'pref.prefetch':       'טעינה מוקדמת של הערוץ הבא',
+  'pref.subtitles':      'כתוביות',
+  'pref.language':       'שפת הממשק',
+};
+export default he;

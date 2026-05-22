@@ -26,6 +26,7 @@ import { MOCK_CHANNELS } from '@/components/tv/live/mockChannels';
 import type { Channel } from '@/components/tv/live/types';
 import { parseM3U } from '@/lib/m3u';
 import { userKey } from '@/lib/session';
+import { recordWatch } from '@/lib/watchHistory';
 import './live.css';
 
 interface StoredSource { id: string; kind: string; title: string; sub: string; stat: string; }
@@ -74,7 +75,20 @@ export default function LivePage() {
         if (parsed.length === 0) throw new Error('No channels found in playlist.');
         if (cancelled) return;
         setChannels(parsed);
-        setActiveIdx(0);
+        // If the user followed a deep link from Continue Watching
+        // (/tv/live?ch=N) try to land on that channel number.
+        let initial = 0;
+        if (typeof window !== 'undefined') {
+          const want = new URLSearchParams(window.location.search).get('ch');
+          if (want) {
+            const idx = parsed.findIndex((c) => String(c.number) === want);
+            if (idx >= 0) initial = idx;
+          }
+        }
+        setActiveIdx(initial);
+        if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('ch')) {
+          setWatching(true);
+        }
         setLoad({ kind: 'ready', count: parsed.length, sourceTitle: userSource.title });
       } catch (e) {
         if (cancelled) return;
@@ -117,6 +131,25 @@ export default function LivePage() {
     });
     return () => { controllers.forEach((c) => c.abort()); };
   }, [activeIdx, channels]);
+
+  // Record the active channel into watch history. We count "watched"
+  // only after a 4-second dwell so the user doesn't churn history by
+  // zapping through the rail.
+  useEffect(() => {
+    const ch = channels[activeIdx];
+    if (!ch || !watching) return;
+    const started = Date.now();
+    const dwell = setTimeout(() => {
+      recordWatch({ id: ch.id, number: ch.number, name: ch.name, logoUrl: ch.logoUrl }, 0);
+    }, 4000);
+    return () => {
+      clearTimeout(dwell);
+      // On unmount / channel change after dwell crossed, add elapsed
+      // duration to the existing entry.
+      const elapsed = Date.now() - started;
+      if (elapsed > 4000) recordWatch({ id: ch.id, number: ch.number, name: ch.name, logoUrl: ch.logoUrl }, elapsed);
+    };
+  }, [activeIdx, watching, channels]);
 
   // Tuning behaviour. Clicking / pressing OK on a channel selects it AND
   // enters watching mode so the player goes full-screen and starts

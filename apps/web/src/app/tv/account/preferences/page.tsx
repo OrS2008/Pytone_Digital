@@ -3,6 +3,7 @@
 // behavioural rather than visual.
 import Shell from '../Shell';
 import Toggle from '@/components/ui/Toggle';
+import SubtitleControls from '@/components/ui/SubtitleControls';
 
 export default function Preferences() {
   return (
@@ -119,6 +120,14 @@ export default function Preferences() {
             <option>Block playback on cellular</option>
           </select>
         </div>
+      </div>
+
+      <div className="ac-card">
+        <div className="ac-card-title">Subtitles</div>
+        <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, marginTop: 0 }}>
+          Pick how subtitles look across every player on Nova Stream.
+        </p>
+        <SubtitleControls />
       </div>
 
       <div className="ac-card">

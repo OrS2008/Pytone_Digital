@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import Shell from '../Shell';
 import Toggle from '@/components/ui/Toggle';
+import { LOCALES, useT } from '@/lib/i18n';
 
 type ThemeId = 'apex' | 'aurora' | 'mono' | 'cyber' | 'premium';
 
@@ -20,6 +21,7 @@ const THEMES: { id: ThemeId; name: string; tag: string; preview: string }[] = [
 
 export default function Appearance() {
   const [active, setActive] = useState<ThemeId>('apex');
+  const { locale, setLocale, t } = useT();
 
   useEffect(() => {
     const saved = (typeof window !== 'undefined' && localStorage.getItem('ns.theme')) as ThemeId | null;
@@ -91,6 +93,24 @@ export default function Appearance() {
             <div className="ac-toggle-desc">Increases body text by 15% — better for far seating.</div>
           </div>
           <Toggle />
+        </div>
+      </div>
+
+      <div className="ac-card">
+        <div className="ac-card-title">{t('pref.language')}</div>
+        <div className="ac-toggle-row">
+          <div style={{ minWidth: 240 }}>
+            <div className="ac-toggle-title">{t('pref.language')}</div>
+            <div className="ac-toggle-desc">Interface language. Hebrew automatically switches the app to right-to-left.</div>
+          </div>
+          <select
+            className="ac-input"
+            style={{ width: 220 }}
+            value={locale}
+            onChange={(e) => setLocale(e.target.value as 'en' | 'he')}
+          >
+            {LOCALES.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+          </select>
         </div>
       </div>
     </Shell>

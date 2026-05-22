@@ -264,3 +264,43 @@
   .tv-row h2 { font-size: 18px; margin-bottom: 10px; }
   .tv-row-strip { gap: 10px; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
 }
+
+/* Continue Watching tiles — slightly different proportions */
+.tv-tile-cw { width: 280px; height: 160px; }
+.tv-tile-num {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 72px; font-weight: 800; color: #2B3142; letter-spacing: -2px;
+}
+@media (max-width: 900px) {
+  .tv-tile-cw { width: 180px; height: 102px; }
+  .tv-tile-num { font-size: 48px; }
+}
+
+/* User-customisable subtitles. The Preferences page writes these
+   variables and the player picks them up automatically via ::cue. */
+:root {
+  --ns-cue-size:   1em;
+  --ns-cue-bg:     rgba(0, 0, 0, 0.65);
+  --ns-cue-color:  #fff;
+  --ns-cue-weight: 600;
+}
+video::cue {
+  background: var(--ns-cue-bg);
+  color:      var(--ns-cue-color);
+  font-size:  var(--ns-cue-size);
+  font-weight:var(--ns-cue-weight);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+
+/* RTL support — flip directional things automatically when the
+   document goes right-to-left (Hebrew). */
+html[dir="rtl"] .tv-nav-wordmark { margin-right: 0; margin-left: 56px; }
+@media (max-width: 900px) {
+  html[dir="rtl"] .tv-nav-wordmark { margin-left: 12px; }
+}
+html[dir="rtl"] .tv-row { padding: 0 64px; }
+html[dir="rtl"] .tv-hero-content { left: auto; right: 64px; }
+@media (max-width: 900px) {
+  html[dir="rtl"] .tv-hero-content { left: 18px; right: 18px; }
+}

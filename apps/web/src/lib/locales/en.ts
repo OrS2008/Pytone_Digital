@@ -1,0 +1,42 @@
+const en: Record<string, string> = {
+  'nav.live':      'Live',
+  'nav.home':      'Home',
+  'nav.sports':    'Sports',
+  'nav.movies':    'Movies',
+  'nav.search':    'Search',
+  'nav.account':   'Account',
+  'nav.signIn':    'Sign in',
+
+  'auth.welcomeBack':    'Welcome back',
+  'auth.signInSub':      'Sign in to keep watching where you left off.',
+  'auth.startWatching':  'Start watching',
+  'auth.email':          'Email',
+  'auth.password':       'Password',
+  'auth.forgot':         'Forgot?',
+  'auth.signIn':         'Sign in',
+  'auth.signingIn':      'Signing in…',
+  'auth.signOut':        'Sign out',
+  'auth.or':             'or',
+
+  'home.continue':       'Continue Watching',
+  'home.liveNow':        'Live Now',
+  'home.sports':         'Sports',
+  'home.trending':       'Trending',
+  'home.recommended':    'Recommended for You',
+  'home.recent':         'Recently Added',
+  'home.replay':         'Replay Highlights',
+
+  'live.addPlaylist':    'Add your playlist to see your channels →',
+  'live.watch':          'Watch',
+  'live.restart':        'Restart programme',
+  'live.record':         'Record',
+  'live.moreInfo':       'More info',
+  'live.comingUp':       'Coming up',
+  'live.tapToUnmute':    'Tap to unmute',
+
+  'pref.spoilerProtection': 'Spoiler protection',
+  'pref.prefetch':       'Pre-warm the next channel',
+  'pref.subtitles':      'Subtitles',
+  'pref.language':       'Language',
+};
+export default en;
