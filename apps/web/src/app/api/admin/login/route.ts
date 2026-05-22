@@ -40,8 +40,21 @@ function recordFail(key: string) {
 }
 
 function verifyPassword(plain: string, stored: string): boolean {
-  // stored: scrypt$<saltHex>$<hashHex>
-  const [scheme, saltHex, hashHex] = stored.split('$');
+  // Accepted formats:
+  //   "scrypt$<saltHex>$<hashHex>"   ← legacy
+  //   "scrypt:<saltHex>:<hashHex>"   ← preferred
+  //
+  // Why both: dotenv interprets `$` in .env files as variable
+  // expansion ($FOO → process.env.FOO). A scrypt hash full of hex
+  // happily contains "$<hex>" sequences which expand to empty and
+  // silently truncate the stored value to literally "scrypt". The
+  // colon-delimited form sidesteps that without needing to quote
+  // values in .env. Legacy hashes still verify so existing deploys
+  // keep working until the operator re-rotates.
+  // (If you write the legacy form in .env.local, wrap the whole
+  // value in single quotes: ADMIN_PASSWORD_HASH='scrypt$abc$def')
+  const sep = stored.includes(':') ? ':' : '$';
+  const [scheme, saltHex, hashHex] = stored.split(sep);
   if (scheme !== 'scrypt' || !saltHex || !hashHex) return false;
   let expected: Buffer;
   try {
