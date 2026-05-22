@@ -14,11 +14,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import TvNav from '@/components/tv/TvNav';
 import { TvFocusProvider } from '@/components/tv/TvFocus';
-import { parseM3U } from '@/lib/m3u';
-import { userKey } from '@/lib/session';
+import { getCachedChannels, loadChannels } from '@/lib/channelCache';
 import type { M3UChannel } from '@/lib/m3u';
-
-interface StoredSource { id: string; kind: string; title: string; sub: string; stat: string }
 
 interface SpeechRecognitionResult { transcript: string }
 interface SpeechRecognitionEvent { results: { 0: { 0: SpeechRecognitionResult } } & ArrayLike<unknown> }
@@ -38,35 +35,22 @@ declare global {
 
 export default function SearchHome() {
   const [q, setQ] = useState('');
-  const [channels, setChannels] = useState<M3UChannel[]>([]);
-  const [loading, setLoading]   = useState(true);
+  // Hydrate synchronously from the shared cache so the channel grid
+  // appears instantly when the user comes back from another tab.
+  const [channels, setChannels] = useState<M3UChannel[]>(
+    (typeof window !== 'undefined' ? getCachedChannels() : null) ?? [],
+  );
+  const [loading, setLoading]   = useState(channels.length === 0);
   const [listening, setListening] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
 
-  // Load the user's playlist on mount; cache hit-or-miss so we don't
-  // re-fetch on every keystroke.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      let stored: StoredSource[] = [];
-      try {
-        const raw = localStorage.getItem(userKey('sources.live'));
-        if (raw) stored = JSON.parse(raw) as StoredSource[];
-      } catch { /* corrupt */ }
-      const src = stored.find((s) =>
-        s.id !== 'live-1' &&
-        typeof s.sub === 'string' &&
-        (s.sub.startsWith('http://') || s.sub.startsWith('https://')),
-      );
-      if (!src) { if (!cancelled) { setChannels([]); setLoading(false); } return; }
-      try {
-        const r = await fetch('/api/m3u?url=' + encodeURIComponent(src.sub));
-        if (r.ok) {
-          const text = await r.text();
-          if (!cancelled) setChannels(parseM3U(text));
-        }
-      } catch { /* leave empty */ }
-      if (!cancelled) setLoading(false);
+      const parsed = await loadChannels();
+      if (cancelled) return;
+      setChannels(parsed);
+      setLoading(false);
     })();
     return () => { cancelled = true; };
   }, []);
@@ -200,9 +184,12 @@ export default function SearchHome() {
                 display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12,
               }}>
                 {filtered.map((c) => (
+                  // Deep-link straight into the player at fullscreen
+                  // by passing ?ch=<number> — the live page reads
+                  // this and enters watching mode on mount.
                   <Link
                     key={c.id + '-' + c.number}
-                    href="/tv/live"
+                    href={`/tv/live?ch=${encodeURIComponent(String(c.number))}`}
                     style={{
                       display: 'grid',
                       gridTemplateColumns: '48px 1fr',

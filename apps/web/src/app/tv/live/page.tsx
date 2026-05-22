@@ -24,12 +24,10 @@ import InfoBar from '@/components/tv/live/InfoBar';
 import NumberZap from '@/components/tv/live/NumberZap';
 import { MOCK_CHANNELS } from '@/components/tv/live/mockChannels';
 import type { Channel } from '@/components/tv/live/types';
-import { parseM3U } from '@/lib/m3u';
 import { userKey } from '@/lib/session';
 import { recordWatch } from '@/lib/watchHistory';
+import { getCachedChannels, getUserSourceUrl, loadChannels } from '@/lib/channelCache';
 import './live.css';
-
-interface StoredSource { id: string; kind: string; title: string; sub: string; stat: string; }
 
 type LoadState =
   | { kind: 'idle' }
@@ -39,64 +37,69 @@ type LoadState =
   | { kind: 'error'; message: string };
 
 export default function LivePage() {
-  const [channels, setChannels] = useState<Channel[]>(MOCK_CHANNELS);
-  const [activeIdx, setActiveIdx] = useState(0);
+  // Synchronous hydration: if the cache already has the user's
+  // playlist from a previous visit / route, use it instantly. Mock
+  // channels only ever show for users with no playlist configured.
+  const initialCached = (() => {
+    if (typeof window === 'undefined') return null;
+    return getCachedChannels();
+  })();
+  const initialDeep = (() => {
+    if (typeof window === 'undefined') return { idx: 0, watch: false };
+    const want = new URLSearchParams(window.location.search).get('ch');
+    if (!want || !initialCached) return { idx: 0, watch: false };
+    const idx = initialCached.findIndex((c) => String(c.number) === want);
+    return idx >= 0 ? { idx, watch: true } : { idx: 0, watch: false };
+  })();
+
+  const [channels, setChannels] = useState<Channel[]>(initialCached ?? MOCK_CHANNELS);
+  const [activeIdx, setActiveIdx] = useState(initialDeep.idx);
   const [infoVisible, setInfoVisible] = useState(true);
-  const [watching, setWatching] = useState(false);
-  const [load, setLoad] = useState<LoadState>({ kind: 'idle' });
+  const [watching, setWatching] = useState(initialDeep.watch);
+  const [load, setLoad] = useState<LoadState>(
+    initialCached
+      ? { kind: 'ready', count: initialCached.length, sourceTitle: getUserSourceUrl()?.title || 'My playlist' }
+      : { kind: 'idle' },
+  );
 
   const active = channels[activeIdx];
 
   useEffect(() => {
     let cancelled = false;
     async function run() {
-      let stored: StoredSource[] = [];
-      try {
-        const raw = localStorage.getItem(userKey('sources.live'));
-        if (raw) stored = JSON.parse(raw) as StoredSource[];
-      } catch { /* corrupt storage */ }
+      const src = getUserSourceUrl();
+      if (!src) { if (!cancelled) setLoad({ kind: 'mock' }); return; }
 
-      const userSource = stored.find((s) =>
-        s.id !== 'live-1' &&
-        typeof s.sub === 'string' &&
-        (s.sub.startsWith('http://') || s.sub.startsWith('https://')),
-      );
-      if (!userSource) { setLoad({ kind: 'mock' }); return; }
+      // If we already hydrated from cache we still kick a background
+      // refresh, but we don't show a loading state — the user keeps
+      // seeing their channels the whole time.
+      const wasHydrated = initialCached !== null;
+      if (!wasHydrated) setLoad({ kind: 'loading' });
 
-      setLoad({ kind: 'loading' });
       try {
-        const resp = await fetch('/api/m3u?url=' + encodeURIComponent(userSource.sub));
-        if (!resp.ok) {
-          const body = await resp.text();
-          throw new Error(`HTTP ${resp.status} — ${body || resp.statusText}`);
-        }
-        const text = await resp.text();
-        const parsed = parseM3U(text);
-        if (parsed.length === 0) throw new Error('No channels found in playlist.');
+        const parsed = await loadChannels();
         if (cancelled) return;
+        if (parsed.length === 0) throw new Error('No channels found in playlist.');
         setChannels(parsed);
-        // If the user followed a deep link from Continue Watching
-        // (/tv/live?ch=N) try to land on that channel number.
-        let initial = 0;
-        if (typeof window !== 'undefined') {
-          const want = new URLSearchParams(window.location.search).get('ch');
-          if (want) {
-            const idx = parsed.findIndex((c) => String(c.number) === want);
-            if (idx >= 0) initial = idx;
-          }
+
+        // Deep-link from /tv/search or Continue Watching.
+        const want = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('ch') : null;
+        if (want) {
+          const idx = parsed.findIndex((c) => String(c.number) === want);
+          if (idx >= 0) { setActiveIdx(idx); setWatching(true); }
         }
-        setActiveIdx(initial);
-        if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('ch')) {
-          setWatching(true);
-        }
-        setLoad({ kind: 'ready', count: parsed.length, sourceTitle: userSource.title });
+        setLoad({ kind: 'ready', count: parsed.length, sourceTitle: src.title });
       } catch (e) {
         if (cancelled) return;
-        setLoad({ kind: 'error', message: (e as Error).message });
+        // If we had a cached snapshot, keep showing it — only surface
+        // the error to users who had nothing.
+        if (!wasHydrated) setLoad({ kind: 'error', message: (e as Error).message });
       }
     }
     run();
     return () => { cancelled = true; };
+    // initialCached is captured once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
