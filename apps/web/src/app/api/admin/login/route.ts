@@ -96,7 +96,11 @@ export async function POST(req: NextRequest) {
   const res = NextResponse.json({ ok: true });
   res.cookies.set(ADMIN_COOKIE, token, {
     httpOnly: true,
-    secure:   true,
+    // Secure-flag cookies are rejected over plain http://, which is how
+    // dev runs locally. Drop the flag in development so the cookie is
+    // accepted on http://localhost; keep it on in production where the
+    // deploy is always served over https.
+    secure:   process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path:     '/',
     maxAge:   8 * 3600,
