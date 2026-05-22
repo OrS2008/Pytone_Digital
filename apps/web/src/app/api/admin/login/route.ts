@@ -85,9 +85,28 @@ export async function POST(req: NextRequest) {
 
   const passOk = verifyPassword(password, ADMIN_PASSWORD_HASH);
   if (!userOk || !passOk) {
+    // Debug logging — surface what the server actually sees so a
+    // 401 in development is diagnosable without guesswork. Strips
+    // most of the hash so secrets don't leak, but enough to verify
+    // file vs runtime sync. Remove once the deploy stabilises.
+    if (process.env.NODE_ENV !== 'production') {
+      const envHashHead = ADMIN_PASSWORD_HASH.slice(0, 60);
+      console.warn('[admin/login] 401 — userOk=' + userOk + ' passOk=' + passOk);
+      console.warn('[admin/login]   sent username : ' + JSON.stringify(username));
+      console.warn('[admin/login]   env  username : ' + JSON.stringify(ADMIN_USERNAME.toLowerCase()));
+      console.warn('[admin/login]   sent pw length: ' + password.length);
+      console.warn('[admin/login]   env  hash head: ' + envHashHead + '…');
+      try {
+        const parts = ADMIN_PASSWORD_HASH.split('$');
+        if (parts.length === 3) {
+          const expected = Buffer.from(parts[2], 'hex');
+          const got = scryptSync(password, Buffer.from(parts[1], 'hex'), expected.length, { N: 16384, r: 8, p: 1 });
+          console.warn('[admin/login]   computed head: scrypt$' + parts[1].slice(0, 12) + '…$' + got.toString('hex').slice(0, 40) + '…');
+          console.warn('[admin/login]   stored   head: scrypt$' + parts[1].slice(0, 12) + '…$' + parts[2].slice(0, 40) + '…');
+        }
+      } catch { /* ignore */ }
+    }
     recordFail(username);
-    // Add a tiny random delay so timing differences between branches
-    // are buried in noise.
     await new Promise((r) => setTimeout(r, 80 + (randomBytes(1)[0] & 0x3f)));
     return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
   }
