@@ -55,6 +55,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Bad signature: ${(e as Error).message}` }, { status: 400 });
   }
 
+  // Idempotency: Stripe retries any non-2xx with exponential backoff,
+  // and even successful webhooks can arrive twice during DNS / TLS
+  // hiccups. Dedupe by event.id within a sliding window so the same
+  // checkout.session.completed doesn't flip the customer state twice.
+  if (seenEvent(event.id)) {
+    return NextResponse.json({ received: true, duplicate: true });
+  }
+
   try {
     await handle(event);
     return NextResponse.json({ received: true });
@@ -66,6 +74,22 @@ export async function POST(req: NextRequest) {
     // is what we want for transient failures (DB unavailable, etc.).
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
+}
+
+// Per-instance dedupe window. The Netlify Function may cold-start
+// between deliveries, so this is best-effort — Stripe events are also
+// idempotent on their own customer-metadata writes, so a duplicate
+// causes no harm even when the cache misses.
+const SEEN: Map<string, number> = new Map();
+const SEEN_TTL_MS = 10 * 60_000;
+function seenEvent(id: string): boolean {
+  const now = Date.now();
+  // Sweep expired entries on every check so the map can't grow without
+  // bound on a long-lived worker.
+  for (const [k, t] of SEEN) if (now - t > SEEN_TTL_MS) SEEN.delete(k);
+  if (SEEN.has(id)) return true;
+  SEEN.set(id, now);
+  return false;
 }
 
 async function handle(event: Stripe.Event) {
@@ -85,7 +109,10 @@ async function handle(event: Stripe.Event) {
           nova_sub:   subId,
         },
       });
-      console.log('[billing] checkout completed', { customerId, subId, plan, email: session.customer_email });
+      // Mask the local-part of the email in logs so customer-support
+      // queries can grep by domain but the log itself isn't a PII dump.
+      const masked = session.customer_email?.replace(/^(.).+(@.+)$/, '$1***$2');
+      console.log('[billing] checkout completed', { customerId, subId, plan, email: masked });
       break;
     }
 

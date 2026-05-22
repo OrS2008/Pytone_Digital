@@ -38,10 +38,9 @@ export default function Help() {
         <div className="ac-card">
           <div className="ac-card-title">Diagnostics</div>
           <dl className="ac-detail">
-            <dt>App version</dt><dd>0.1.0 (web · build 5944509)</dd>
-            <dt>Device</dt><dd>iPhone 15 Pro · iOS 19.1</dd>
-            <dt>Network</dt><dd>Wi-Fi · 145 Mbps down</dd>
-            <dt>Gateway</dt><dd>eu-west-1 · 27 ms p95</dd>
+            <dt>App version</dt><dd>1.0.0</dd>
+            <dt>Device</dt><dd>Web browser</dd>
+            <dt>Region</dt><dd>Auto</dd>
           </dl>
           <ActionButton
             className="ac-btn ac-btn-sm"
@@ -49,7 +48,7 @@ export default function Help() {
             doneLabel="Copied ✓"
             onAction={() => {
               navigator.clipboard?.writeText(
-                'Nova Stream · 0.1.0 (web · build 5944509)\nDevice: iPhone 15 Pro · iOS 19.1\nNetwork: Wi-Fi · 145 Mbps\nGateway: eu-west-1 · 27 ms p95',
+                `Nova Stream · 1.0.0\nUser agent: ${typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown'}\nViewport: ${typeof window !== 'undefined' ? window.innerWidth + 'x' + window.innerHeight : 'unknown'}`,
               );
             }}
           >Copy diagnostics</ActionButton>

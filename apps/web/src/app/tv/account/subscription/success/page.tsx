@@ -16,7 +16,7 @@ interface Search { searchParams: Promise<{ session_id?: string }> }
 export default async function CheckoutSuccess({ searchParams }: Search) {
   const { session_id } = await searchParams;
   if (!session_id) {
-    return failure('Missing session id — open this page from a Stripe redirect.');
+    return failure('This page is the landing for a completed checkout. Pick a plan first.');
   }
 
   let planLabel = 'your plan';
@@ -33,9 +33,12 @@ export default async function CheckoutSuccess({ searchParams }: Search) {
     planLabel  = plan === 'multi' ? 'Multi (4 devices)' : 'Single (1 device)';
   } catch (e) {
     if (e instanceof BillingNotConfiguredError) {
-      return failure('Billing is not configured for this deploy.');
+      // Internal hint goes to the function log, not the user.
+      console.warn('[billing] success page hit but billing not configured');
+      return failure('Billing is temporarily unavailable. If you were charged, please contact support.');
     }
-    return failure((e as Error).message);
+    console.warn('[billing] success page error:', (e as Error).message);
+    return failure('We could not confirm this checkout. If you were charged, please contact support.');
   }
 
   return (

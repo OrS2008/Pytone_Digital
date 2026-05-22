@@ -91,11 +91,14 @@ export default function Signup() {
           7 days free. No card needed. One email per account.
         </p>
 
-        <div style={{ margin: '20px 0 8px' }}>
-          <GoogleButton onSuccess={handleGoogle} onError={setError} />
-        </div>
-
-        <div className="ac-auth-divider"><span>or sign up with email</span></div>
+        {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && (
+          <>
+            <div style={{ margin: '20px 0 8px' }}>
+              <GoogleButton onSuccess={handleGoogle} onError={setError} />
+            </div>
+            <div className="ac-auth-divider"><span>or sign up with email</span></div>
+          </>
+        )}
 
         <form onSubmit={submit}>
           <div className="ac-field">

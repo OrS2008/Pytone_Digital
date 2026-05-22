@@ -52,13 +52,14 @@ export default function Login() {
         <h1 className="ac-auth-title">Welcome back</h1>
         <p className="ac-auth-sub">Sign in to keep watching where you left off.</p>
 
-        <div style={{ margin: '20px 0 8px' }}>
-          <GoogleButton onSuccess={handleGoogle} onError={setError} />
-        </div>
-
-        <div className="ac-auth-divider">
-          <span>or</span>
-        </div>
+        {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && (
+          <>
+            <div style={{ margin: '20px 0 8px' }}>
+              <GoogleButton onSuccess={handleGoogle} onError={setError} />
+            </div>
+            <div className="ac-auth-divider"><span>or</span></div>
+          </>
+        )}
 
         <form onSubmit={submit}>
           <div className="ac-field">
@@ -98,7 +99,7 @@ export default function Login() {
             className="ac-btn ac-btn-primary"
             style={{ width: '100%', justifyContent: 'center', padding: '16px', opacity: busy ? 0.7 : 1 }}
           >
-            {busy ? 'Signing in…' : 'Sign in with email'}
+            {busy ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
 

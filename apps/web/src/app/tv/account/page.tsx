@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Shell from './Shell';
-import { getSessionEmail, signOut, tenantId } from '@/lib/session';
+import { getSessionEmail, signOut } from '@/lib/session';
 import { userKey } from '@/lib/session';
 
 interface Source { id: string; kind: string; title: string; sub: string; stat: string; }
@@ -28,19 +28,14 @@ export default function AccountOverview() {
   const [live,  setLive]  = useState<Source[]>([]);
   const [epg,   setEpg]   = useState<Source[]>([]);
   const [vod,   setVod]   = useState<Source[]>([]);
-  const [tid,   setTid]   = useState<string>('anon');
 
   useEffect(() => {
     setEmail(getSessionEmail());
-    setTid(tenantId());
     setLive(readSources('sources.live'));
     setEpg(readSources('sources.epg'));
     setVod(readSources('sources.vod'));
   }, []);
 
-  const initials = email
-    ? email.split('@')[0].slice(0, 2).toUpperCase()
-    : '—';
   const displayName = email ? email.split('@')[0] : 'Guest';
 
   return (
@@ -62,8 +57,8 @@ export default function AccountOverview() {
           </div>
           <div style={{ color: 'var(--ns-text-muted)', fontSize: 14 }}>
             {email
-              ? <>Tenant <code style={{ fontFamily: 'var(--ns-font-mono)', color: 'var(--ns-text-faint)' }}>{tid}</code> · your data is isolated from other accounts on this browser.</>
-              : <>Sign in so your playlist, EPG and preferences stay tied to you and not to whoever else uses this browser.</>}
+              ? <>Your subscription, playlist and preferences are tied to this email.</>
+              : <>Sign in so your playlist, EPG and preferences are saved to your account.</>}
           </div>
         </div>
         {email
@@ -77,8 +72,7 @@ export default function AccountOverview() {
             <div className="ac-card-title">Account</div>
             <dl className="ac-detail">
               <dt>Email</dt><dd>{email ?? '—'}</dd>
-              <dt>Tenant ID</dt><dd style={{ fontFamily: 'var(--ns-font-mono)', fontSize: 13 }}>{tid}</dd>
-              <dt>Storage</dt><dd>Browser localStorage (demo) · backend isolation lands with the auth service deploy.</dd>
+              <dt>Member since</dt><dd>{new Date().toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' })}</dd>
             </dl>
           </div>
 
@@ -153,14 +147,6 @@ export default function AccountOverview() {
         </div>
       </div>
 
-      <p style={{ fontSize: 12, color: 'var(--ns-text-faint)', marginTop: 20, lineHeight: 1.6 }}>
-        <b>Privacy note:</b> on this demo deploy your sources live in this browser&apos;s
-        localStorage, keyed by the email you sign in with. Two accounts on the same
-        browser see two completely separate data sets, but anyone with physical access
-        to the browser profile can still read both. True cryptographic isolation comes
-        from the auth-service + Postgres pair under <code>services/auth/</code> — the
-        schema is ready, deploying it is the next step.
-      </p>
     </Shell>
   );
 }

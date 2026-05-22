@@ -21,7 +21,19 @@ import { stripe, priceFor, baseUrl, findOrCreateCustomer, BillingNotConfiguredEr
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Same-origin gate. The route never needs to accept cross-origin
+// requests; locking it to our own hosts blocks anonymous abuse that
+// could rack up Stripe API calls on our account.
+function allowedCaller(req: NextRequest): boolean {
+  const hosts = new Set(['novastram.netlify.app', 'localhost:3000', 'localhost:3001']);
+  for (const h of (process.env.ALLOWED_HOSTS || '').split(',')) if (h.trim()) hosts.add(h.trim());
+  const ref = req.headers.get('origin') || req.headers.get('referer') || '';
+  try { return hosts.has(new URL(ref).host); } catch { return false; }
+}
+
 export async function POST(req: NextRequest) {
+  if (!allowedCaller(req)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+
   let body: { plan?: string; email?: string };
   try {
     body = await req.json();

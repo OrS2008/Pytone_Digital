@@ -26,21 +26,47 @@ export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const MAX_BYTES = 16 * 1024 * 1024;
+const TIMEOUT_MS = 20_000;
 
 const PRIVATE_HOST = [
   /^localhost$/i,
   /^127\./, /^10\./, /^169\.254\./,
   /^172\.(1[6-9]|2\d|3[01])\./,
   /^192\.168\./,
-  /^metadata\./i, /^instance-data\./i,
-  /^\[?::1\]?$/, /^\[?fc[0-9a-f]{2}:/i, /^\[?fe80:/i,
+  /^0\.0\.0\.0$/,
+  /^metadata\./i, /^instance-data\./i, /^metadata\.google\.internal$/i,
+  /^\[?::1\]?$/, /^\[?fc[0-9a-f]{2}:/i, /^\[?fe80:/i, /^\[?::ffff:/i,
 ];
 
 function isHostBlocked(host: string): boolean {
   return PRIVATE_HOST.some((rx) => rx.test(host));
 }
 
+// Same-origin gate. The proxy is for our own users' M3U fetches, not
+// for anyone-on-the-internet abuse of our edge function. We allow
+// requests whose Origin or Referer matches the deployed host(s).
+function isAllowedCaller(req: NextRequest): boolean {
+  const allowedHosts = new Set<string>([
+    'novastram.netlify.app',
+    'localhost:3000',
+    'localhost:3001',
+  ]);
+  // Custom production host(s) from env, comma-separated.
+  for (const h of (process.env.ALLOWED_HOSTS || '').split(',')) {
+    if (h.trim()) allowedHosts.add(h.trim());
+  }
+  const ref = req.headers.get('origin') || req.headers.get('referer') || '';
+  if (!ref) return false;
+  try {
+    const u = new URL(ref);
+    return allowedHosts.has(u.host);
+  } catch { return false; }
+}
+
 export async function GET(req: NextRequest) {
+  if (!isAllowedCaller(req)) {
+    return new Response('forbidden', { status: 403 });
+  }
   const target = req.nextUrl.searchParams.get('url');
   if (!target) return new Response('missing ?url=', { status: 400 });
 
@@ -52,18 +78,40 @@ export async function GET(req: NextRequest) {
   if (isHostBlocked(u.hostname)) {
     return new Response('refused: private / metadata host', { status: 400 });
   }
+  // Block unusual ports — IPTV providers use 80, 443, sometimes 8080
+  // and a few custom ones. Anything below 1024 outside http/https,
+  // or anything looking like an internal service port (22, 25, 3306,
+  // 5432, 6379…) is refused.
+  const port = u.port ? Number(u.port) : (u.protocol === 'https:' ? 443 : 80);
+  const BAD_PORTS = new Set([22, 23, 25, 53, 110, 143, 465, 587, 993, 995, 1433, 3306, 3389, 5432, 6379, 9200, 11211, 27017]);
+  if (BAD_PORTS.has(port)) {
+    return new Response('refused: blocked port', { status: 400 });
+  }
 
   let upstream: Response;
   try {
-    upstream = await fetch(u.toString(), {
-      headers: { 'user-agent': 'Nova Stream/0.1 (+https://novastram.netlify.app)' },
-      redirect: 'follow',
-    });
+    const ac = new AbortController();
+    const to = setTimeout(() => ac.abort(), TIMEOUT_MS);
+    try {
+      upstream = await fetch(u.toString(), {
+        headers: { 'user-agent': 'Nova Stream/1.0' },
+        redirect: 'follow',
+        signal: ac.signal,
+      });
+    } finally { clearTimeout(to); }
   } catch (e) {
     return new Response(`upstream fetch failed: ${(e as Error).message}`, { status: 502 });
   }
   if (!upstream.ok || !upstream.body) {
     return new Response(`upstream returned ${upstream.status}`, { status: 502 });
+  }
+
+  // Some captive portals / WAFs return text/html when the real
+  // playlist is unreachable — refuse to forward that to the parser
+  // because hls.js / our M3U parser would silently fail.
+  const ct = (upstream.headers.get('content-type') || '').toLowerCase();
+  if (ct.includes('text/html')) {
+    return new Response('upstream returned HTML (likely captive portal / login page)', { status: 502 });
   }
 
   // Cap the response size to defend against an enormous playlist that

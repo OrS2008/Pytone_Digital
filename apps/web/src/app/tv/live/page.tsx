@@ -146,17 +146,16 @@ export default function LivePage() {
         )}
         {!watching && load.kind === 'mock' && (
           <div className="live-status">
-            Showing demo channels.{' '}
             <Link href="/tv/account/sources" className="live-status-link">
-              Add your M3U →
+              Add your playlist to see your channels →
             </Link>
           </div>
         )}
         {!watching && load.kind === 'error' && (
           <div className="live-status live-status-err">
-            Could not load your playlist: {load.message}.{' '}
+            We couldn&apos;t load your playlist.{' '}
             <Link href="/tv/account/sources" className="live-status-link">
-              Edit the URL →
+              Check the URL →
             </Link>
           </div>
         )}

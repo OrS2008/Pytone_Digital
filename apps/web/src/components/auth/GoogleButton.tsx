@@ -43,7 +43,10 @@ export default function GoogleButton({ onSuccess, onError }: Props) {
   useEffect(() => {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     if (!clientId) {
-      setHint('Google sign-in not configured for this deploy. Add NEXT_PUBLIC_GOOGLE_CLIENT_ID to Netlify env vars.');
+      // Quietly hide the button when the OAuth client id isn't set —
+      // users should never see a developer-facing "add env var" hint.
+      // The email form below the button is still a full path in.
+      setHint('hidden');
       return;
     }
 
@@ -113,17 +116,7 @@ export default function GoogleButton({ onSuccess, onError }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (hint) {
-    return (
-      <div style={{
-        padding: 12,
-        fontSize: 12,
-        color: 'var(--ns-text-faint)',
-        background: 'var(--ns-bg-input)',
-        border: '1px dashed var(--ns-border)',
-        borderRadius: 10,
-      }}>{hint}</div>
-    );
-  }
+  // hint === 'hidden' means we deliberately suppress the button.
+  if (hint) return null;
   return <div ref={slot} style={{ display: 'flex', justifyContent: 'center' }} />;
 }

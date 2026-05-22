@@ -63,13 +63,19 @@ export default function Plans() {
       const data = await resp.json();
       if (!resp.ok) {
         setBusy(null);
-        setError(data.hint ? `${data.error} ${data.hint}` : data.error || `Server returned ${resp.status}.`);
+        // Log the deploy-side detail to the console for debugging, but
+        // show the end user a generic message — they don't need to
+        // see env-var names or backend hints.
+        if (data.hint || data.error) console.warn('[billing/checkout]', data.error, data.hint ?? '');
+        setError(resp.status === 503
+          ? 'Billing is temporarily unavailable. Please try again in a few minutes.'
+          : 'Sorry, we could not start checkout right now.');
         return;
       }
       window.location.href = data.url;
-    } catch (e) {
+    } catch {
       setBusy(null);
-      setError(`Network error: ${(e as Error).message}`);
+      setError('Network error. Please check your connection and try again.');
     }
   }
 
