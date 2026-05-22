@@ -7,14 +7,12 @@
 //                        services/auth once that backend is deployed.
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { setSessionEmail, setActivated } from '@/lib/session';
 import GoogleSection from '@/components/auth/GoogleSection';
 import '../account/account.css';
 
 export default function Login() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -26,23 +24,23 @@ export default function Login() {
     if (!email.includes('@')) return setError('Please enter a valid email.');
     if (password.length < 10)  return setError('Password must be at least 10 characters.');
     setBusy(true);
-    // Anyone signing back in is, by definition, returning — their
-    // account was activated on the original signup.
     setSessionEmail(email);
     setActivated(true);
-    setTimeout(() => router.push('/tv'), 400);
+    // Hard navigation rather than router.push so the new
+    // session-keyed components on /tv re-read localStorage from
+    // scratch instead of relying on cached client state.
+    window.setTimeout(() => { window.location.href = '/tv'; }, 200);
   }
 
   function handleGoogle(user: { email: string; name?: string | null; picture?: string | null }) {
     setError(null);
     setSessionEmail(user.email);
-    // Google has already confirmed the email — skip activation.
     setActivated(true);
     try {
       if (user.name)    localStorage.setItem('ns.session.name',    user.name);
       if (user.picture) localStorage.setItem('ns.session.picture', user.picture);
     } catch { /* ignore */ }
-    router.push('/tv');
+    window.location.href = '/tv';
   }
 
   return (

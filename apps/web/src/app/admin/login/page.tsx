@@ -1,10 +1,9 @@
 'use client';
 
 import { Suspense, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 
 function LoginInner() {
-  const router = useRouter();
   const params = useSearchParams();
   const next   = params.get('next') || '/admin/dashboard';
   const initialError = params.get('e') === 'unavailable' ? 'Admin is unavailable right now.' : null;
@@ -24,7 +23,11 @@ function LoginInner() {
         body:    JSON.stringify({ username, password }),
       });
       if (r.ok) {
-        router.replace(next);
+        // Hard navigation so the middleware re-evaluates the request
+        // with the freshly-set cookie attached. router.replace uses
+        // client-side prefetched RSC payloads that don't always pick
+        // the new cookie up on the first hop.
+        window.location.href = next;
         return;
       }
       const data = await r.json().catch(() => ({} as { error?: string }));
