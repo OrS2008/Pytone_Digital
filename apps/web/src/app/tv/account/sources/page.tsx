@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import Shell from '../Shell';
 import ActionButton from '@/components/ui/ActionButton';
+import usePersisted from '@/lib/usePersisted';
 
 type Tab = 'live' | 'epg' | 'vod';
 type AddTab = 'm3u' | 'xtream' | 'stalker' | 'upload';
@@ -36,9 +37,13 @@ export default function Sources() {
   const [addTab,   setAddTab]   = useState<AddTab>('m3u');
   const [name,     setName]     = useState('');
   const [url,      setUrl]      = useState('');
-  const [live,     setLive]     = useState(INITIAL_LIVE);
-  const [epg,      setEpg]      = useState(INITIAL_EPG);
-  const [vod,      setVod]      = useState(INITIAL_VOD);
+  // The source lists survive reload via localStorage so the user's edits
+  // aren't lost when they navigate away. This is a frontend-only shim —
+  // when the playlist-ingestion backend is reachable, replace with a
+  // real fetch + persist via the gateway.
+  const [live,     setLive]     = usePersisted('ns.sources.live', INITIAL_LIVE);
+  const [epg,      setEpg]      = usePersisted('ns.sources.epg',  INITIAL_EPG);
+  const [vod,      setVod]      = usePersisted('ns.sources.vod',  INITIAL_VOD);
   const [epgUrl,   setEpgUrl]   = useState('');
   const [vodHost,  setVodHost]  = useState('');
   const [vodUser,  setVodUser]  = useState('');
@@ -85,6 +90,41 @@ export default function Sources() {
     flash('Source removed.');
   };
 
+  function editLive(id: string) {
+    const s = live.find((x) => x.id === id);
+    if (!s) return;
+    const nextUrl = typeof window !== 'undefined' ? window.prompt('New M3U URL', s.sub) : null;
+    if (!nextUrl) return;
+    if (!nextUrl.startsWith('http')) { flash('URL must start with http:// or https://'); return; }
+    const nextName = window.prompt('Friendly name', s.title) || s.title;
+    setLive(live.map((x) => x.id === id ? { ...x, sub: nextUrl, title: nextName, stat: 'queued for ingestion' } : x));
+    flash(`Updated "${nextName}" — ingestion queued.`);
+  }
+
+  function editEpg(id: string) {
+    const s = epg.find((x) => x.id === id);
+    if (!s) return;
+    const nextUrl = typeof window !== 'undefined' ? window.prompt('New XMLTV URL', s.sub) : null;
+    if (!nextUrl) return;
+    if (!nextUrl.startsWith('http')) { flash('URL must start with http:// or https://'); return; }
+    setEpg(epg.map((x) => x.id === id ? { ...x, sub: nextUrl, stat: 'queued for matching' } : x));
+    flash('EPG feed updated — re-matching queued.');
+  }
+
+  function editVod(id: string) {
+    const s = vod.find((x) => x.id === id);
+    if (!s) return;
+    const nextHost = typeof window !== 'undefined' ? window.prompt('New host URL', s.sub) : null;
+    if (!nextHost) return;
+    setVod(vod.map((x) => x.id === id ? { ...x, sub: nextHost, stat: 'queued for first sync' } : x));
+    flash('VOD library updated.');
+  }
+
+  function clearSeeds() {
+    setLive([]); setEpg([]); setVod([]);
+    flash('All example sources cleared. Add your own below.');
+  }
+
   return (
     <Shell active="sources">
       <header className="ac-panel-head">
@@ -95,6 +135,17 @@ export default function Sources() {
           Codes API, Stalker portals, XMLTV EPG, and VOD libraries from Jellyfin / Plex /
           your own NAS.
         </p>
+        {(live.some(s => s.id === 'live-1') || epg.some(s => s.id === 'epg-1') || vod.some(s => s.id === 'vod-1')) && (
+          <p style={{ fontSize: 13, marginTop: 10 }}>
+            <button
+              onClick={clearSeeds}
+              style={{ background: 'none', border: 0, padding: 0, color: 'var(--ns-accent)', cursor: 'pointer', fontWeight: 600 }}
+            >
+              Clear example sources →
+            </button>{' '}
+            <span style={{ color: 'var(--ns-text-faint)' }}>(start with your own playlist)</span>
+          </p>
+        )}
       </header>
 
       <div className="ac-source-tabs">
@@ -124,6 +175,7 @@ export default function Sources() {
               </div>
               <div className="ac-source-stats"><div>{s.stat}</div></div>
               <div style={{ display: 'flex', gap: 8 }}>
+                <button className="ac-btn ac-btn-sm" onClick={() => editLive(s.id)}>Edit</button>
                 <ActionButton doneLabel="Refreshed ✓">Refresh</ActionButton>
                 <button className="ac-btn ac-btn-sm ac-btn-danger" onClick={() => removeFrom(live, setLive)(s.id)}>Remove</button>
               </div>
@@ -200,6 +252,7 @@ export default function Sources() {
               </div>
               <div className="ac-source-stats"><div>{s.stat}</div></div>
               <div style={{ display: 'flex', gap: 8 }}>
+                <button className="ac-btn ac-btn-sm" onClick={() => editEpg(s.id)}>Edit</button>
                 <ActionButton doneLabel="Refreshed ✓">Refresh</ActionButton>
                 <button className="ac-btn ac-btn-sm ac-btn-danger" onClick={() => removeFrom(epg, setEpg)(s.id)}>Remove</button>
               </div>
@@ -233,6 +286,7 @@ export default function Sources() {
               </div>
               <div className="ac-source-stats"><div>{s.stat}</div></div>
               <div style={{ display: 'flex', gap: 8 }}>
+                <button className="ac-btn ac-btn-sm" onClick={() => editVod(s.id)}>Edit</button>
                 <ActionButton doneLabel="Sync queued ✓">Refresh</ActionButton>
                 <button className="ac-btn ac-btn-sm ac-btn-danger" onClick={() => removeFrom(vod, setVod)(s.id)}>Remove</button>
               </div>

@@ -9,7 +9,6 @@ const ITEMS = [
   { label: 'Sports',  href: '/tv/sports' },
   { label: 'Movies',  href: '/tv/vod' },
   { label: 'Search',  href: '/tv/search' },
-  { label: 'Account', href: '/tv/account' },
 ];
 
 const ZONE = 'nav';
@@ -22,9 +21,12 @@ export default function TvNav() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (current !== ZONE) return;
-      if (e.key === 'ArrowLeft'  && idx > 0)                setIdx(idx - 1);
-      if (e.key === 'ArrowRight' && idx < ITEMS.length - 1) setIdx(idx + 1);
-      if (e.key === 'Enter')                                window.location.href = ITEMS[idx].href;
+      if (e.key === 'ArrowLeft'  && idx > 0)                  setIdx(idx - 1);
+      if (e.key === 'ArrowRight' && idx < ITEMS.length)       setIdx(idx + 1);
+      if (e.key === 'Enter') {
+        if (idx < ITEMS.length) window.location.href = ITEMS[idx].href;
+        else                    window.location.href = '/tv/account';
+      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -43,6 +45,15 @@ export default function TvNav() {
           {it.label}
         </a>
       ))}
+      <a
+        href="/tv/account"
+        className={`tv-nav-avatar ${current === ZONE && idx === ITEMS.length ? 'focused' : ''}`}
+        onMouseEnter={() => { focusNav(); setIdx(ITEMS.length); }}
+        title="Account"
+        aria-label="Account"
+      >
+        OS
+      </a>
     </nav>
   );
 }

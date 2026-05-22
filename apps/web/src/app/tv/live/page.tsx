@@ -40,14 +40,16 @@ import './live.css';
 export default function LivePage() {
   const channels = MOCK_CHANNELS;
   const [activeIdx, setActiveIdx] = useState(0);
+  // Show the info banner for 5 seconds on entry and on every channel
+  // change, then hide it. Matches HOT / YES / Sting behaviour — the
+  // playback surface should be unobstructed during normal viewing.
   const [infoVisible, setInfoVisible] = useState(true);
 
   const active = channels[activeIdx];
 
-  // Auto-hide the info bar after 6 seconds of inactivity.
   useEffect(() => {
     if (!infoVisible) return;
-    const t = setTimeout(() => setInfoVisible(false), 6000);
+    const t = setTimeout(() => setInfoVisible(false), 5000);
     return () => clearTimeout(t);
   }, [infoVisible, activeIdx]);
 

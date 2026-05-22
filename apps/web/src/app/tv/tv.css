@@ -196,6 +196,25 @@
   border-color: #FF3B6E;
 }
 
+/* Always-visible account avatar in the top-right of the nav. Clicking
+   it jumps to /tv/account from anywhere in the TV experience. */
+.tv-nav-avatar {
+  margin-left: auto;
+  width: 40px; height: 40px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #FF3B6E, #8B5CF6);
+  color: #fff;
+  font-weight: 800; font-size: 14px; letter-spacing: 1px;
+  text-decoration: none;
+  border: 3px solid transparent;
+  flex-shrink: 0;
+}
+.tv-nav-avatar.focused,
+.tv-nav-avatar:hover {
+  border-color: rgba(255,255,255,0.85);
+  transform: scale(1.05);
+}
+
 /* --- Responsive: phone/laptop fallbacks for the 1920x1080 TV canvas -- */
 @media (max-width: 900px) {
   .tv-nav {
@@ -212,6 +231,10 @@
     padding: 6px 10px;
     font-size: 13px;
     border-width: 2px;
+  }
+  .tv-nav-avatar {
+    width: 32px; height: 32px; font-size: 11px;
+    margin-left: auto;
   }
   .tv-hero {
     height: auto;
