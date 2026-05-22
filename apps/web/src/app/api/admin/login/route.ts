@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { signAdminToken, ADMIN_COOKIE } from '@/lib/adminSession';
+import { getEnv } from '@/lib/envFallback';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -66,9 +67,12 @@ function verifyPassword(plain: string, stored: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
-  const ADMIN_USERNAME       = process.env.ADMIN_USERNAME;
-  const ADMIN_PASSWORD_HASH  = process.env.ADMIN_PASSWORD_HASH;
-  const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET;
+  // getEnv() reads process.env first, then falls back to .env.local
+  // on disk if the value looks mangled. Specifically defends against
+  // dotenv expanding $-delimited segments in ADMIN_PASSWORD_HASH.
+  const ADMIN_USERNAME       = getEnv('ADMIN_USERNAME');
+  const ADMIN_PASSWORD_HASH  = getEnv('ADMIN_PASSWORD_HASH');
+  const ADMIN_SESSION_SECRET = getEnv('ADMIN_SESSION_SECRET');
   if (!ADMIN_USERNAME || !ADMIN_PASSWORD_HASH || !ADMIN_SESSION_SECRET) {
     console.warn('[admin/login] env not configured');
     return NextResponse.json({ error: 'Admin login is unavailable.' }, { status: 503 });
