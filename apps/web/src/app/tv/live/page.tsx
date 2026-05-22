@@ -14,7 +14,7 @@
  * back so the user can keep zapping.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import TvNav from '@/components/tv/TvNav';
 import { TvFocusProvider } from '@/components/tv/TvFocus';
@@ -102,11 +102,27 @@ export default function LivePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The 5-second auto-hide window is re-armed on every activity tick
+  // (mouse move, click, key press inside the player overlay) so the
+  // info bar surfaces whenever the user is actively interacting and
+  // melts away when they settle into watching.
+  const [activityTick, setActivityTick] = useState(0);
+  const lastActivityRef = useRef(0);
+  const wakeInfoBar = useCallback(() => {
+    const now = Date.now();
+    // Throttle to once every 250 ms so a moving mouse doesn't cause a
+    // setState flood.
+    if (now - lastActivityRef.current < 250) return;
+    lastActivityRef.current = now;
+    setInfoVisible(true);
+    setActivityTick((t) => t + 1);
+  }, []);
+
   useEffect(() => {
     if (!infoVisible) return;
     const t = setTimeout(() => setInfoVisible(false), 5000);
     return () => clearTimeout(t);
-  }, [infoVisible, activeIdx]);
+  }, [infoVisible, activeIdx, activityTick]);
 
   // Channel prefetch — warm the HLS manifest of the channels above and
   // below the current one so the next zap is closer to instant. Opt-in
@@ -243,7 +259,12 @@ export default function LivePage() {
         </div>
 
         {watching && (
-          <div className="live-player-overlay">
+          <div
+            className="live-player-overlay"
+            onMouseMove={wakeInfoBar}
+            onClick={wakeInfoBar}
+            onKeyDown={wakeInfoBar}
+          >
             <PlayerSurface channel={active} autoPlay />
             <button
               className="live-close"

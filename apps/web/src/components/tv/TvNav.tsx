@@ -6,11 +6,12 @@ import { useCurrentZone, useSetZone } from './TvFocus';
 import { getSessionEmail } from '@/lib/session';
 
 const ITEMS = [
-  { label: 'Live',    href: '/tv/live' },
-  { label: 'Home',    href: '/tv' },
-  { label: 'Sports',  href: '/tv/sports' },
-  { label: 'Movies',  href: '/tv/vod' },
-  { label: 'Search',  href: '/tv/search' },
+  { label: 'Live',     href: '/tv/live' },
+  { label: 'Home',     href: '/tv' },
+  { label: 'Sports',   href: '/tv/sports' },
+  { label: 'Movies',   href: '/tv/vod' },
+  { label: 'Catch-up', href: '/tv/catchup' },
+  { label: 'Search',   href: '/tv/search' },
 ];
 
 const ZONE = 'nav';

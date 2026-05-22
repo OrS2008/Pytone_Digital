@@ -439,10 +439,12 @@
   .live-close { width: 36px; height: 36px; font-size: 20px; }
 }
 
-/* Player tools overlay (PiP + Cast) */
+/* Player tools overlay (PiP + Cast). Anchored to the top-LEFT so it
+   doesn't collide with the close × that lives top-right in watching
+   mode. */
 .player-tools {
   position: absolute;
-  top: 16px; right: 16px;
+  top: 16px; left: 16px;
   display: flex; gap: 8px;
   z-index: 3;
 }
