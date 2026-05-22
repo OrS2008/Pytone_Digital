@@ -1,13 +1,16 @@
 'use client';
 
-// Sign-in screen. Same demo-build caveat as signup: validates locally
-// and routes the user to /tv on a successful local check. When the
-// backend is reachable, the submit handler becomes a fetch against
-// /api/auth/login and persists the returned refresh token.
+// Sign-in screen. Two paths:
+//   * Continue with Google — verified server-side at /api/auth/google,
+//                            then setSessionEmail + redirect to /tv.
+//   * Email + password — currently local-only; becomes a fetch against
+//                        services/auth once that backend is deployed.
+
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { setSessionEmail } from '@/lib/session';
+import { setSessionEmail, setActivated } from '@/lib/session';
+import GoogleButton from '@/components/auth/GoogleButton';
 import '../account/account.css';
 
 export default function Login() {
@@ -23,9 +26,23 @@ export default function Login() {
     if (!email.includes('@')) return setError('Please enter a valid email.');
     if (password.length < 10)  return setError('Password must be at least 10 characters.');
     setBusy(true);
+    // Anyone signing back in is, by definition, returning — their
+    // account was activated on the original signup.
     setSessionEmail(email);
-    // Simulate a small auth round-trip so the button has feedback.
+    setActivated(true);
     setTimeout(() => router.push('/tv'), 400);
+  }
+
+  function handleGoogle(user: { email: string; name?: string | null; picture?: string | null }) {
+    setError(null);
+    setSessionEmail(user.email);
+    // Google has already confirmed the email — skip activation.
+    setActivated(true);
+    try {
+      if (user.name)    localStorage.setItem('ns.session.name',    user.name);
+      if (user.picture) localStorage.setItem('ns.session.picture', user.picture);
+    } catch { /* ignore */ }
+    router.push('/tv');
   }
 
   return (
@@ -35,6 +52,14 @@ export default function Login() {
         <h1 className="ac-auth-title">Welcome back</h1>
         <p className="ac-auth-sub">Sign in to keep watching where you left off.</p>
 
+        <div style={{ margin: '20px 0 8px' }}>
+          <GoogleButton onSuccess={handleGoogle} onError={setError} />
+        </div>
+
+        <div className="ac-auth-divider">
+          <span>or</span>
+        </div>
+
         <form onSubmit={submit}>
           <div className="ac-field">
             <label className="ac-field-label">Email</label>
@@ -42,7 +67,6 @@ export default function Login() {
               className="ac-input"
               type="email"
               placeholder="you@example.com"
-              autoFocus
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -74,7 +98,7 @@ export default function Login() {
             className="ac-btn ac-btn-primary"
             style={{ width: '100%', justifyContent: 'center', padding: '16px', opacity: busy ? 0.7 : 1 }}
           >
-            {busy ? 'Signing in…' : 'Sign in'}
+            {busy ? 'Signing in…' : 'Sign in with email'}
           </button>
         </form>
 

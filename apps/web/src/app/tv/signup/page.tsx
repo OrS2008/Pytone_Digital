@@ -9,15 +9,29 @@
 // fetch('/api/auth/register', { ... }).
 import Link from 'next/link';
 import { useState } from 'react';
-import { setSessionEmail } from '@/lib/session';
+import { useRouter } from 'next/navigation';
+import { setSessionEmail, setActivated } from '@/lib/session';
+import GoogleButton from '@/components/auth/GoogleButton';
 import '../account/account.css';
 
 export default function Signup() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [accepted, setAccepted] = useState(true);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function handleGoogle(user: { email: string; name?: string | null; picture?: string | null }) {
+    setError(null);
+    setSessionEmail(user.email);
+    setActivated(true); // Google asserted email_verified=true.
+    try {
+      if (user.name)    localStorage.setItem('ns.session.name',    user.name);
+      if (user.picture) localStorage.setItem('ns.session.picture', user.picture);
+    } catch { /* ignore */ }
+    router.push('/tv');
+  }
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -26,6 +40,9 @@ export default function Signup() {
     if (password.length < 10)  return setError('Password must be at least 10 characters.');
     if (!accepted)             return setError('You need to accept the Terms and Privacy policy.');
     setSessionEmail(email);
+    // Pending activation until the user clicks the link in the email
+    // (handled by /tv/activate). The account section is gated on this.
+    setActivated(false);
     setSent(true);
   }
 
@@ -36,11 +53,19 @@ export default function Signup() {
           <div className="ac-auth-wm">NOVA STREAM</div>
           <h1 className="ac-auth-title">Check your inbox</h1>
           <p className="ac-auth-sub">
-            We sent an activation link to <b>{email}</b>. Click it to start
-            your 7-day free trial. The link is valid for 48 hours.
+            We sent an activation link to <b>{email}</b>. Click it to verify
+            your email and start your 7-day free trial. The link is valid
+            for 48 hours.
           </p>
+          <Link
+            href="/tv/activate"
+            className="ac-btn ac-btn-primary"
+            style={{ width: '100%', justifyContent: 'center', padding: '14px', marginTop: 16 }}
+          >
+            I clicked the link · open my account
+          </Link>
           <p style={{ fontSize: 13, color: 'var(--ns-text-faint)', marginTop: 16 }}>
-            Didn't get it? Check spam, or{' '}
+            Didn&apos;t get it? Check spam, or{' '}
             <button
               className="ac-auth-link"
               style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
@@ -65,6 +90,12 @@ export default function Signup() {
         <p className="ac-auth-sub">
           7 days free. No card needed. One email per account.
         </p>
+
+        <div style={{ margin: '20px 0 8px' }}>
+          <GoogleButton onSuccess={handleGoogle} onError={setError} />
+        </div>
+
+        <div className="ac-auth-divider"><span>or sign up with email</span></div>
 
         <form onSubmit={submit}>
           <div className="ac-field">

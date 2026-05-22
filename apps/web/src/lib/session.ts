@@ -12,7 +12,10 @@
 
 'use client';
 
-const KEY_EMAIL = 'ns.session.email';
+const KEY_EMAIL     = 'ns.session.email';
+const KEY_ACTIVATED = 'ns.session.activated';
+const KEY_NAME      = 'ns.session.name';
+const KEY_PICTURE   = 'ns.session.picture';
 
 export function getSessionEmail(): string | null {
   if (typeof window === 'undefined') return null;
@@ -23,12 +26,37 @@ export function setSessionEmail(email: string) {
   try { localStorage.setItem(KEY_EMAIL, email.toLowerCase().trim()); } catch { /* ignore */ }
 }
 
+// Activation state — a user has to verify their email before the
+// account section opens. Google sign-in counts as verified
+// (Google itself confirmed `email_verified=true`); email/password
+// sign-ups stay pending until they click the activation link from
+// /tv/activate.
+export function isActivated(): boolean {
+  if (typeof window === 'undefined') return false;
+  try { return localStorage.getItem(KEY_ACTIVATED) === '1'; } catch { return false; }
+}
+
+export function setActivated(on: boolean) {
+  try {
+    if (on) localStorage.setItem(KEY_ACTIVATED, '1');
+    else    localStorage.removeItem(KEY_ACTIVATED);
+  } catch { /* ignore */ }
+}
+
+export function getSessionName():    string | null { if (typeof window === 'undefined') return null; try { return localStorage.getItem(KEY_NAME); }    catch { return null; } }
+export function getSessionPicture(): string | null { if (typeof window === 'undefined') return null; try { return localStorage.getItem(KEY_PICTURE); } catch { return null; } }
+
 // Sign-out clears the session pointer but keeps each user's saved data
 // alive (the keys are namespaced so signing back in restores everything
 // without crossing tenants). Then we reload so every mounted component
 // sees the new identity from scratch.
 export function signOut() {
-  try { localStorage.removeItem(KEY_EMAIL); } catch { /* ignore */ }
+  try {
+    localStorage.removeItem(KEY_EMAIL);
+    localStorage.removeItem(KEY_ACTIVATED);
+    localStorage.removeItem(KEY_NAME);
+    localStorage.removeItem(KEY_PICTURE);
+  } catch { /* ignore */ }
   if (typeof window !== 'undefined') window.location.href = '/tv/login';
 }
 

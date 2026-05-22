@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import AccountChip from '@/components/tv/AccountChip';
+import AccountGate from '@/components/auth/AccountGate';
 import './account.css';
 
 const NAV = [
@@ -60,7 +61,7 @@ export default function Shell({ active, children }: { active: string; children: 
           ))}
         </aside>
 
-        <section className="ac-panel">{children}</section>
+        <section className="ac-panel"><AccountGate>{children}</AccountGate></section>
       </div>
     </main>
   );
