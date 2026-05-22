@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { Channel } from './types';
 import { userKey } from '@/lib/session';
+import { useT } from '@/lib/i18n';
 
 interface Props {
   channel?: Channel;
@@ -71,6 +72,9 @@ export default function InfoBar(p: Props) {
   const [focused, setFocused] = useState(0);
   const [toast, setToast]     = useState<string | null>(null);
   const [card,  setCard]      = useState(false);
+  const { t } = useT();
+  // Four buttons in order: 0=return-to-live, 1=restart, 2=record, 3=more-info.
+  const BTN_COUNT = 4;
 
   useEffect(() => {
     const t = setInterval(() => setClock(new Date()), 30_000);
@@ -83,13 +87,14 @@ export default function InfoBar(p: Props) {
   useEffect(() => {
     if (!p.visible) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'ArrowRight') { setFocused((i) => Math.min(i + 1, 2)); e.preventDefault(); }
-      if (e.key === 'ArrowLeft')  { setFocused((i) => Math.max(i - 1, 0)); e.preventDefault(); }
+      if (e.key === 'ArrowRight') { setFocused((i) => Math.min(i + 1, BTN_COUNT - 1)); e.preventDefault(); }
+      if (e.key === 'ArrowLeft')  { setFocused((i) => Math.max(i - 1, 0));             e.preventDefault(); }
       if (e.key === 'Escape' || e.key === 'GoBack') { p.onDismiss(); }
       if (e.key === 'Enter') {
-        if (focused === 0) doRestart();
-        if (focused === 1) doRecord();
-        if (focused === 2) setCard(true);
+        if (focused === 0) doReturnLive();
+        if (focused === 1) doRestart();
+        if (focused === 2) doRecord();
+        if (focused === 3) setCard(true);
       }
     }
     window.addEventListener('keydown', onKey);
@@ -100,20 +105,41 @@ export default function InfoBar(p: Props) {
     setToast(msg);
     setTimeout(() => setToast(null), 2400);
   }
+  function videoEl(): HTMLVideoElement | null {
+    return document.querySelector<HTMLVideoElement>('.player-surface video');
+  }
+  function doReturnLive() {
+    // Jump back to the live edge — useful after a Restart or after the
+    // user scrubbed backward. We target seekable.end(0) (live HLS
+    // reports the live edge here) and fall back to the latest buffered
+    // range. A 0.5 s safety margin keeps us from stalling on a segment
+    // boundary that just rolled.
+    const v = videoEl();
+    if (!v) return;
+    try {
+      if (v.seekable.length) {
+        v.currentTime = Math.max(0, v.seekable.end(v.seekable.length - 1) - 0.5);
+      } else if (v.buffered.length) {
+        v.currentTime = v.buffered.end(v.buffered.length - 1);
+      }
+      v.play().catch(() => {/* ignore */});
+    } catch { /* ignore */ }
+    flash(t('live.returnLive'));
+  }
   function doRestart() {
     if (!p.channel?.now) return;
     // Production: catch-up service. Demo: seek the live <video> back
     // to its earliest buffered point so the user sees a visible effect.
-    const video = document.querySelector<HTMLVideoElement>('.player-surface video');
-    if (video?.buffered.length) {
-      try { video.currentTime = video.buffered.start(0); } catch { /* ignore */ }
+    const v = videoEl();
+    if (v?.buffered.length) {
+      try { v.currentTime = v.buffered.start(0); } catch { /* ignore */ }
     }
-    flash(`Restarting "${p.channel.now.title}" from the beginning…`);
+    flash(`${t('live.restart')} · ${p.channel.now.title}`);
   }
   function doRecord() {
     if (!p.channel) return;
     addRecording(p.channel);
-    flash(`Recording scheduled · ${p.channel.now?.title ?? p.channel.name}`);
+    flash(`${t('live.record')} · ${p.channel.now?.title ?? p.channel.name}`);
   }
 
   if (!p.channel) return null;
@@ -152,29 +178,36 @@ export default function InfoBar(p: Props) {
             <div className="infobar-actions">
               <button
                 className={`infobar-btn primary ${focused === 0 ? 'focused' : ''}`}
-                disabled={!canRestart && !ch.now}
-                onClick={doRestart}
-                title={canRestart ? 'Restart programme from beginning' : 'Restart from the start of the buffer'}
+                onClick={doReturnLive}
+                title={t('live.returnLive')}
               >
-                ↺ Restart programme
+                ▶ {t('live.returnLive')}
               </button>
               <button
                 className={`infobar-btn ${focused === 1 ? 'focused' : ''}`}
-                onClick={doRecord}
+                disabled={!canRestart && !ch.now}
+                onClick={doRestart}
+                title={canRestart ? t('live.restart') : t('live.restart')}
               >
-                ● Record
+                ↺ {t('live.restart')}
               </button>
               <button
                 className={`infobar-btn ${focused === 2 ? 'focused' : ''}`}
+                onClick={doRecord}
+              >
+                ● {t('live.record')}
+              </button>
+              <button
+                className={`infobar-btn ${focused === 3 ? 'focused' : ''}`}
                 onClick={() => setCard(true)}
               >
-                ⓘ More info
+                ⓘ {t('live.moreInfo')}
               </button>
             </div>
           </div>
 
           <div className="infobar-next">
-            <div className="infobar-next-title">Coming up</div>
+            <div className="infobar-next-title">{t('live.comingUp')}</div>
             {ch.next1 && (
               <div className="infobar-next-row">
                 <div className="infobar-next-time">{fmtHM(ch.next1.start)}</div>
@@ -205,7 +238,7 @@ export default function InfoBar(p: Props) {
             )}
             {ch.now?.description && <p className="infobar-modal-desc">{ch.now.description}</p>}
             <div className="infobar-modal-actions">
-              <button className="infobar-btn primary" onClick={() => { setCard(false); doRecord(); }}>● Record</button>
+              <button className="infobar-btn primary" onClick={() => { setCard(false); doRecord(); }}>● {t('live.record')}</button>
               <button className="infobar-btn"          onClick={() => setCard(false)}>Close</button>
             </div>
           </div>

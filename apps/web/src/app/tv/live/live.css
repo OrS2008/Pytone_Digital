@@ -238,6 +238,7 @@
   margin-top: 18px;
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
 }
 .infobar-btn {
   padding: 12px 22px;

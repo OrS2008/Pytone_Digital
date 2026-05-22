@@ -28,6 +28,7 @@ const en: Record<string, string> = {
 
   'live.addPlaylist':    'Add your playlist to see your channels →',
   'live.watch':          'Watch',
+  'live.returnLive':     'Return to live',
   'live.restart':        'Restart programme',
   'live.record':         'Record',
   'live.moreInfo':       'More info',

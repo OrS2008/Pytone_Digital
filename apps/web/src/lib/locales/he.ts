@@ -28,9 +28,10 @@ const he: Record<string, string> = {
 
   'live.addPlaylist':    'הוסף פלייליסט כדי לראות את הערוצים שלך ←',
   'live.watch':          'צפה',
-  'live.restart':        'הפעל מההתחלה',
-  'live.record':         'הקלט',
-  'live.moreInfo':       'פרטים נוספים',
+  'live.returnLive':     'חזור לשידור חי',
+  'live.restart':        'התחל תוכנית מחדש',
+  'live.record':         'הקלטה',
+  'live.moreInfo':       'עוד מידע',
   'live.comingUp':       'בהמשך',
   'live.tapToUnmute':    'הקש לבטל השתקה',
 
