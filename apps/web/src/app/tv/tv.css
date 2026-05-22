@@ -12,17 +12,17 @@
  *     1px borders. Focus rings are 3px minimum.
  */
 
+/* On real TVs the IPK runs fullscreen and the page is exactly 1920x1080,
+   so fixed positioning was historically fine. But browser visitors —
+   phone, laptop, embedded preview — also land here, and a fixed
+   100vh canvas with overflow:hidden makes the rest of the page
+   unreachable. Allow native scrolling on every device; the TV-side
+   layout is preserved because TVs always render at the viewport size. */
 .nova-tv-root {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
+  min-height: 100vh;
   background: #06070A;
   color: #E9EBF1;
   font-family: 'Inter', 'LG Smart UI', 'Helvetica Neue', sans-serif;
-  overflow: hidden;
-  user-select: none;
-  -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
 

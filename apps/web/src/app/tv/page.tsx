@@ -33,10 +33,10 @@ function TvHomeInner() {
   useEffect(() => { focusHero(); }, [focusHero]);
 
   return (
-    <main style={{ height: '100vh', overflow: 'hidden' }}>
+    <main style={{ minHeight: '100vh' }}>
       <div style={{ height: 100 }}><TvNav /></div>
       <TvHero />
-      <div style={{ marginTop: 32 }}>
+      <div style={{ marginTop: 32, paddingBottom: 64 }}>
         {ROWS.map((r, i) => (
           <TvHomeRow
             key={r.id}

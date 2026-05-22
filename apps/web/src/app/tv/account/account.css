@@ -4,12 +4,14 @@
  * user picks a different theme in /tv/account/appearance.
  */
 
+/* Was position:fixed + overflow:hidden for the TV canvas. Browsers
+   (phone, laptop) need native scrolling, so we drop both. The TV
+   experience stays correct because TV viewport == page size. */
 .ac {
-  position: fixed; inset: 0;
+  min-height: 100vh;
   background: var(--ns-bg);
   color: var(--ns-text);
   font-family: var(--ns-font-body);
-  overflow: hidden;
   display: grid;
   grid-template-rows: auto 1fr;
 }
@@ -479,7 +481,7 @@
 
 /* Login / signup ----------------------------------------------------- */
 .ac-auth {
-  position: fixed; inset: 0;
+  min-height: 100vh;
   background:
     radial-gradient(circle at 80% 20%, var(--ns-accent-soft), transparent 50%),
     radial-gradient(circle at 20% 80%, var(--ns-accent-soft), transparent 60%),
@@ -487,7 +489,7 @@
   color: var(--ns-text);
   font-family: var(--ns-font-body);
   display: flex; align-items: center; justify-content: center;
-  overflow: hidden;
+  padding: 24px;
 }
 .ac-auth-card {
   width: 480px;

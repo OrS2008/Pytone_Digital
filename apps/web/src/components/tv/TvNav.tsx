@@ -4,12 +4,13 @@ import { useEffect, useState } from 'react';
 import { useCurrentZone, useSetZone } from './TvFocus';
 
 const ITEMS = [
-  { label: 'Live',   href: '/tv/live' },
-  { label: 'Home',   href: '/tv' },
-  { label: 'Sports', href: '/tv/sports' },
-  { label: 'Movies', href: '/tv/vod' },
-  { label: 'DVR',    href: '/tv/dvr' },
-  { label: 'Search', href: '/tv/search' },
+  { label: 'Live',    href: '/tv/live' },
+  { label: 'Home',    href: '/tv' },
+  { label: 'Sports',  href: '/tv/sports' },
+  { label: 'Movies',  href: '/tv/vod' },
+  { label: 'DVR',     href: '/tv/dvr' },
+  { label: 'Search',  href: '/tv/search' },
+  { label: 'Account', href: '/tv/account' },
 ];
 
 const ZONE = 'nav';
