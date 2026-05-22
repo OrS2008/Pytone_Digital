@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { setSessionEmail, setActivated } from '@/lib/session';
-import GoogleButton from '@/components/auth/GoogleButton';
+import GoogleSection from '@/components/auth/GoogleSection';
 import '../account/account.css';
 
 export default function Login() {
@@ -52,14 +52,7 @@ export default function Login() {
         <h1 className="ac-auth-title">Welcome back</h1>
         <p className="ac-auth-sub">Sign in to keep watching where you left off.</p>
 
-        {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && (
-          <>
-            <div style={{ margin: '20px 0 8px' }}>
-              <GoogleButton onSuccess={handleGoogle} onError={setError} />
-            </div>
-            <div className="ac-auth-divider"><span>or</span></div>
-          </>
-        )}
+        <GoogleSection onSuccess={handleGoogle} onError={setError} />
 
         <form onSubmit={submit}>
           <div className="ac-field">

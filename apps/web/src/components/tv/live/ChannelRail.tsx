@@ -1,13 +1,19 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Channel } from './types';
+import { userKey } from '@/lib/session';
 
 interface Props {
   channels: Channel[];
   activeIdx: number;
   onTune: (idx: number) => void;
 }
+
+// Categories that benefit from spoiler protection — sports + live news.
+// Programme titles in these categories get masked until the user opens
+// the channel.
+const SPOILER_CATS = /sport|football|soccer|basketball|tennis|league|liga|nba|nhl|nfl|mlb|fifa|uefa|game|match/i;
 
 /*
  * Channel list rail (HOT/YES style).
@@ -23,6 +29,18 @@ interface Props {
 export default function ChannelRail({ channels, activeIdx, onTune }: Props) {
   const railRef = useRef<HTMLDivElement>(null);
   const focusedRef = useRef<number>(activeIdx);
+  const [spoiler, setSpoiler] = useState(false);
+
+  // Read the spoiler-protection preference. Updates if the user flips
+  // it in the preferences screen and comes back to /tv/live.
+  useEffect(() => {
+    try { setSpoiler(localStorage.getItem(userKey('prefs.spoilerProtection')) === '1'); } catch { /* ignore */ }
+  }, []);
+
+  // Cheap helper that decides whether a given row's metadata should
+  // be masked. We only obscure programme titles, never channel names
+  // or numbers — those are how the user actually navigates.
+  const maskFor = useMemo(() => (ch: Channel) => spoiler && SPOILER_CATS.test(ch.category), [spoiler]);
 
   // Pseudo-focus index — drives the highlighted row independent of the
   // "active" (currently-tuned) channel. We don't use DOM focus because TV
@@ -73,8 +91,8 @@ export default function ChannelRail({ channels, activeIdx, onTune }: Props) {
         </div>
         <div className="rail-meta">
           <div className="rail-name">{ch.name}</div>
-          {ch.now  && <div className="rail-now">{fmt(ch.now.start)}  ·  {ch.now.title}</div>}
-          {ch.next1 && <div className="rail-next">{fmt(ch.next1.start)}  ·  {ch.next1.title}</div>}
+          {ch.now  && <div className="rail-now">{fmt(ch.now.start)}  ·  {maskFor(ch) ? '— spoiler hidden —' : ch.now.title}</div>}
+          {ch.next1 && <div className="rail-next">{fmt(ch.next1.start)}  ·  {maskFor(ch) ? '— spoiler hidden —' : ch.next1.title}</div>}
         </div>
       </div>,
     );

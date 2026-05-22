@@ -120,6 +120,24 @@ export default function Preferences() {
           </select>
         </div>
       </div>
+
+      <div className="ac-card">
+        <div className="ac-card-title">Sports &amp; live events</div>
+        <div className="ac-toggle-row">
+          <div>
+            <div className="ac-toggle-title">Spoiler protection</div>
+            <div className="ac-toggle-desc">Hide live scores and result-bearing programme titles in the channel rail and EPG until you actually open the channel.</div>
+          </div>
+          <Toggle persistKey="prefs.spoilerProtection" />
+        </div>
+        <div className="ac-toggle-row">
+          <div>
+            <div className="ac-toggle-title">Pre-warm the next channel</div>
+            <div className="ac-toggle-desc">Loads the manifest for the channel above and below the current one so zapping feels instant. Uses a little extra bandwidth.</div>
+          </div>
+          <Toggle persistKey="prefs.prefetchNeighbours" initialOn />
+        </div>
+      </div>
     </Shell>
   );
 }

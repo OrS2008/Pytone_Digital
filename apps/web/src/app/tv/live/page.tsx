@@ -91,6 +91,33 @@ export default function LivePage() {
     return () => clearTimeout(t);
   }, [infoVisible, activeIdx]);
 
+  // Channel prefetch — warm the HLS manifest of the channels above and
+  // below the current one so the next zap is closer to instant. Opt-in
+  // via /tv/account/preferences (defaults on).
+  useEffect(() => {
+    let prefetchOn = true;
+    try {
+      const raw = localStorage.getItem(userKey('prefs.prefetchNeighbours'));
+      if (raw === '0') prefetchOn = false;
+    } catch { /* ignore */ }
+    if (!prefetchOn) return;
+
+    const neighbours = [activeIdx - 1, activeIdx + 1]
+      .filter((i) => i >= 0 && i < channels.length)
+      .map((i) => channels[i]?.streamUrl)
+      .filter((u): u is string => typeof u === 'string' && /\.m3u8(\?|$)/i.test(u));
+
+    const controllers = neighbours.map((url) => {
+      const ac = new AbortController();
+      // We fire-and-forget — the goal is for the browser to hold the
+      // DNS + TLS + first segments warm. We deliberately don't await
+      // the response.
+      fetch(url, { signal: ac.signal, mode: 'no-cors', cache: 'force-cache' as RequestCache }).catch(() => {});
+      return ac;
+    });
+    return () => { controllers.forEach((c) => c.abort()); };
+  }, [activeIdx, channels]);
+
   // Tuning behaviour. Clicking / pressing OK on a channel selects it AND
   // enters watching mode so the player goes full-screen and starts
   // playback. Pressing Up while watching brings the rail back so the

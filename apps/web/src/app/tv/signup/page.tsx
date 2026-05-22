@@ -11,7 +11,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { setSessionEmail, setActivated } from '@/lib/session';
-import GoogleButton from '@/components/auth/GoogleButton';
+import GoogleSection from '@/components/auth/GoogleSection';
 import '../account/account.css';
 
 export default function Signup() {
@@ -91,14 +91,7 @@ export default function Signup() {
           7 days free. No card needed. One email per account.
         </p>
 
-        {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && (
-          <>
-            <div style={{ margin: '20px 0 8px' }}>
-              <GoogleButton onSuccess={handleGoogle} onError={setError} />
-            </div>
-            <div className="ac-auth-divider"><span>or sign up with email</span></div>
-          </>
-        )}
+        <GoogleSection onSuccess={handleGoogle} onError={setError} dividerLabel="or sign up with email" />
 
         <form onSubmit={submit}>
           <div className="ac-field">

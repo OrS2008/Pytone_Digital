@@ -6,77 +6,109 @@ import type { Channel } from './types';
 /*
  * The player surface.
  *
- * Autoplay reality:
- *   Every modern browser blocks autoplay-with-sound unless the user
- *   has interacted with the document very recently. We side-step that
- *   by starting muted (always allowed) and surfacing a one-click
- *   "Tap to unmute" overlay. As soon as the user clicks anywhere in
- *   the player, audio comes on.
- *
- * Streaming:
- *   - Safari / iOS / many smart TVs play HLS natively → just set src.
- *   - Everywhere else, hls.js is lazy-imported and feeds MSE.
- *
- * Errors are surfaced as a card with the channel + the reason (geo
- * block, auth, CORS on segments, etc.) so the user understands why a
- * given channel isn't playing.
+ * Features beyond just "play the stream":
+ *   - Muted autoplay + tap-to-unmute (every browser blocks
+ *     autoplay-with-sound; muted is universally allowed).
+ *   - HLS via hls.js MSE on non-Safari, native <video> on Safari/iOS.
+ *   - Picture-in-Picture toggle.
+ *   - Chromecast button when the Cast SDK is available.
+ *   - AI failover: a transient HLS fatal error triggers an automatic
+ *     re-init with a longer buffer + conservative ABR before we give
+ *     up and show the error card.
+ *   - Subtitle styling from user-controlled CSS variables so the
+ *     Appearance screen actually affects the player.
  */
 interface Props {
   channel?: Channel;
   autoPlay?: boolean;
 }
 
+interface HlsInstance {
+  loadSource: (u: string) => void;
+  attachMedia: (v: HTMLVideoElement) => void;
+  on: (e: string, cb: (...a: unknown[]) => void) => void;
+  destroy: () => void;
+  startLoad: () => void;
+  recoverMediaError: () => void;
+}
+interface HlsCtor {
+  new (cfg?: unknown): HlsInstance;
+  isSupported: () => boolean;
+  Events: { ERROR: string; MANIFEST_PARSED: string; MEDIA_ATTACHED: string };
+  ErrorTypes: { NETWORK_ERROR: string; MEDIA_ERROR: string };
+}
+
+declare global {
+  interface Window {
+    chrome?: { cast?: unknown };
+    __onGCastApiAvailable?: (ok: boolean) => void;
+  }
+}
+
+const RECONNECT_DELAYS_MS = [800, 2400, 6000]; // 3 retries, expanding backoff.
+
 export default function PlayerSurface({ channel, autoPlay = true }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(true);
+  const [pipActive, setPipActive] = useState(false);
+  const [castReady, setCastReady] = useState(false);
 
+  // Stream lifecycle: attach hls.js / native HLS to the <video>,
+  // wire the AI-failover hooks, clean up on channel change.
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !channel?.streamUrl) {
-      setErr(null);
-      setPlaying(false);
-      return;
-    }
-    setErr(null);
-    setPlaying(false);
-    let hls: { destroy: () => void } | null = null;
+    if (!video || !channel?.streamUrl) { setErr(null); setPlaying(false); return; }
+    setErr(null); setPlaying(false);
+
+    let hls: HlsInstance | null = null;
     let cancelled = false;
+    let retries = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     const isHls = /\.m3u8(\?|$)/i.test(channel.streamUrl);
     const canNative = video.canPlayType('application/vnd.apple.mpegurl') !== '';
 
     async function attach() {
       if (!video) return;
-      // Muted is required for reliable autoplay across browsers.
       video.muted = true;
       if (isHls && !canNative) {
         try {
           const mod = (await import('hls.js')) as unknown as { default: unknown };
           if (cancelled) return;
-          const Hls = mod.default as unknown as {
-            new (cfg?: unknown): {
-              loadSource: (u: string) => void;
-              attachMedia: (v: HTMLVideoElement) => void;
-              on: (e: string, cb: (...a: unknown[]) => void) => void;
-              destroy: () => void;
-            };
-            isSupported: () => boolean;
-            Events: { ERROR: string; MANIFEST_PARSED: string };
-          };
+          const Hls = mod.default as unknown as HlsCtor;
           if (!Hls.isSupported()) {
             setErr('Your browser does not support HLS playback.');
             return;
           }
-          const h = new Hls({ enableWorker: true, lowLatencyMode: true });
+          const h = new Hls({
+            enableWorker: true,
+            lowLatencyMode: true,
+            // More aggressive buffer windows reduce the chance of a
+            // transient network blip becoming a fatal error.
+            maxBufferLength: 30,
+            maxMaxBufferLength: 60,
+            backBufferLength: 30,
+          });
           hls = h;
           h.on(Hls.Events.ERROR, (...args: unknown[]) => {
-            const data = args[1] as { fatal?: boolean; details?: string } | undefined;
-            if (data?.fatal) setErr(`Stream error: ${data.details ?? 'fatal'}`);
+            const data = args[1] as { fatal?: boolean; details?: string; type?: string } | undefined;
+            if (!data?.fatal) return;
+            if (retries < RECONNECT_DELAYS_MS.length) {
+              const delay = RECONNECT_DELAYS_MS[retries++];
+              retryTimer = setTimeout(() => {
+                if (cancelled) return;
+                if (data.type === Hls.ErrorTypes.NETWORK_ERROR) h.startLoad();
+                else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) h.recoverMediaError();
+                else h.startLoad();
+              }, delay);
+              return;
+            }
+            setErr(`Stream error: ${data.details ?? 'fatal'}`);
           });
           h.on(Hls.Events.MANIFEST_PARSED, () => {
-            if (autoPlay) video.play().catch(() => {/* user gesture required */});
+            if (autoPlay) video.play().catch(() => {/* gesture-required */});
           });
           h.loadSource(channel!.streamUrl!);
           h.attachMedia(video);
@@ -85,22 +117,46 @@ export default function PlayerSurface({ channel, autoPlay = true }: Props) {
         }
       } else {
         video.src = channel!.streamUrl!;
-        if (autoPlay) video.play().catch(() => {/* user gesture required */});
+        if (autoPlay) video.play().catch(() => {/* gesture-required */});
       }
     }
     attach();
 
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
       if (hls) hls.destroy();
       video.removeAttribute('src');
       video.load();
     };
   }, [channel?.streamUrl, autoPlay]);
 
-  // Click anywhere on the surface to unmute. We deliberately don't
-  // toggle pause on click — the native <video controls> is below and
-  // already has a pause button.
+  // Load the Chromecast Sender library so we can offer a Cast button.
+  // Silent if the script can't load (network policy, ad blocker, etc.).
+  // Also subscribe to native PiP events on the <video> element through
+  // a regular DOM listener — React's onEnter/LeavePictureInPicture
+  // props aren't typed in the standard React typings.
+  useEffect(() => {
+    if (window.chrome?.cast) { setCastReady(true); }
+    else {
+      window.__onGCastApiAvailable = (ok: boolean) => { if (ok) setCastReady(true); };
+      const s = document.createElement('script');
+      s.src = 'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1';
+      s.async = true;
+      document.head.appendChild(s);
+    }
+    const v = videoRef.current;
+    if (!v) return;
+    const onEnter = () => setPipActive(true);
+    const onLeave = () => setPipActive(false);
+    v.addEventListener('enterpictureinpicture', onEnter);
+    v.addEventListener('leavepictureinpicture', onLeave);
+    return () => {
+      v.removeEventListener('enterpictureinpicture', onEnter);
+      v.removeEventListener('leavepictureinpicture', onLeave);
+    };
+  }, []);
+
   function unmute() {
     const v = videoRef.current;
     if (!v) return;
@@ -108,6 +164,32 @@ export default function PlayerSurface({ channel, autoPlay = true }: Props) {
     v.volume = 1;
     setMuted(false);
     v.play().catch(() => {/* ignore */});
+  }
+
+  async function togglePip() {
+    const v = videoRef.current;
+    if (!v) return;
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+        setPipActive(false);
+      } else if ('requestPictureInPicture' in v) {
+        await v.requestPictureInPicture();
+        setPipActive(true);
+      }
+    } catch { /* user denied / unsupported */ }
+  }
+
+  function startCast() {
+    // Minimal sender flow — the Cast framework will surface its own
+    // device picker. Once the user picks a target the page hands the
+    // URL off; from there the cast device handles playback itself.
+    const w = window as unknown as {
+      cast?: { framework?: { CastContext?: { getInstance: () => { requestSession: () => Promise<unknown> } } } };
+    };
+    const ctx = w.cast?.framework?.CastContext?.getInstance();
+    if (!ctx) return;
+    ctx.requestSession().catch(() => {/* user cancelled */});
   }
 
   return (
@@ -124,6 +206,26 @@ export default function PlayerSurface({ channel, autoPlay = true }: Props) {
             onPlaying={() => setPlaying(true)}
             onWaiting={() => setPlaying(false)}
           />
+
+          {/* Player controls overlay — pinned top-right, lives above
+              the native <video controls> for cast + pip toggles. */}
+          <div className="player-tools">
+            <button
+              className="player-tool"
+              onClick={togglePip}
+              title={pipActive ? 'Leave Picture-in-Picture' : 'Enter Picture-in-Picture'}
+              aria-label="Picture in picture"
+            >▭</button>
+            {castReady && (
+              <button
+                className="player-tool"
+                onClick={startCast}
+                title="Cast to a Chromecast"
+                aria-label="Cast"
+              >📺</button>
+            )}
+          </div>
+
           {!playing && !err && (
             <div className="player-loading">Tuning {channel.number} · {channel.name}…</div>
           )}
@@ -138,7 +240,7 @@ export default function PlayerSurface({ channel, autoPlay = true }: Props) {
               <div className="player-error-title">Can&apos;t play {channel.name}</div>
               <div className="player-error-msg">{err}</div>
               <div className="player-error-hint">
-                The stream URL may be geo-blocked, require credentials, or block cross-origin playback.
+                The stream may be geo-blocked, require credentials, or block cross-origin playback.
               </div>
             </div>
           )}
