@@ -1,10 +1,10 @@
-// Plans page — shows Single (1 device) and Multi (up to 4 devices) side by
-// side. This is reached both from the upgrade flow and from "manage
-// subscription". The "Single" card is marked as Recommended for the most
-// common buyer.
+// Plans page — Single (1 device) and Multi (4 devices) side by side.
+// Clicking a plan posts to /api/billing/checkout and redirects to
+// Stripe's hosted Checkout. Trial starts after the user enters a card
+// (Stripe handles the 7-day trial logic).
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Shell from '../Shell';
 
 const FEATURES_SINGLE = [
@@ -28,35 +28,47 @@ const FEATURES_MULTI = [
 ];
 
 export default function Plans() {
-  const [chosen, setChosen] = useState<'single' | 'multi' | null>(null);
+  const [email,   setEmail]   = useState('');
+  const [busy,    setBusy]    = useState<null | 'single' | 'multi'>(null);
+  const [error,   setError]   = useState<string | null>(null);
+  const [showCanceled, setShowCanceled] = useState(false);
 
-  if (chosen) {
-    return (
-      <Shell active="plans">
-        <header className="ac-panel-head">
-          <div className="ac-panel-eyebrow">Confirmation</div>
-          <h1 className="ac-panel-title">You're on {chosen === 'single' ? 'Single' : 'Multi'} ✓</h1>
-          <p className="ac-panel-sub">
-            Welcome. Your trial continues for 5 more days — billing for the{' '}
-            {chosen === 'single' ? '₪39/mo Single' : '₪69/mo Multi'} plan starts after that.
-            You can change your plan or cancel any time from{' '}
-            <a className="ac-auth-link" href="/tv/account/subscription">Subscription</a>.
-          </p>
-        </header>
-        <div className="ac-card">
-          <div className="ac-card-title">What's next</div>
-          <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, lineHeight: 1.6 }}>
-            Head to <a className="ac-auth-link" href="/tv/account/sources">Playlists &amp; EPG</a> to
-            connect your M3U / Xtream provider, then back to{' '}
-            <a className="ac-auth-link" href="/tv/live">Live TV</a> to start watching.
-          </p>
-          <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
-            <a className="ac-btn ac-btn-primary" href="/tv/account/sources">Connect a playlist</a>
-            <button className="ac-btn" onClick={() => setChosen(null)}>Back to plans</button>
-          </div>
-        </div>
-      </Shell>
-    );
+  // Remember the email between checkouts so the second visit pre-fills.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('ns.billing.email');
+      if (saved) setEmail(saved);
+    } catch { /* private mode */ }
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('canceled')) {
+      setShowCanceled(true);
+    }
+  }, []);
+
+  async function start(plan: 'single' | 'multi') {
+    setError(null);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError('Please enter the email you want billed to.');
+      return;
+    }
+    setBusy(plan);
+    try { localStorage.setItem('ns.billing.email', email); } catch { /* ignore */ }
+    try {
+      const resp = await fetch('/api/billing/checkout', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ plan, email }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        setBusy(null);
+        setError(data.hint ? `${data.error} ${data.hint}` : data.error || `Server returned ${resp.status}.`);
+        return;
+      }
+      window.location.href = data.url;
+    } catch (e) {
+      setBusy(null);
+      setError(`Network error: ${(e as Error).message}`);
+    }
   }
 
   return (
@@ -66,9 +78,37 @@ export default function Plans() {
         <h1 className="ac-panel-title">Pick what fits your home</h1>
         <p className="ac-panel-sub">
           Both plans include every feature in the app. The only difference is how many
-          devices can stream at the same time. You can change or cancel any time.
+          devices can stream at the same time. 7-day free trial, no charge until day 8.
+          Cancel any time.
         </p>
       </header>
+
+      {showCanceled && (
+        <div className="ac-card" style={{ borderColor: 'var(--ns-border-strong)' }}>
+          <div style={{ color: 'var(--ns-text-muted)' }}>
+            Checkout was cancelled. Nothing was charged.
+          </div>
+        </div>
+      )}
+
+      <div className="ac-card">
+        <div className="ac-card-title">Where should we send receipts?</div>
+        <div className="ac-field" style={{ marginBottom: 0 }}>
+          <input
+            className="ac-input"
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <div className="ac-field-help">
+            We use this email to identify your subscription. The card itself stays on Stripe — Nova Stream never sees it.
+          </div>
+        </div>
+        {error && (
+          <div style={{ color: 'var(--ns-danger, #FF6B7B)', fontSize: 13, marginTop: 10 }}>{error}</div>
+        )}
+      </div>
 
       <div className="ac-plans">
         <div className="ac-plan ac-plan-recommended">
@@ -92,13 +132,14 @@ export default function Plans() {
           </ul>
           <button
             className="ac-btn ac-btn-primary"
-            style={{ justifyContent: 'center', padding: '16px 24px' }}
-            onClick={() => setChosen('single')}
+            style={{ justifyContent: 'center', padding: '16px 24px', opacity: busy ? 0.7 : 1 }}
+            onClick={() => start('single')}
+            disabled={busy !== null}
           >
-            Start Single — ₪39/mo
+            {busy === 'single' ? 'Opening Stripe…' : 'Start Single — ₪39/mo'}
           </button>
           <div style={{ marginTop: 12, fontSize: 12, color: 'var(--ns-text-faint)', textAlign: 'center' }}>
-            Free for 5 more days. Cancel any time.
+            7 days free. Cancel any time.
           </div>
         </div>
 
@@ -122,19 +163,20 @@ export default function Plans() {
           </ul>
           <button
             className="ac-btn"
-            style={{ justifyContent: 'center', padding: '16px 24px' }}
-            onClick={() => setChosen('multi')}
+            style={{ justifyContent: 'center', padding: '16px 24px', opacity: busy ? 0.7 : 1 }}
+            onClick={() => start('multi')}
+            disabled={busy !== null}
           >
-            Start Multi — ₪69/mo
+            {busy === 'multi' ? 'Opening Stripe…' : 'Start Multi — ₪69/mo'}
           </button>
           <div style={{ marginTop: 12, fontSize: 12, color: 'var(--ns-text-faint)', textAlign: 'center' }}>
-            Save ₪87/year with annual billing.
+            7 days free. Cancel any time.
           </div>
         </div>
       </div>
 
       <div style={{ marginTop: 28, fontSize: 13, color: 'var(--ns-text-faint)', textAlign: 'center' }}>
-        Payments are processed securely by Stripe. Your card is never stored on our servers.
+        Payments processed by Stripe. Your card is never stored on our servers.
         VAT included where applicable.
       </div>
     </Shell>

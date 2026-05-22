@@ -13,10 +13,11 @@
     "@apollo/client": "^3.10.8",
     "graphql": "^16.9.0",
     "hls.js": "^1.5.13",
-    "shaka-player": "^4.10.7",
     "next": "^15.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "shaka-player": "^4.10.7",
+    "stripe": "^22.1.1",
     "zustand": "^4.5.4"
   },
   "devDependencies": {
