@@ -41,9 +41,9 @@ export default function Sources() {
   // aren't lost when they navigate away. This is a frontend-only shim —
   // when the playlist-ingestion backend is reachable, replace with a
   // real fetch + persist via the gateway.
-  const [live,     setLive]     = usePersisted('ns.sources.live', INITIAL_LIVE);
-  const [epg,      setEpg]      = usePersisted('ns.sources.epg',  INITIAL_EPG);
-  const [vod,      setVod]      = usePersisted('ns.sources.vod',  INITIAL_VOD);
+  const [live,     setLive]     = usePersisted('sources.live', INITIAL_LIVE);
+  const [epg,      setEpg]      = usePersisted('sources.epg',  INITIAL_EPG);
+  const [vod,      setVod]      = usePersisted('sources.vod',  INITIAL_VOD);
   const [epgUrl,   setEpgUrl]   = useState('');
   const [vodHost,  setVodHost]  = useState('');
   const [vodUser,  setVodUser]  = useState('');

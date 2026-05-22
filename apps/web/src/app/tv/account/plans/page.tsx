@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import Shell from '../Shell';
+import { setSessionEmail } from '@/lib/session';
 
 const FEATURES_SINGLE = [
   { ok: true,  label: '1 device at a time' },
@@ -51,6 +52,7 @@ export default function Plans() {
       return;
     }
     setBusy(plan);
+    setSessionEmail(email);
     try { localStorage.setItem('ns.billing.email', email); } catch { /* ignore */ }
     try {
       const resp = await fetch('/api/billing/checkout', {

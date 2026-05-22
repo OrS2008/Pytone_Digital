@@ -3,6 +3,7 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import AccountChip from '@/components/tv/AccountChip';
 import './account.css';
 
 const NAV = [
@@ -36,10 +37,7 @@ export default function Shell({ active, children }: { active: string; children: 
           <Link href="/tv/sports" className="ac-link">Sports</Link>
           <Link href="/tv/account" className="ac-link ac-link-active">Account</Link>
         </nav>
-        <div className="ac-account">
-          <span className="ac-trial-pill">Trial · 5 days left</span>
-          <div className="ac-avatar">OS</div>
-        </div>
+        <AccountChip />
       </header>
 
       <div className="ac-body">

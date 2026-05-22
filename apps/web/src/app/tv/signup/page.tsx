@@ -9,6 +9,7 @@
 // fetch('/api/auth/register', { ... }).
 import Link from 'next/link';
 import { useState } from 'react';
+import { setSessionEmail } from '@/lib/session';
 import '../account/account.css';
 
 export default function Signup() {
@@ -24,6 +25,7 @@ export default function Signup() {
     if (!email.includes('@')) return setError('Please enter a valid email.');
     if (password.length < 10)  return setError('Password must be at least 10 characters.');
     if (!accepted)             return setError('You need to accept the Terms and Privacy policy.');
+    setSessionEmail(email);
     setSent(true);
   }
 

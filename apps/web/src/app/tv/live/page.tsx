@@ -25,6 +25,7 @@ import NumberZap from '@/components/tv/live/NumberZap';
 import { MOCK_CHANNELS } from '@/components/tv/live/mockChannels';
 import type { Channel } from '@/components/tv/live/types';
 import { parseM3U } from '@/lib/m3u';
+import { userKey } from '@/lib/session';
 import './live.css';
 
 interface StoredSource { id: string; kind: string; title: string; sub: string; stat: string; }
@@ -50,7 +51,7 @@ export default function LivePage() {
     async function run() {
       let stored: StoredSource[] = [];
       try {
-        const raw = localStorage.getItem('ns.sources.live');
+        const raw = localStorage.getItem(userKey('sources.live'));
         if (raw) stored = JSON.parse(raw) as StoredSource[];
       } catch { /* corrupt storage */ }
 

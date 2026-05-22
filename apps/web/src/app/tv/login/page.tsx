@@ -7,6 +7,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { setSessionEmail } from '@/lib/session';
 import '../account/account.css';
 
 export default function Login() {
@@ -22,6 +23,7 @@ export default function Login() {
     if (!email.includes('@')) return setError('Please enter a valid email.');
     if (password.length < 10)  return setError('Password must be at least 10 characters.');
     setBusy(true);
+    setSessionEmail(email);
     // Simulate a small auth round-trip so the button has feedback.
     setTimeout(() => router.push('/tv'), 400);
   }

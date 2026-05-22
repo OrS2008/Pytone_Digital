@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useCurrentZone, useSetZone } from './TvFocus';
+import { getSessionEmail } from '@/lib/session';
 
 const ITEMS = [
   { label: 'Live',    href: '/tv/live' },
@@ -17,20 +19,25 @@ export default function TvNav() {
   const focusNav = useSetZone(ZONE);
   const current  = useCurrentZone();
   const [idx, setIdx] = useState(0);
+  const [email, setEmail] = useState<string | null>(null);
+
+  useEffect(() => { setEmail(getSessionEmail()); }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (current !== ZONE) return;
-      if (e.key === 'ArrowLeft'  && idx > 0)                  setIdx(idx - 1);
-      if (e.key === 'ArrowRight' && idx < ITEMS.length)       setIdx(idx + 1);
+      if (e.key === 'ArrowLeft'  && idx > 0)             setIdx(idx - 1);
+      if (e.key === 'ArrowRight' && idx < ITEMS.length)  setIdx(idx + 1);
       if (e.key === 'Enter') {
         if (idx < ITEMS.length) window.location.href = ITEMS[idx].href;
-        else                    window.location.href = '/tv/account';
+        else                    window.location.href = email ? '/tv/account' : '/tv/login';
       }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [idx, current]);
+  }, [idx, current, email]);
+
+  const initials = email ? email.split('@')[0].slice(0, 2).toUpperCase() : '↳';
 
   return (
     <nav className="tv-nav" data-tv-focus="1" onMouseEnter={focusNav}>
@@ -45,15 +52,15 @@ export default function TvNav() {
           {it.label}
         </a>
       ))}
-      <a
-        href="/tv/account"
+      <Link
+        href={email ? '/tv/account' : '/tv/login'}
         className={`tv-nav-avatar ${current === ZONE && idx === ITEMS.length ? 'focused' : ''}`}
         onMouseEnter={() => { focusNav(); setIdx(ITEMS.length); }}
-        title="Account"
-        aria-label="Account"
+        title={email ?? 'Sign in'}
+        aria-label={email ? `Account · ${email}` : 'Sign in'}
       >
-        OS
-      </a>
+        {initials}
+      </Link>
     </nav>
   );
 }
