@@ -3,35 +3,25 @@
 // Each list maps to playlist-ingestion sources in the backend.
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Shell from '../Shell';
 import ActionButton from '@/components/ui/ActionButton';
 import usePersisted from '@/lib/usePersisted';
-import { fetchAndCache, invalidateCache } from '@/lib/channelCache';
+import { fetchAndCache, getUserSourceUrl, invalidateCache } from '@/lib/channelCache';
 
 type Tab = 'live' | 'epg' | 'vod';
 type AddTab = 'm3u' | 'xtream' | 'stalker' | 'upload';
 
 interface Source { id: string; kind: 'M3U' | 'XML' | 'VOD'; title: string; sub: string; stat: string; }
 
-const INITIAL_LIVE: Source[] = [{
-  id: 'live-1', kind: 'M3U',
-  title: 'My provider',
-  sub:   'http://provider.example/get.php?username=••••&password=••••&type=m3u_plus',
-  stat:  '237 channels · refreshed 4h ago',
-}];
-const INITIAL_EPG: Source[] = [{
-  id: 'epg-1', kind: 'XML',
-  title: 'Auto-EPG · IL feed',
-  sub:   'https://epg.iptvx.one/IL.xml.gz',
-  stat:  '231 / 237 matched · refreshed 4h ago',
-}];
-const INITIAL_VOD: Source[] = [{
-  id: 'vod-1', kind: 'VOD',
-  title: 'Xtream VOD · provider.example',
-  sub:   '14,210 movies · 2,890 series · last sync 4h ago',
-  stat:  '17,100 titles',
-}];
+// No seed sources. We used to ship a placeholder "My provider" row with
+// a masked URL, but users kept clicking Edit on it to paste their real
+// playlist — and because the masked URL was detected as the active one,
+// the rest of the app never noticed they'd configured anything. Empty
+// initial state with a clear CTA is less confusing.
+const INITIAL_LIVE: Source[] = [];
+const INITIAL_EPG:  Source[] = [];
+const INITIAL_VOD:  Source[] = [];
 
 export default function Sources() {
   const [tab,      setTab]      = useState<Tab>('live');
@@ -51,6 +41,23 @@ export default function Sources() {
   const [vodPass,  setVodPass]  = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
 
+  // One-shot migration: drop the old `live-1` placeholder row (and the
+  // matching seeds for EPG / VOD) for users who carried it over from a
+  // previous visit. Until we did this, an "edited" placeholder still
+  // had id `live-1` and was being filtered out everywhere else — the
+  // root cause of "I added a playlist but the app shows demo channels".
+  useEffect(() => {
+    setLive((prev) => {
+      const cleaned = prev.filter((s) =>
+        s.id !== 'live-1' && !/provider\.example|•/.test(s.sub),
+      );
+      return cleaned.length === prev.length ? prev : cleaned;
+    });
+    setEpg((prev) => prev.filter((s) => s.id !== 'epg-1'));
+    setVod((prev) => prev.filter((s) => s.id !== 'vod-1'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function flash(text: string) {
     setFeedback(text);
     setTimeout(() => setFeedback(null), 2200);
@@ -58,7 +65,12 @@ export default function Sources() {
 
   async function addLive() {
     if (!url.startsWith('http')) return flash('M3U URL must start with http:// or https://');
-    const friendly = name.trim() || new URL(url).hostname;
+    let friendly: string;
+    try {
+      friendly = name.trim() || new URL(url).hostname;
+    } catch {
+      return flash('That doesn\'t look like a valid URL — check for typos.');
+    }
     const id = 'live-' + Date.now();
     const submittedUrl = url;
     // Add to the list immediately so the user sees feedback; mark the
@@ -176,11 +188,6 @@ export default function Sources() {
     flash('VOD library updated.');
   }
 
-  function clearSeeds() {
-    setLive([]); setEpg([]); setVod([]);
-    flash('All example sources cleared. Add your own below.');
-  }
-
   return (
     <Shell active="sources">
       <header className="ac-panel-head">
@@ -191,17 +198,7 @@ export default function Sources() {
           Codes API, Stalker portals, XMLTV EPG, and VOD libraries from Jellyfin / Plex /
           your own NAS.
         </p>
-        {(live.some(s => s.id === 'live-1') || epg.some(s => s.id === 'epg-1') || vod.some(s => s.id === 'vod-1')) && (
-          <p style={{ fontSize: 13, marginTop: 10 }}>
-            <button
-              onClick={clearSeeds}
-              style={{ background: 'none', border: 0, padding: 0, color: 'var(--ns-accent)', cursor: 'pointer', fontWeight: 600 }}
-            >
-              Clear example sources →
-            </button>{' '}
-            <span style={{ color: 'var(--ns-text-faint)' }}>(start with your own playlist)</span>
-          </p>
-        )}
+        <ActiveSourceIndicator />
       </header>
 
       <div className="ac-source-tabs">
@@ -366,5 +363,48 @@ export default function Sources() {
         </div>
       )}
     </Shell>
+  );
+}
+
+// Tiny banner under the page header that surfaces which playlist URL the
+// rest of the app will actually load. Lots of debugging time went into
+// users adding a URL and then seeing demo channels everywhere — this
+// makes it obvious whether the URL is recognised or not. Re-reads on
+// every render so adds / edits / removes update it immediately.
+function ActiveSourceIndicator() {
+  const [active, setActive] = useState<{ url: string; title: string } | null>(null);
+  useEffect(() => {
+    setActive(getUserSourceUrl());
+    // Re-check on every storage event (e.g. usePersisted writing the new list).
+    const onStorage = () => setActive(getUserSourceUrl());
+    window.addEventListener('storage', onStorage);
+    // Also poll while this screen is open — usePersisted writes happen in
+    // the same tab, which doesn't fire the storage event.
+    const t = setInterval(onStorage, 1200);
+    return () => { window.removeEventListener('storage', onStorage); clearInterval(t); };
+  }, []);
+  const ok = !!active;
+  return (
+    <div style={{
+      marginTop: 14,
+      padding: '10px 14px',
+      borderRadius: 10,
+      background: ok ? 'rgba(125,249,198,0.10)' : 'rgba(255,196,72,0.10)',
+      color: ok ? 'var(--ns-ok)' : '#FFB74D',
+      fontSize: 13, fontWeight: 600,
+      display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+    }}>
+      <span>{ok ? '✓ Active playlist:' : '⚠ No playlist configured yet.'}</span>
+      {active && (
+        <code style={{
+          fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+          fontSize: 12, fontWeight: 400,
+          background: 'rgba(255,255,255,0.06)',
+          padding: '2px 6px', borderRadius: 4,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          maxWidth: '60ch',
+        }}>{active.url}</code>
+      )}
+    </div>
   );
 }

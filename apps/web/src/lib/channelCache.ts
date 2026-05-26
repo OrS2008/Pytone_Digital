@@ -70,15 +70,32 @@ export function getCachedChannels(): M3UChannel[] | null {
 
 // Returns the user's saved live-source URL, or null if they haven't
 // configured one. Resolved synchronously from localStorage.
+//
+// We pick the first entry whose `sub` looks like a real, reachable URL —
+// http(s), and not the demo template (`provider.example` / bullet-masked
+// credentials). Previously we keyed off `id !== 'live-1'`, which broke
+// the moment the user clicked "Edit" on the placeholder row to paste
+// their real URL: the id stayed `live-1`, so we silently ignored their
+// configuration and they kept seeing the mock channels.
 export function getUserSourceUrl(): { url: string; title: string } | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(userKey('sources.live'));
     if (!raw) return null;
     const list = JSON.parse(raw) as StoredSource[];
-    const src = list.find((s) => s.id !== 'live-1' && (s.sub.startsWith('http://') || s.sub.startsWith('https://')));
+    const src = list.find((s) => isRealLiveSourceUrl(s.sub));
     return src ? { url: src.sub, title: src.title || 'My playlist' } : null;
   } catch { return null; }
+}
+
+// A URL is "real" (i.e. worth attempting to fetch) when it's http(s) and
+// not the masked placeholder template that ships with the Sources page.
+function isRealLiveSourceUrl(sub: string): boolean {
+  if (!sub) return false;
+  if (!/^https?:\/\//i.test(sub)) return false;
+  if (/provider\.example/i.test(sub)) return false;
+  if (/•/.test(sub)) return false; // masked-credential placeholder
+  return true;
 }
 
 // Outcome of a load attempt. UIs that just want channels can call
