@@ -1,8 +1,23 @@
+// Build identifier baked into every client bundle so the in-app
+// diagnostics ("build a30f516" chip on the playlist-error card) reveal
+// whether a user is on the latest deploy or a stale CDN copy. We prefer
+// Cloudflare's commit SHA over our own short hash so the value matches
+// what's visible in the Pages dashboard for that build.
+const BUILD_ID = (
+  process.env.NEXT_PUBLIC_BUILD_ID
+    || process.env.CF_PAGES_COMMIT_SHA
+    || process.env.VERCEL_GIT_COMMIT_SHA
+    || ''
+).slice(0, 7) || `dev-${Date.now().toString(36)}`;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   typedRoutes: false,
+  env: {
+    NEXT_PUBLIC_BUILD_ID: BUILD_ID,
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.novastream.tv' },

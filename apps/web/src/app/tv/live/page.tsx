@@ -35,7 +35,7 @@ type LoadState =
   | { kind: 'loading' }
   | { kind: 'ready'; count: number; sourceTitle: string }
   | { kind: 'mock' }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; message: string; url: string };
 
 export default function LivePage() {
   // Synchronous hydration: if the cache already has the user's
@@ -86,6 +86,7 @@ export default function LivePage() {
           setLoad({
             kind: 'error',
             message: result.error || 'No channels found in playlist.',
+            url: src.url,
           });
         }
         return;
@@ -236,12 +237,28 @@ export default function LivePage() {
           </div>
         )}
         {!watching && load.kind === 'error' && (
-          <div className="live-status live-status-err">
-            We couldn&apos;t load your playlist: {load.message}{' '}
-            <Link href="/tv/account/sources" className="live-status-link">
-              Check the URL →
-            </Link>
-          </div>
+          <PlaylistErrorBanner
+            message={load.message}
+            url={load.url}
+            onRetry={async () => {
+              setLoad({ kind: 'loading' });
+              const fresh = await loadChannelsResult();
+              if (fresh.error || fresh.channels.length === 0) {
+                setLoad({
+                  kind: 'error',
+                  message: fresh.error || 'No channels found in playlist.',
+                  url: load.url,
+                });
+              } else {
+                setChannels(fresh.channels);
+                setLoad({
+                  kind: 'ready',
+                  count: fresh.channels.length,
+                  sourceTitle: getUserSourceUrl()?.title || 'My playlist',
+                });
+              }
+            }}
+          />
         )}
 
         <div className="live-body">
@@ -293,3 +310,104 @@ export default function LivePage() {
     </TvFocusProvider>
   );
 }
+
+// Inline error card shown above the channel rail when /api/m3u failed.
+//
+// Designed to be unmissable AND debuggable:
+//   - the technical message wraps on multiple lines so long error
+//     strings don't get truncated by viewport width
+//   - the URL we tried is rendered as a monospace code block so the
+//     user can spot a typo at a glance
+//   - "Try again" runs the fetch in place without a navigation, which
+//     is the right call when the upstream is intermittent
+//   - "Copy details" puts everything (URL + message) on the clipboard
+//     for the user to send us in a support ticket or paste back here
+//   - a small build-id chip lets us tell, just from a screenshot,
+//     whether the user is on the current deploy or a stale CDN copy
+function PlaylistErrorBanner({
+  message,
+  url,
+  onRetry,
+}: {
+  message: string;
+  url: string;
+  onRetry: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [busy,   setBusy]   = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(`URL: ${url}\nError: ${message}\nBuild: ${BUILD_ID}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch { /* clipboard blocked / unsupported */ }
+  }
+
+  async function retry() {
+    setBusy(true);
+    try { await onRetry(); } finally { setBusy(false); }
+  }
+
+  return (
+    <div
+      role="alert"
+      style={{
+        margin: '10px 14px',
+        padding: '14px 16px',
+        borderRadius: 12,
+        background: 'rgba(255,107,123,0.08)',
+        border: '1px solid rgba(255,107,123,0.30)',
+        color: 'var(--ns-danger, #FF6B7B)',
+        fontSize: 13,
+        lineHeight: 1.55,
+      }}
+    >
+      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
+        We couldn&apos;t load your playlist.
+      </div>
+      <div style={{ color: 'var(--ns-text, #E6E8EE)', marginBottom: 8 }}>
+        {message}
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <span style={{ color: 'var(--ns-text-faint, #8B92A3)' }}>URL attempted:</span>{' '}
+        <code style={{
+          fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+          fontSize: 12,
+          color: 'var(--ns-text-muted, #B7BEC9)',
+          background: 'rgba(255,255,255,0.04)',
+          padding: '2px 6px',
+          borderRadius: 4,
+          wordBreak: 'break-all',
+        }}>{url || '(none)'}</code>
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button
+          onClick={retry}
+          disabled={busy}
+          className="ac-btn ac-btn-sm"
+          style={{ opacity: busy ? 0.7 : 1 }}
+        >
+          {busy ? 'Retrying…' : 'Try again'}
+        </button>
+        <Link href="/tv/account/sources" className="ac-btn ac-btn-sm">
+          Edit URL
+        </Link>
+        <button onClick={copy} className="ac-btn ac-btn-sm">
+          {copied ? 'Copied ✓' : 'Copy details'}
+        </button>
+        <span style={{
+          marginInlineStart: 'auto',
+          fontSize: 10,
+          color: 'var(--ns-text-faint, #8B92A3)',
+          fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        }}>build {BUILD_ID}</span>
+      </div>
+    </div>
+  );
+}
+
+// Short build identifier baked at compile time. Used in the error card
+// so a screenshot tells us whether the user is on the latest deploy or
+// hitting a stale CDN copy.
+const BUILD_ID = (process.env.NEXT_PUBLIC_BUILD_ID || process.env.CF_PAGES_COMMIT_SHA || 'dev').slice(0, 7);
