@@ -18,7 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, priceFor, baseUrl, findOrCreateCustomer, BillingNotConfiguredError } from '@/lib/stripe';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 // Same-origin gate. The route never needs to accept cross-origin

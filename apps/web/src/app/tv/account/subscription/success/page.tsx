@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { stripe, BillingNotConfiguredError } from '@/lib/stripe';
 import Shell from '../../Shell';
 
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 interface Search { searchParams: Promise<{ session_id?: string }> }

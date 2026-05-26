@@ -27,9 +27,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, BillingNotConfiguredError } from '@/lib/stripe';
+import StripeSdk from 'stripe';
 import type Stripe from 'stripe';
 
-export const runtime = 'nodejs';
+// Stripe's default webhook verifier uses node:crypto. On the edge
+// runtime we have to swap in a Web Crypto-based provider so the HMAC
+// comparison runs against SubtleCrypto instead of Node's crypto module.
+const cryptoProvider = StripeSdk.createSubtleCryptoProvider();
+
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 // Stripe's signature verification needs the raw body bytes, not the
@@ -50,7 +56,7 @@ export async function POST(req: NextRequest) {
   const raw = await req.text();
   let event: Stripe.Event;
   try {
-    event = stripe().webhooks.constructEvent(raw, sig, secret);
+    event = await stripe().webhooks.constructEventAsync(raw, sig, secret, undefined, cryptoProvider);
   } catch (e) {
     return NextResponse.json({ error: `Bad signature: ${(e as Error).message}` }, { status: 400 });
   }

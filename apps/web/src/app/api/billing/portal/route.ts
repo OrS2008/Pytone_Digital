@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, baseUrl, BillingNotConfiguredError } from '@/lib/stripe';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 function allowedCaller(req: NextRequest): boolean {

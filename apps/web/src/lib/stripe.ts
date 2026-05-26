@@ -23,6 +23,10 @@ export function stripe(): Stripe {
     apiVersion: '2026-04-22.dahlia',
     typescript: true,
     appInfo: { name: 'Nova Stream', version: '0.1.0' },
+    // Edge-runtime compatibility: route Stripe API calls through fetch
+    // instead of Node's http module so the SDK works on Cloudflare
+    // Workers / Pages Functions.
+    httpClient: Stripe.createFetchHttpClient(),
   });
   return cached;
 }
