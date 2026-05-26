@@ -89,13 +89,29 @@ async function verifyPassword(plain: string, stored: string): Promise<boolean> {
 }
 
 export async function POST(req: NextRequest) {
+  try {
+    return await handleLogin(req);
+  } catch (e) {
+    // Always return JSON so the frontend can surface the real error
+    // instead of falling back to a generic "Sign in failed."
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: `login crashed: ${msg}` }, { status: 500 });
+  }
+}
+
+async function handleLogin(req: NextRequest) {
   const ADMIN_USERNAME       = process.env.ADMIN_USERNAME;
   const ADMIN_PASSWORD_HASH  = process.env.ADMIN_PASSWORD_HASH;
   const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET;
   if (!ADMIN_USERNAME || !ADMIN_PASSWORD_HASH || !ADMIN_SESSION_SECRET) {
+    const missing = [
+      !ADMIN_USERNAME       && 'ADMIN_USERNAME',
+      !ADMIN_PASSWORD_HASH  && 'ADMIN_PASSWORD_HASH',
+      !ADMIN_SESSION_SECRET && 'ADMIN_SESSION_SECRET',
+    ].filter(Boolean).join(', ');
     return NextResponse.json({
-      error: 'Admin login is not configured.',
-      hint:  'Set ADMIN_USERNAME, ADMIN_PASSWORD_HASH (pbkdf2:...) and ADMIN_SESSION_SECRET in the deploy env.',
+      error: `Admin login is not configured. Missing: ${missing}`,
+      hint:  'Add the variables under Cloudflare Pages → Settings → Variables and Secrets, then redeploy.',
     }, { status: 503 });
   }
   if (ADMIN_SESSION_SECRET.length < 32) {
