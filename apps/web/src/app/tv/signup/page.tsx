@@ -51,27 +51,27 @@ export default function Signup() {
       <main className="ac-auth">
         <div className="ac-auth-card">
           <div className="ac-auth-wm">NOVA STREAM</div>
-          <h1 className="ac-auth-title">Check your inbox</h1>
+          <h1 className="ac-auth-title">Almost there</h1>
           <p className="ac-auth-sub">
-            We sent an activation link to <b>{email}</b>. Click it to verify
-            your email and start your 7-day free trial. The link is valid
-            for 48 hours.
+            Account ready for <b>{email}</b>. In production a verification
+            link would arrive by email; this build doesn&apos;t ship SMTP
+            yet, so just open your account directly.
           </p>
           <Link
             href="/tv/activate"
             className="ac-btn ac-btn-primary"
             style={{ width: '100%', justifyContent: 'center', padding: '14px', marginTop: 16 }}
           >
-            I clicked the link · open my account
+            Activate &amp; open my account
           </Link>
           <p style={{ fontSize: 13, color: 'var(--ns-text-faint)', marginTop: 16 }}>
-            Didn&apos;t get it? Check spam, or{' '}
+            Want to use a different email?{' '}
             <button
               className="ac-auth-link"
               style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
               onClick={() => setSent(false)}
             >
-              try a different email
+              go back
             </button>.
           </p>
           <div className="ac-auth-bottom">
