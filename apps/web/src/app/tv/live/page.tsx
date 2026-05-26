@@ -265,17 +265,45 @@ export default function LivePage() {
           <ChannelRail
             channels={channels}
             activeIdx={activeIdx}
-            onTune={(i) => tune(i, { enterWatching: true })}
+            onTune={(i) => tune(i)}
           />
           {!watching && (
-            <div className="live-preview" onClick={() => setWatching(true)} role="button" tabIndex={0}>
-              {active?.logoUrl
-                ? <img className="live-preview-logo" src={active.logoUrl} alt="" />
-                : <div className="live-preview-num">{active?.number}</div>}
-              <div className="live-preview-name">{active?.name}</div>
-              <div className="live-preview-now">{active?.now?.title ?? 'No programme info'}</div>
-              <button className="live-preview-play">▶  Watch</button>
-              <div className="live-preview-hint">Or click any channel on the left</div>
+            <div className="live-preview">
+              <div className="live-preview-player">
+                {active ? (
+                  <PlayerSurface channel={active} autoPlay />
+                ) : (
+                  <div className="live-preview-empty">
+                    <div style={{ fontSize: 32 }}>📺</div>
+                    <div>Pick a channel from the list to start watching.</div>
+                  </div>
+                )}
+              </div>
+              {active && (
+                <div className="live-preview-meta">
+                  {active.logoUrl && (
+                    <div className="live-preview-meta-logo">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={active.logoUrl} alt="" />
+                    </div>
+                  )}
+                  <div className="live-preview-meta-text">
+                    <div className="live-preview-meta-name">
+                      #{active.number} · {active.name}
+                    </div>
+                    <div className="live-preview-meta-now">
+                      {active.now?.title ?? 'Live stream'}
+                    </div>
+                  </div>
+                  <button
+                    className="live-preview-fs"
+                    onClick={() => setWatching(true)}
+                    title="Watch fullscreen"
+                  >
+                    ⛶  Fullscreen
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

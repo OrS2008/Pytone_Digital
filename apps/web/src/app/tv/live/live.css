@@ -1,12 +1,16 @@
 /* Live TV layout: nav on top, channel rail on the left, player to the right,
    info bar pinned at the bottom that can slide in/out. */
 
+/* The whole live page is locked to the viewport. The only thing that
+   actually scrolls is the channel rail — so 12K channels don't turn
+   the whole page into a kilometre-long document. */
 .live-layout {
-  min-height: 100vh;
+  height: 100vh;
   background: #06070A;
   color: #E9EBF1;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .live-body {
@@ -14,6 +18,7 @@
   display: grid;
   grid-template-columns: 460px 1fr;
   min-height: 0;
+  overflow: hidden;
 }
 
 /* --- Channel rail ---------------------------------------------------- */
@@ -239,6 +244,67 @@
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Volume control — speaker toggle + slider + percentage. Lives
+   inline with the other action buttons so it doesn't take a row of
+   its own at the typical desktop width. */
+.infobar-volume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-inline-start: auto;
+  padding: 8px 14px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.infobar-volume-btn {
+  background: transparent;
+  color: #E9EBF1;
+  border: 0;
+  font-size: 20px;
+  width: 28px; height: 28px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+}
+.infobar-volume-btn:hover { background: rgba(255,255,255,0.08); }
+.infobar-volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 140px;
+  height: 4px;
+  background: rgba(255,255,255,0.18);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.infobar-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px; height: 14px;
+  background: #FF3B6E;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 0;
+  transition: transform 100ms ease-out;
+}
+.infobar-volume-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+.infobar-volume-slider::-moz-range-thumb {
+  width: 14px; height: 14px;
+  background: #FF3B6E;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 0;
+}
+.infobar-volume-pct {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: #B7BEC9;
+  min-width: 36px;
+  text-align: right;
 }
 .infobar-btn {
   padding: 12px 22px;
@@ -346,45 +412,78 @@
   margin-top: 14px; font-size: 12px; color: #6E7480; max-width: 540px; line-height: 1.5;
 }
 
-/* --- Browsing mode: small preview card next to the rail ------------- */
+/* --- Browsing mode: live preview pane next to the rail --------------
+   The preview takes the full right column. Top portion is the live
+   player (16:9, capped so the meta strip below it is always visible);
+   bottom strip shows what's playing + a Watch Fullscreen action. */
 .live-preview {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  background: #0A0B10;
+  border-left: 1px solid #161A22;
+  color: #E9EBF1;
+  min-height: 0;
+  overflow: hidden;
+}
+.live-preview-player {
+  position: relative;
+  background: #000;
+  min-height: 0;
+  overflow: hidden;
+}
+.live-preview-player .player-surface {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.live-preview-meta {
+  padding: 18px 24px 22px;
+  background: linear-gradient(to top, #0A0B10 0%, #0A0B10F0 70%, #0A0B1000 100%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-top: 1px solid #161A22;
+}
+.live-preview-meta-logo {
+  width: 56px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  background: #11141B;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.live-preview-meta-logo img {
+  max-width: 52px; max-height: 36px; object-fit: contain;
+}
+.live-preview-meta-text {
+  flex: 1;
+  min-width: 0;
+}
+.live-preview-meta-name {
+  font-size: 18px; font-weight: 800;
+  white-space: nowrap; text-overflow: ellipsis; overflow: hidden;
+}
+.live-preview-meta-now {
+  margin-top: 2px;
+  font-size: 13px; color: #B7BEC9;
+  white-space: nowrap; text-overflow: ellipsis; overflow: hidden;
+}
+.live-preview-fs {
+  flex-shrink: 0;
+  background: #FF3B6E; color: #fff;
+  border: 0; padding: 12px 22px;
+  border-radius: 10px;
+  font-size: 14px; font-weight: 800;
+  cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+}
+.live-preview-fs:hover { transform: scale(1.04); }
+.live-preview-empty {
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   text-align: center;
-  padding: 48px 32px;
-  background:
-    radial-gradient(circle at 50% 30%, rgba(255,59,110,0.18), transparent 60%),
-    #0A0B10;
-  border-left: 1px solid #161A22;
-  color: #E9EBF1;
-  cursor: pointer;
-  gap: 14px;
-}
-.live-preview-logo {
-  width: 140px; height: 96px; object-fit: contain;
-}
-.live-preview-num {
-  font-size: 96px; font-weight: 800; letter-spacing: -3px;
-  color: #2B3142;
-}
-.live-preview-name {
-  font-size: 28px; font-weight: 800; letter-spacing: -0.5px;
-}
-.live-preview-now {
-  font-size: 15px; color: #B7BEC9;
-  max-width: 520px; line-height: 1.4;
-}
-.live-preview-play {
-  margin-top: 14px;
-  background: #FF3B6E; color: #fff;
-  border: 0; padding: 14px 28px;
-  border-radius: 10px;
-  font-size: 16px; font-weight: 800;
-  cursor: pointer;
-}
-.live-preview-play:hover { transform: scale(1.04); }
-.live-preview-hint {
-  font-size: 12px; color: #6E7480; margin-top: 6px;
+  color: #5A6070; font-size: 14px;
+  gap: 8px;
 }
 
 /* --- Watching mode: fullscreen player overlay ----------------------- */
@@ -432,11 +531,14 @@
 }
 
 @media (max-width: 900px) {
-  .live-preview { padding: 24px 16px; }
-  .live-preview-logo { width: 100px; height: 72px; }
-  .live-preview-num  { font-size: 56px; }
-  .live-preview-name { font-size: 20px; }
-  .live-preview-now  { font-size: 13px; }
+  /* On narrow screens the page is allowed to scroll vertically so the
+     stacked layout (preview above rail) reads naturally. */
+  .live-layout { height: auto; min-height: 100vh; overflow: visible; }
+  .live-body  { overflow: visible; }
+  .live-preview-meta { padding: 12px 14px 14px; gap: 10px; }
+  .live-preview-meta-name { font-size: 15px; }
+  .live-preview-meta-now  { font-size: 12px; }
+  .live-preview-fs { padding: 8px 14px; font-size: 12px; }
   .live-close { width: 36px; height: 36px; font-size: 20px; }
 }
 

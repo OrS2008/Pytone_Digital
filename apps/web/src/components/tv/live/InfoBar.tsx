@@ -72,6 +72,18 @@ export default function InfoBar(p: Props) {
   const [focused, setFocused] = useState(0);
   const [toast, setToast]     = useState<string | null>(null);
   const [card,  setCard]      = useState(false);
+  // Volume persists across channel changes via localStorage so the user
+  // doesn't have to re-set it every time they zap. Default 80 % is a
+  // reasonable "loud enough but not blown" starting point.
+  const [volume, setVolume] = useState(() => {
+    if (typeof window === 'undefined') return 0.8;
+    try {
+      const raw = localStorage.getItem(userKey('player.volume'));
+      const v = raw === null ? 0.8 : Number(raw);
+      return isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.8;
+    } catch { return 0.8; }
+  });
+  const [muted, setMuted] = useState(true);
   const { t } = useT();
   // Four buttons in order: 0=return-to-live, 1=restart, 2=record, 3=more-info.
   const BTN_COUNT = 4;
@@ -80,6 +92,30 @@ export default function InfoBar(p: Props) {
     const t = setInterval(() => setClock(new Date()), 30_000);
     return () => clearInterval(t);
   }, []);
+
+  // Apply volume to the <video> element. Re-runs when the channel
+  // changes (the player re-attaches a fresh video element) or when
+  // the user moves the slider / hits mute.
+  useEffect(() => {
+    const v = document.querySelector<HTMLVideoElement>('.player-surface video');
+    if (!v) return;
+    v.volume = volume;
+    v.muted  = muted;
+    try { localStorage.setItem(userKey('player.volume'), String(volume)); } catch { /* ignore */ }
+  }, [volume, muted, p.channel?.streamUrl]);
+
+  // Sync local "muted" state with the element's actual muted state on
+  // mount + after the video element changes, so the icon reflects what
+  // PlayerSurface set (it starts muted because browsers block autoplay
+  // with sound).
+  useEffect(() => {
+    const v = document.querySelector<HTMLVideoElement>('.player-surface video');
+    if (!v) return;
+    const sync = () => setMuted(v.muted);
+    sync();
+    v.addEventListener('volumechange', sync);
+    return () => v.removeEventListener('volumechange', sync);
+  }, [p.channel?.streamUrl]);
 
   // Tab/Left/Right move focus across the three action buttons when the bar
   // is open. We deliberately consume those keys only when visible so the
@@ -140,6 +176,16 @@ export default function InfoBar(p: Props) {
     if (!p.channel) return;
     addRecording(p.channel);
     flash(`${t('live.record')} · ${p.channel.now?.title ?? p.channel.name}`);
+  }
+  function toggleMute() {
+    setMuted((m) => {
+      const next = !m;
+      // If the user unmutes from a muted-zero state, give them
+      // something audible — otherwise the slider would be at 0 % and
+      // they'd think the unmute didn't work.
+      if (!next && volume === 0) setVolume(0.6);
+      return next;
+    });
   }
 
   if (!p.channel) return null;
@@ -203,6 +249,36 @@ export default function InfoBar(p: Props) {
               >
                 ⓘ {t('live.moreInfo')}
               </button>
+
+              <div className="infobar-volume" title={muted ? 'Unmute' : 'Mute'}>
+                <button
+                  className="infobar-volume-btn"
+                  onClick={toggleMute}
+                  aria-label={muted ? 'Unmute' : 'Mute'}
+                >
+                  {muted || volume === 0 ? '🔇' : volume < 0.5 ? '🔉' : '🔊'}
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={Math.round((muted ? 0 : volume) * 100)}
+                  onChange={(e) => {
+                    const next = Number(e.target.value) / 100;
+                    setVolume(next);
+                    // Moving the slider above 0 implies the user wants
+                    // sound — auto-unmute so they don't have to click
+                    // a separate button.
+                    if (next > 0 && muted) setMuted(false);
+                    if (next === 0)        setMuted(true);
+                  }}
+                  className="infobar-volume-slider"
+                  aria-label="Volume"
+                />
+                <span className="infobar-volume-pct">
+                  {muted ? 0 : Math.round(volume * 100)}%
+                </span>
+              </div>
             </div>
           </div>
 
