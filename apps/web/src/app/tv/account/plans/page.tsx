@@ -5,8 +5,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import Shell from '../Shell';
-import { setSessionEmail } from '@/lib/session';
+import { getSessionEmail } from '@/lib/session';
 
 const FEATURES_SINGLE = [
   { ok: true,  label: '1 device at a time' },
@@ -29,17 +30,19 @@ const FEATURES_MULTI = [
 ];
 
 export default function Plans() {
-  const [email,   setEmail]   = useState('');
-  const [busy,    setBusy]    = useState<null | 'single' | 'multi'>(null);
-  const [error,   setError]   = useState<string | null>(null);
+  // The signed-in account email is the source of truth for billing now —
+  // we used to ask the user to type a "billing email" before checkout,
+  // but that's redundant (we already know who they are) and easy to
+  // mistype. PayPal also sends its own receipt to the buyer's PayPal
+  // email regardless of what we pass through, so collecting a second
+  // address was double-prompting for nothing.
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
+  const [busy,         setBusy]         = useState<null | 'single' | 'multi'>(null);
+  const [error,        setError]        = useState<string | null>(null);
   const [showCanceled, setShowCanceled] = useState(false);
 
-  // Remember the email between checkouts so the second visit pre-fills.
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('ns.billing.email');
-      if (saved) setEmail(saved);
-    } catch { /* private mode */ }
+    setAccountEmail(getSessionEmail());
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('canceled')) {
       setShowCanceled(true);
     }
@@ -47,18 +50,16 @@ export default function Plans() {
 
   async function start(plan: 'single' | 'multi') {
     setError(null);
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError('Please enter the email you want billed to.');
+    if (!accountEmail) {
+      setError('Please sign in before choosing a plan.');
       return;
     }
     setBusy(plan);
-    setSessionEmail(email);
-    try { localStorage.setItem('ns.billing.email', email); } catch { /* ignore */ }
     try {
       const resp = await fetch('/api/billing/checkout', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ plan, email }),
+        body: JSON.stringify({ plan, email: accountEmail }),
       });
       const data = await resp.json();
       if (!resp.ok) {
@@ -100,19 +101,16 @@ export default function Plans() {
       )}
 
       <div className="ac-card">
-        <div className="ac-card-title">Where should we send receipts?</div>
-        <div className="ac-field" style={{ marginBottom: 0 }}>
-          <input
-            className="ac-input"
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <div className="ac-field-help">
-            We use this email to identify your subscription. The card itself stays on Stripe — Nova Stream never sees it.
-          </div>
-        </div>
+        <div className="ac-card-title">Billing account</div>
+        {accountEmail ? (
+          <p style={{ fontSize: 14, marginTop: 0, color: 'var(--ns-text-muted)' }}>
+            Charges and PayPal receipts will go to <strong style={{ color: 'var(--ns-text)' }}>{accountEmail}</strong>.
+          </p>
+        ) : (
+          <p style={{ fontSize: 14, marginTop: 0, color: 'var(--ns-text-muted)' }}>
+            You need to be signed in before choosing a plan. <Link href="/tv/login" className="live-status-link">Sign in →</Link>
+          </p>
+        )}
         {error && (
           <div style={{ color: 'var(--ns-danger, #FF6B7B)', fontSize: 13, marginTop: 10 }}>{error}</div>
         )}
@@ -144,7 +142,7 @@ export default function Plans() {
             onClick={() => start('single')}
             disabled={busy !== null}
           >
-            {busy === 'single' ? 'Opening Stripe…' : 'Start Single — ₪39/mo'}
+            {busy === 'single' ? 'Opening checkout…' : 'Start Single — ₪39/mo'}
           </button>
           <div style={{ marginTop: 12, fontSize: 12, color: 'var(--ns-text-faint)', textAlign: 'center' }}>
             7 days free. Cancel any time.
@@ -175,7 +173,7 @@ export default function Plans() {
             onClick={() => start('multi')}
             disabled={busy !== null}
           >
-            {busy === 'multi' ? 'Opening Stripe…' : 'Start Multi — ₪69/mo'}
+            {busy === 'multi' ? 'Opening checkout…' : 'Start Multi — ₪69/mo'}
           </button>
           <div style={{ marginTop: 12, fontSize: 12, color: 'var(--ns-text-faint)', textAlign: 'center' }}>
             7 days free. Cancel any time.
@@ -184,8 +182,9 @@ export default function Plans() {
       </div>
 
       <div style={{ marginTop: 28, fontSize: 13, color: 'var(--ns-text-faint)', textAlign: 'center' }}>
-        Payments processed by Stripe. Your card is never stored on our servers.
-        VAT included where applicable.
+        Payments are processed by our PCI-DSS Level 1 partner. Your card is never stored on
+        our servers. PayPal-issued receipts go straight to your PayPal email — no separate
+        billing inbox to manage.
       </div>
     </Shell>
   );
