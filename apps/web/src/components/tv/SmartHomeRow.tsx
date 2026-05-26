@@ -16,9 +16,9 @@
  */
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import type { M3UChannel } from '@/lib/m3u';
 import { getCachedChannels, loadChannels } from '@/lib/channelCache';
+import LivePreviewTile from './LivePreviewTile';
 
 interface Props {
   title:    string;
@@ -118,29 +118,7 @@ export default function SmartHomeRow({ title, pick, limit = 12 }: Props) {
       <h2>{title}</h2>
       <div className="tv-row-strip">
         {items.map((c) => (
-          <Link
-            key={c.id + '-' + c.number}
-            href={`/tv/live?ch=${encodeURIComponent(String(c.number))}`}
-            className="tv-tile"
-          >
-            {c.logoUrl
-              // eslint-disable-next-line @next/next/no-img-element
-              ? <img src={c.logoUrl} alt="" loading="lazy" style={{ objectFit: 'contain', padding: 24, background: '#0E1218' }} />
-              : <div className="tv-tile-num">{c.number}</div>}
-            <div className="tv-tile-gradient" />
-            <div className="tv-tile-caption">
-              <div style={{ fontWeight: 700 }}>{c.name}</div>
-              <div style={{ fontSize: 12, color: '#B7BEC9', fontWeight: 500, marginTop: 2 }}>
-                #{c.number} · {c.category}
-              </div>
-            </div>
-            <div style={{
-              position: 'absolute', top: 10, left: 10,
-              padding: '3px 8px', borderRadius: 4,
-              background: '#FF3B6E', color: '#fff',
-              fontSize: 10, fontWeight: 800, letterSpacing: 1,
-            }}>LIVE</div>
-          </Link>
+          <LivePreviewTile key={c.id + '-' + c.number} channel={c} />
         ))}
       </div>
     </div>
