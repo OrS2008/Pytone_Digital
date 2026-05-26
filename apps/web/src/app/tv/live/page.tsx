@@ -27,6 +27,7 @@ import type { Channel } from '@/components/tv/live/types';
 import { userKey } from '@/lib/session';
 import { recordWatch } from '@/lib/watchHistory';
 import { getCachedChannels, getUserSourceUrl, loadChannelsResult } from '@/lib/channelCache';
+import { loadEpgIndex, hydrateChannels, getUserEpgUrl } from '@/lib/epgCache';
 import { proxiedStreamUrl } from '@/lib/streamProxy';
 import './live.css';
 
@@ -61,6 +62,12 @@ export default function LivePage() {
     initialCached
       ? { kind: 'ready', count: initialCached.length, sourceTitle: getUserSourceUrl()?.title || 'My playlist' }
       : { kind: 'idle' },
+  );
+  // EPG state: idle | loading (banner says "loading guide") | ready | none
+  // (user hasn't configured an XMLTV source). Drives the small status
+  // text shown below the now/next line in the preview meta strip.
+  const [epgState, setEpgState] = useState<'idle' | 'loading' | 'ready' | 'none'>(
+    typeof window !== 'undefined' && getUserEpgUrl() ? 'idle' : 'none',
   );
 
   const active = channels[activeIdx];
@@ -100,6 +107,22 @@ export default function LivePage() {
         if (idx >= 0) { setActiveIdx(idx); setWatching(true); }
       }
       setLoad({ kind: 'ready', count: result.channels.length, sourceTitle: src.title });
+
+      // Now that channels are on screen, kick off EPG hydration in
+      // the background. Channels appear instantly; programme titles
+      // pop in a few seconds later (or never, if no EPG source is
+      // configured). We deliberately don't block the rail on this.
+      if (getUserEpgUrl()) {
+        setEpgState('loading');
+        const idx = await loadEpgIndex();
+        if (cancelled) return;
+        if (idx && idx.size > 0) {
+          setChannels((cur) => hydrateChannels(cur, idx));
+          setEpgState('ready');
+        } else {
+          setEpgState('none');
+        }
+      }
     }
     run();
     return () => { cancelled = true; };
@@ -291,8 +314,34 @@ export default function LivePage() {
                     <div className="live-preview-meta-name">
                       #{active.number} · {active.name}
                     </div>
-                    <div className="live-preview-meta-now">
-                      {active.now?.title ?? 'Live stream'}
+                    <div className="live-preview-meta-schedule">
+                      {active.now ? (
+                        <div className="live-preview-meta-row">
+                          <span className="live-preview-meta-eyebrow">Now</span>
+                          <span className="live-preview-meta-title">{active.now.title}</span>
+                          <span className="live-preview-meta-time">
+                            {fmtHM(active.now.start)}–{fmtHM(active.now.stop)}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="live-preview-meta-row">
+                          <span className="live-preview-meta-eyebrow">Now</span>
+                          <span className="live-preview-meta-empty">
+                            {epgState === 'loading'
+                              ? 'Loading programme guide…'
+                              : epgState === 'none'
+                              ? 'Live stream · no programme guide configured'
+                              : 'No programme info'}
+                          </span>
+                        </div>
+                      )}
+                      {active.next1 && (
+                        <div className="live-preview-meta-row">
+                          <span className="live-preview-meta-eyebrow next">Next</span>
+                          <span className="live-preview-meta-title">{active.next1.title}</span>
+                          <span className="live-preview-meta-time">{fmtHM(active.next1.start)}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <button
@@ -439,3 +488,7 @@ function PlaylistErrorBanner({
 // so a screenshot tells us whether the user is on the latest deploy or
 // hitting a stale CDN copy.
 const BUILD_ID = (process.env.NEXT_PUBLIC_BUILD_ID || process.env.CF_PAGES_COMMIT_SHA || 'dev').slice(0, 7);
+
+function fmtHM(d: Date) {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
