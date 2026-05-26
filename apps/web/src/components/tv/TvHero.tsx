@@ -18,6 +18,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCurrentZone, useSetZone } from './TvFocus';
 import { getCachedChannels, loadChannels } from '@/lib/channelCache';
+import { proxiedStreamUrl } from '@/lib/streamProxy';
 import type { M3UChannel } from '@/lib/m3u';
 
 const ZONE = 'hero';
@@ -99,6 +100,7 @@ export default function TvHero() {
     let hls: HlsInstance | null = null;
 
     (async () => {
+      const streamUrl = proxiedStreamUrl(current_channel.streamUrl);
       const isHls    = /\.m3u8(\?|$)/i.test(current_channel.streamUrl);
       const canNative = video.canPlayType('application/vnd.apple.mpegurl') !== '';
       const onFatal = () => { if (!cancelled) setPreviewFailed(true); };
@@ -113,10 +115,10 @@ export default function TvHero() {
           if (!Hls.isSupported()) { onFatal(); return; }
           hls = new Hls({ liveSyncDuration: 3, lowLatencyMode: true });
           hls.attachMedia(video);
-          hls.loadSource(current_channel.streamUrl);
+          hls.loadSource(streamUrl);
           hls.on(Hls.Events.ERROR, onFatal);
         } else {
-          video.src = current_channel.streamUrl;
+          video.src = streamUrl;
         }
         await video.play().catch(onFatal);
       } catch {

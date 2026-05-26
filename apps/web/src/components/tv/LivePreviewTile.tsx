@@ -26,6 +26,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { M3UChannel } from '@/lib/m3u';
+import { proxiedStreamUrl } from '@/lib/streamProxy';
 
 interface Props {
   channel: M3UChannel;
@@ -116,6 +117,11 @@ export default function LivePreviewTile({ channel, staticOnly, className }: Prop
       video.muted = true;
       video.playsInline = true;
 
+      // Route the stream through our same-origin proxy so segment /
+      // manifest fetches don't get CORS-blocked. The proxy rewrites
+      // URLs inside the manifest, so once the first hop is wrapped
+      // hls.js stays on the proxied origin the rest of the way.
+      const streamUrl = proxiedStreamUrl(channel.streamUrl);
       const isHls    = /\.m3u8(\?|$)/i.test(channel.streamUrl);
       const canNative = video.canPlayType('application/vnd.apple.mpegurl') !== '';
 
@@ -131,10 +137,10 @@ export default function LivePreviewTile({ channel, staticOnly, className }: Prop
           if (cancelled || !Hls.isSupported()) { onFatal(); return; }
           hls = new Hls({ liveSyncDuration: 3, lowLatencyMode: true, maxBufferLength: 6 });
           hls.attachMedia(video);
-          hls.loadSource(channel.streamUrl);
+          hls.loadSource(streamUrl);
           hls.on(Hls.Events.ERROR, onFatal);
         } else {
-          video.src = channel.streamUrl;
+          video.src = streamUrl;
         }
 
         await video.play().catch(onFatal);

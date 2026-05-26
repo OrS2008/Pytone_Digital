@@ -27,6 +27,7 @@ import type { Channel } from '@/components/tv/live/types';
 import { userKey } from '@/lib/session';
 import { recordWatch } from '@/lib/watchHistory';
 import { getCachedChannels, getUserSourceUrl, loadChannelsResult } from '@/lib/channelCache';
+import { proxiedStreamUrl } from '@/lib/streamProxy';
 import './live.css';
 
 type LoadState =
@@ -141,7 +142,8 @@ export default function LivePage() {
     const neighbours = [activeIdx - 1, activeIdx + 1]
       .filter((i) => i >= 0 && i < channels.length)
       .map((i) => channels[i]?.streamUrl)
-      .filter((u): u is string => typeof u === 'string' && /\.m3u8(\?|$)/i.test(u));
+      .filter((u): u is string => typeof u === 'string' && /\.m3u8(\?|$)/i.test(u))
+      .map(proxiedStreamUrl);
 
     const controllers = neighbours.map((url) => {
       const ac = new AbortController();

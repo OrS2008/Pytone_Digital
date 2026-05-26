@@ -103,8 +103,36 @@ export default function Sources() {
     setVodHost(''); setVodUser(''); setVodPass('');
     flash('VOD library connected — first sync queued.');
   }
+  async function refreshLive(id: string) {
+    const s = live.find((x) => x.id === id);
+    if (!s || !s.sub.startsWith('http')) return;
+    setLive((prev: Source[]) => prev.map((x) => x.id === id ? { ...x, stat: 'refreshing…' } : x));
+    flash('Refreshing channels…');
+    const result = await fetchAndCache(s.sub);
+    if (result.error) {
+      setLive((prev: Source[]) => prev.map((x) => x.id === id ? { ...x, stat: `error: ${result.error}` } : x));
+      flash(`Refresh failed: ${result.error.slice(0, 140)}`);
+    } else {
+      const count = result.channels.length;
+      setLive((prev: Source[]) => prev.map((x) => x.id === id ? { ...x, stat: `${count} channels · just now` } : x));
+      flash(`Reloaded ${count} channels.`);
+    }
+  }
+
+  async function testUrl() {
+    if (!url.startsWith('http')) { flash('URL must start with http:// or https://'); return; }
+    flash('Testing URL…');
+    const result = await fetchAndCache(url);
+    if (result.error) flash(`Failed: ${result.error.slice(0, 140)}`);
+    else               flash(`Reachable — ${result.channels.length} channels detected.`);
+  }
+
   const removeFrom = (list: Source[], setList: (s: Source[]) => void) => (id: string) => {
     setList(list.filter((s) => s.id !== id));
+    // The user removed a live source — drop any cached channels that
+    // might have come from it so the next page load doesn't serve
+    // stale data.
+    invalidateCache();
     flash('Source removed.');
   };
 
@@ -204,7 +232,7 @@ export default function Sources() {
               <div className="ac-source-stats"><div>{s.stat}</div></div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="ac-btn ac-btn-sm" onClick={() => editLive(s.id)}>Edit</button>
-                <ActionButton doneLabel="Refreshed ✓">Refresh</ActionButton>
+                <button className="ac-btn ac-btn-sm" onClick={() => refreshLive(s.id)}>Refresh</button>
                 <button className="ac-btn ac-btn-sm ac-btn-danger" onClick={() => removeFrom(live, setLive)(s.id)}>Remove</button>
               </div>
             </div>
@@ -261,7 +289,7 @@ export default function Sources() {
               </div>
               <div style={{ display: 'flex', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
                 <button type="submit" className="ac-btn ac-btn-primary">Add &amp; ingest</button>
-                <ActionButton className="ac-btn ac-btn-ghost" doneLabel="URL reachable ✓">Test URL only</ActionButton>
+                <button type="button" className="ac-btn ac-btn-ghost" onClick={testUrl}>Test URL only</button>
               </div>
             </form>
           </div>

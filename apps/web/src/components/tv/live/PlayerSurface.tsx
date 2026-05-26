@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { Channel } from './types';
+import { proxiedStreamUrl } from '@/lib/streamProxy';
 
 /*
  * The player surface.
@@ -67,6 +68,11 @@ export default function PlayerSurface({ channel, autoPlay = true }: Props) {
     let retries = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
+    // Route the stream through /api/stream so HLS manifest +
+    // segments aren't blocked by the provider's CORS policy. The
+    // proxy rewrites the manifest so once we load through it, every
+    // segment fetch hls.js makes also stays on the same origin.
+    const proxiedUrl = proxiedStreamUrl(channel.streamUrl);
     const isHls = /\.m3u8(\?|$)/i.test(channel.streamUrl);
     const canNative = video.canPlayType('application/vnd.apple.mpegurl') !== '';
 
@@ -110,13 +116,13 @@ export default function PlayerSurface({ channel, autoPlay = true }: Props) {
           h.on(Hls.Events.MANIFEST_PARSED, () => {
             if (autoPlay) video.play().catch(() => {/* gesture-required */});
           });
-          h.loadSource(channel!.streamUrl!);
+          h.loadSource(proxiedUrl);
           h.attachMedia(video);
         } catch (e) {
           setErr(`HLS init failed: ${(e as Error).message}`);
         }
       } else {
-        video.src = channel!.streamUrl!;
+        video.src = proxiedUrl;
         if (autoPlay) video.play().catch(() => {/* gesture-required */});
       }
     }
