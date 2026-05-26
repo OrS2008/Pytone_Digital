@@ -3,9 +3,25 @@
 import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
+// Validate the ?next= redirect target against an allow-list of safe
+// shapes. Without this, ?next=https://attacker.tld would let a
+// phishing site forward an authenticated admin off the property.
+// The only legitimate destinations are paths under /admin.
+function safeNext(raw: string | null): string {
+  const FALLBACK = '/admin/dashboard';
+  if (!raw) return FALLBACK;
+  // Reject any absolute URL or protocol-relative URL.
+  if (!raw.startsWith('/') || raw.startsWith('//')) return FALLBACK;
+  // Reject backslash tricks that some browsers normalise to '/'.
+  if (raw.includes('\\')) return FALLBACK;
+  // Only allow /admin and /admin/* — nothing else.
+  if (raw !== '/admin' && !raw.startsWith('/admin/')) return FALLBACK;
+  return raw;
+}
+
 function LoginInner() {
   const params = useSearchParams();
-  const next   = params.get('next') || '/admin/dashboard';
+  const next   = safeNext(params.get('next'));
   const initialError = params.get('e') === 'unavailable' ? 'Admin is unavailable right now.' : null;
 
   const [username, setUsername] = useState('');

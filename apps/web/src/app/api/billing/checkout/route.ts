@@ -21,14 +21,19 @@ import { stripe, priceFor, baseUrl, findOrCreateCustomer, BillingNotConfiguredEr
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-// Same-origin gate. The route never needs to accept cross-origin
-// requests; locking it to our own hosts blocks anonymous abuse that
-// could rack up Stripe API calls on our account.
+// Same-origin gate. Self-detects the deploy host by comparing the
+// caller's Origin/Referer with the host header on this request; an
+// extra-hosts allowlist via ALLOWED_HOSTS env covers CDN/custom-domain
+// setups. Hard-coding any one hostname here would silently break on
+// every other platform.
 function allowedCaller(req: NextRequest): boolean {
-  const hosts = new Set(['novastram.netlify.app', 'localhost:3000', 'localhost:3001']);
-  for (const h of (process.env.ALLOWED_HOSTS || '').split(',')) if (h.trim()) hosts.add(h.trim());
   const ref = req.headers.get('origin') || req.headers.get('referer') || '';
-  try { return hosts.has(new URL(ref).host); } catch { return false; }
+  if (!ref) return false;
+  let refHost: string;
+  try { refHost = new URL(ref).host; } catch { return false; }
+  if (refHost === (req.headers.get('host') || '')) return true;
+  const extra = (process.env.ALLOWED_HOSTS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  return extra.includes(refHost);
 }
 
 export async function POST(req: NextRequest) {
@@ -80,10 +85,14 @@ export async function POST(req: NextRequest) {
     if (e instanceof BillingNotConfiguredError) {
       return NextResponse.json({
         error: e.message,
-        hint: 'Add STRIPE_SECRET_KEY, STRIPE_PRICE_SINGLE and STRIPE_PRICE_MULTI in Netlify → Site settings → Environment variables, then redeploy.',
+        hint: 'Add STRIPE_SECRET_KEY, STRIPE_PRICE_SINGLE and STRIPE_PRICE_MULTI in your deploy platform\'s environment variables, then redeploy.',
       }, { status: 503 });
     }
-    const msg = (e as Error).message ?? 'unknown';
-    return NextResponse.json({ error: `Stripe error: ${msg}` }, { status: 500 });
+    // Log the real reason server-side so it shows up in deploy logs,
+    // but return an opaque message to the client. Stripe errors can
+    // include API keys, customer ids, and rate-limit details that
+    // shouldn't ride out to the browser.
+    console.error('[billing/checkout] stripe error:', e);
+    return NextResponse.json({ error: 'Checkout is temporarily unavailable. Please try again.' }, { status: 500 });
   }
 }

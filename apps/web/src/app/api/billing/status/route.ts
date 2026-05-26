@@ -49,6 +49,7 @@ export async function GET(req: NextRequest) {
     if (e instanceof BillingNotConfiguredError) {
       return NextResponse.json({ state: 'unconfigured', error: e.message }, { status: 503 });
     }
-    return NextResponse.json({ error: `Stripe error: ${(e as Error).message}` }, { status: 500 });
+    console.error('[billing/status] stripe error:', e);
+    return NextResponse.json({ error: 'Billing status is temporarily unavailable.' }, { status: 500 });
   }
 }

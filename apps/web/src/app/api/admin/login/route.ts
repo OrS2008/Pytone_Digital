@@ -148,7 +148,11 @@ async function handleLogin(req: NextRequest) {
   res.cookies.set(ADMIN_COOKIE, token, {
     httpOnly: true,
     secure:   process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    // sameSite=strict prevents the cookie from riding along on any
+    // cross-site navigation, including link clicks from email. For an
+    // admin surface the friction is the right trade-off: a phishing
+    // page can't redirect an authenticated admin into a CSRF flow.
+    sameSite: 'strict',
     path:     '/',
     maxAge:   8 * 3600,
   });

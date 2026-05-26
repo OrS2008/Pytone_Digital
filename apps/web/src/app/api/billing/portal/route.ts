@@ -17,10 +17,13 @@ export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 function allowedCaller(req: NextRequest): boolean {
-  const hosts = new Set(['novastram.netlify.app', 'localhost:3000', 'localhost:3001']);
-  for (const h of (process.env.ALLOWED_HOSTS || '').split(',')) if (h.trim()) hosts.add(h.trim());
   const ref = req.headers.get('origin') || req.headers.get('referer') || '';
-  try { return hosts.has(new URL(ref).host); } catch { return false; }
+  if (!ref) return false;
+  let refHost: string;
+  try { refHost = new URL(ref).host; } catch { return false; }
+  if (refHost === (req.headers.get('host') || '')) return true;
+  const extra = (process.env.ALLOWED_HOSTS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  return extra.includes(refHost);
 }
 
 export async function POST(req: NextRequest) {
@@ -58,6 +61,7 @@ export async function POST(req: NextRequest) {
         hint:  'Add STRIPE_SECRET_KEY in the deploy env.',
       }, { status: 503 });
     }
-    return NextResponse.json({ error: `Stripe error: ${(e as Error).message}` }, { status: 500 });
+    console.error('[billing/portal] stripe error:', e);
+    return NextResponse.json({ error: 'Billing portal is temporarily unavailable.' }, { status: 500 });
   }
 }

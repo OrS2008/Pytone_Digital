@@ -132,12 +132,19 @@ export async function GET(req: NextRequest) {
     cancel() { reader.cancel(); },
   });
 
+  // Echo the request Origin into the CORS header so the playlist is
+  // only readable by the page that asked for it (same-origin in
+  // practice; isAllowedCaller already gated that). A wildcard '*' here
+  // would let any attacker site read the user's M3U from their own
+  // origin while the user is signed in — same-site cookies wouldn't
+  // help because cookies aren't on the response anyway.
+  const corsOrigin = req.headers.get('origin') || '';
   return new Response(stream, {
     status: 200,
     headers: {
       'content-type': 'application/x-mpegurl; charset=utf-8',
       'cache-control': 'private, max-age=60',
-      'access-control-allow-origin': '*',
+      ...(corsOrigin ? { 'access-control-allow-origin': corsOrigin, vary: 'Origin' } : {}),
     },
   });
 }
