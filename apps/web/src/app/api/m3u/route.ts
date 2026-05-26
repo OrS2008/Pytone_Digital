@@ -44,23 +44,23 @@ function isHostBlocked(host: string): boolean {
 
 // Same-origin gate. The proxy is for our own users' M3U fetches, not
 // for anyone-on-the-internet abuse of our edge function. We allow
-// requests whose Origin or Referer matches the deployed host(s).
+// requests whose Origin or Referer matches the host that is actually
+// serving this request — that way the gate works on any deploy
+// (Netlify, Cloudflare Pages, custom domain) without rebuild.
 function isAllowedCaller(req: NextRequest): boolean {
-  const allowedHosts = new Set<string>([
-    'novastram.netlify.app',
-    'localhost:3000',
-    'localhost:3001',
-  ]);
-  // Custom production host(s) from env, comma-separated.
-  for (const h of (process.env.ALLOWED_HOSTS || '').split(',')) {
-    if (h.trim()) allowedHosts.add(h.trim());
-  }
   const ref = req.headers.get('origin') || req.headers.get('referer') || '';
   if (!ref) return false;
-  try {
-    const u = new URL(ref);
-    return allowedHosts.has(u.host);
-  } catch { return false; }
+  let refHost: string;
+  try { refHost = new URL(ref).host; } catch { return false; }
+
+  // Same-origin is always allowed.
+  const ownHost = req.headers.get('host') || '';
+  if (refHost === ownHost) return true;
+
+  // Plus any additional hosts explicitly allowlisted by deploy env.
+  // Useful when a CDN or alternate domain fronts the same project.
+  const extra = (process.env.ALLOWED_HOSTS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  return extra.includes(refHost);
 }
 
 export async function GET(req: NextRequest) {

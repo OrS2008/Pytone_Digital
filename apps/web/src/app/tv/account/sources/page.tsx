@@ -7,6 +7,7 @@ import { useState } from 'react';
 import Shell from '../Shell';
 import ActionButton from '@/components/ui/ActionButton';
 import usePersisted from '@/lib/usePersisted';
+import { fetchAndCache, invalidateCache } from '@/lib/channelCache';
 
 type Tab = 'live' | 'epg' | 'vod';
 type AddTab = 'm3u' | 'xtream' | 'stalker' | 'upload';
@@ -55,15 +56,32 @@ export default function Sources() {
     setTimeout(() => setFeedback(null), 2200);
   }
 
-  function addLive() {
+  async function addLive() {
     if (!url.startsWith('http')) return flash('M3U URL must start with http:// or https://');
     const friendly = name.trim() || new URL(url).hostname;
+    const id = 'live-' + Date.now();
+    const submittedUrl = url;
+    // Add to the list immediately so the user sees feedback; mark the
+    // status as "fetching…" until the ingest call resolves.
     setLive([...live, {
-      id: 'live-' + Date.now(), kind: 'M3U',
-      title: friendly, sub: url, stat: 'queued for ingestion',
+      id, kind: 'M3U',
+      title: friendly, sub: submittedUrl, stat: 'fetching channels…',
     }]);
     setName(''); setUrl('');
-    flash(`Added "${friendly}" — ingestion queued.`);
+    flash(`Adding "${friendly}"…`);
+
+    // Drive the actual ingest now — fetchAndCache hits /api/m3u with
+    // the URL directly so we don't race the localStorage write.
+    const result = await fetchAndCache(submittedUrl);
+    if (result.error) {
+      setLive((prev: Source[]) => prev.map((s) => s.id === id ? { ...s, stat: `error: ${result.error}` } : s));
+      flash(`Failed: ${result.error.slice(0, 140)}`);
+    } else {
+      const count = result.channels.length;
+      const cats  = new Set(result.channels.map((c) => c.category)).size;
+      setLive((prev: Source[]) => prev.map((s) => s.id === id ? { ...s, stat: `${count} channels · ${cats} categories · just now` } : s));
+      flash(`Loaded ${count} channels.`);
+    }
   }
   function addEpg() {
     if (!epgUrl.startsWith('http')) return flash('XMLTV URL must start with http:// or https://');
@@ -90,15 +108,25 @@ export default function Sources() {
     flash('Source removed.');
   };
 
-  function editLive(id: string) {
+  async function editLive(id: string) {
     const s = live.find((x) => x.id === id);
     if (!s) return;
     const nextUrl = typeof window !== 'undefined' ? window.prompt('New M3U URL', s.sub) : null;
     if (!nextUrl) return;
     if (!nextUrl.startsWith('http')) { flash('URL must start with http:// or https://'); return; }
     const nextName = window.prompt('Friendly name', s.title) || s.title;
-    setLive(live.map((x) => x.id === id ? { ...x, sub: nextUrl, title: nextName, stat: 'queued for ingestion' } : x));
-    flash(`Updated "${nextName}" — ingestion queued.`);
+    setLive(live.map((x) => x.id === id ? { ...x, sub: nextUrl, title: nextName, stat: 'fetching channels…' } : x));
+    flash(`Updating "${nextName}"…`);
+
+    const result = await fetchAndCache(nextUrl);
+    if (result.error) {
+      setLive((prev: Source[]) => prev.map((x) => x.id === id ? { ...x, stat: `error: ${result.error}` } : x));
+      flash(`Failed: ${result.error.slice(0, 140)}`);
+    } else {
+      const count = result.channels.length;
+      setLive((prev: Source[]) => prev.map((x) => x.id === id ? { ...x, stat: `${count} channels · just now` } : x));
+      flash(`Reloaded ${count} channels.`);
+    }
   }
 
   function editEpg(id: string) {

@@ -26,7 +26,7 @@ import { MOCK_CHANNELS } from '@/components/tv/live/mockChannels';
 import type { Channel } from '@/components/tv/live/types';
 import { userKey } from '@/lib/session';
 import { recordWatch } from '@/lib/watchHistory';
-import { getCachedChannels, getUserSourceUrl, loadChannels } from '@/lib/channelCache';
+import { getCachedChannels, getUserSourceUrl, loadChannelsResult } from '@/lib/channelCache';
 import './live.css';
 
 type LoadState =
@@ -76,25 +76,28 @@ export default function LivePage() {
       const wasHydrated = initialCached !== null;
       if (!wasHydrated) setLoad({ kind: 'loading' });
 
-      try {
-        const parsed = await loadChannels();
-        if (cancelled) return;
-        if (parsed.length === 0) throw new Error('No channels found in playlist.');
-        setChannels(parsed);
-
-        // Deep-link from /tv/search or Continue Watching.
-        const want = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('ch') : null;
-        if (want) {
-          const idx = parsed.findIndex((c) => String(c.number) === want);
-          if (idx >= 0) { setActiveIdx(idx); setWatching(true); }
-        }
-        setLoad({ kind: 'ready', count: parsed.length, sourceTitle: src.title });
-      } catch (e) {
-        if (cancelled) return;
+      const result = await loadChannelsResult();
+      if (cancelled) return;
+      if (result.error || result.channels.length === 0) {
         // If we had a cached snapshot, keep showing it — only surface
         // the error to users who had nothing.
-        if (!wasHydrated) setLoad({ kind: 'error', message: (e as Error).message });
+        if (!wasHydrated) {
+          setLoad({
+            kind: 'error',
+            message: result.error || 'No channels found in playlist.',
+          });
+        }
+        return;
       }
+      setChannels(result.channels);
+
+      // Deep-link from /tv/search or Continue Watching.
+      const want = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('ch') : null;
+      if (want) {
+        const idx = result.channels.findIndex((c) => String(c.number) === want);
+        if (idx >= 0) { setActiveIdx(idx); setWatching(true); }
+      }
+      setLoad({ kind: 'ready', count: result.channels.length, sourceTitle: src.title });
     }
     run();
     return () => { cancelled = true; };
@@ -232,7 +235,7 @@ export default function LivePage() {
         )}
         {!watching && load.kind === 'error' && (
           <div className="live-status live-status-err">
-            We couldn&apos;t load your playlist.{' '}
+            We couldn&apos;t load your playlist: {load.message}{' '}
             <Link href="/tv/account/sources" className="live-status-link">
               Check the URL →
             </Link>

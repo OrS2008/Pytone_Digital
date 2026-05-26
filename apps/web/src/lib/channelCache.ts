@@ -81,16 +81,53 @@ export function getUserSourceUrl(): { url: string; title: string } | null {
   } catch { return null; }
 }
 
+// Outcome of a load attempt. UIs that just want channels can call
+// loadChannels(); UIs that need to show an error message to the user
+// (Sources page, /tv/live empty state) call loadChannelsResult().
+export interface LoadResult {
+  channels: M3UChannel[];
+  error?:   string;
+}
+
 // Fetch + parse + cache. Idempotent in flight — concurrent callers
 // share a single in-flight promise.
-const INFLIGHT: Map<string, Promise<M3UChannel[]>> = new Map();
+const INFLIGHT: Map<string, Promise<LoadResult>> = new Map();
 
-export async function loadChannels(): Promise<M3UChannel[]> {
+async function fetchAndParse(url: string): Promise<LoadResult> {
+  let r: Response;
+  try {
+    r = await fetch('/api/m3u?url=' + encodeURIComponent(url));
+  } catch (e) {
+    return { channels: [], error: `Network error reaching /api/m3u: ${(e as Error).message}` };
+  }
+  if (!r.ok) {
+    const body = await r.text().catch(() => '');
+    const trimmed = body.trim().slice(0, 200);
+    return { channels: [], error: `Playlist proxy returned ${r.status}${trimmed ? ` — ${trimmed}` : ''}` };
+  }
+  const text = await r.text();
+  const channels = parseM3U(text);
+  if (channels.length === 0) {
+    return {
+      channels: [],
+      error: 'Playlist downloaded but contained no channels. The provider may have returned an empty or non-standard M3U.',
+    };
+  }
+  const entry: CacheEntry = { url, fetchedAt: Date.now(), channels };
+  MEM.set(memKey(), entry);
+  writeSessionCache(entry);
+  return { channels };
+}
+
+// Loads channels for the currently-configured live source. Returns a
+// rich result so callers can surface fetch / parse errors instead of
+// swallowing them as "no channels".
+export async function loadChannelsResult(): Promise<LoadResult> {
   const cached = getCachedChannels();
-  if (cached && cached.length > 0) return cached;
+  if (cached && cached.length > 0) return { channels: cached };
 
   const src = getUserSourceUrl();
-  if (!src) return [];
+  if (!src) return { channels: [] };  // no source configured — not an error
 
   const flightKey = memKey() + '|' + src.url;
   const existing = INFLIGHT.get(flightKey);
@@ -98,18 +135,7 @@ export async function loadChannels(): Promise<M3UChannel[]> {
 
   const p = (async () => {
     try {
-      const r = await fetch('/api/m3u?url=' + encodeURIComponent(src.url));
-      if (!r.ok) return [];
-      const text = await r.text();
-      const channels = parseM3U(text);
-      if (channels.length > 0) {
-        const entry: CacheEntry = { url: src.url, fetchedAt: Date.now(), channels };
-        MEM.set(memKey(), entry);
-        writeSessionCache(entry);
-      }
-      return channels;
-    } catch {
-      return [];
+      return await fetchAndParse(src.url);
     } finally {
       INFLIGHT.delete(flightKey);
     }
@@ -117,6 +143,18 @@ export async function loadChannels(): Promise<M3UChannel[]> {
 
   INFLIGHT.set(flightKey, p);
   return p;
+}
+
+// Fetch + parse + cache a specific URL right now. Used by the Sources
+// page so "Add & ingest" actually ingests instead of just saving the
+// URL to localStorage and hoping a later page mount picks it up.
+export async function fetchAndCache(url: string): Promise<LoadResult> {
+  invalidateCache();
+  return fetchAndParse(url);
+}
+
+export async function loadChannels(): Promise<M3UChannel[]> {
+  return (await loadChannelsResult()).channels;
 }
 
 export function invalidateCache() {

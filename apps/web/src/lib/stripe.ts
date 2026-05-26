@@ -41,14 +41,20 @@ export function priceFor(plan: 'single' | 'multi'): string {
 }
 
 // Base URL of the deployed site, used for Stripe's success_url /
-// cancel_url. Netlify sets URL automatically on every deploy; we fall
-// back to the canonical hostname.
+// cancel_url. Deploy platforms expose different variables: Netlify
+// sets URL, Cloudflare Pages sets CF_PAGES_URL, Vercel sets
+// NEXT_PUBLIC_VERCEL_URL. NEXT_PUBLIC_BASE_URL takes precedence so
+// operators on any platform can override explicitly.
 export function baseUrl(): string {
-  return (
+  const fromEnv =
     process.env.NEXT_PUBLIC_BASE_URL ||
-    process.env.URL ||
-    'https://novastram.netlify.app'
-  ).replace(/\/$/, '');
+    process.env.CF_PAGES_URL          ||
+    process.env.URL                   ||
+    (process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : '');
+  if (fromEnv) return fromEnv.replace(/\/$/, '');
+  throw new Error(
+    'Set NEXT_PUBLIC_BASE_URL (or CF_PAGES_URL on Cloudflare, URL on Netlify) so Stripe knows where to send users after checkout.',
+  );
 }
 
 // Look up an existing customer by email, or create one. Stripe's
