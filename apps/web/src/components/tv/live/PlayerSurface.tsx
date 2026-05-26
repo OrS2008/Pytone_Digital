@@ -22,6 +22,15 @@ import { proxiedStreamUrl } from '@/lib/streamProxy';
 interface Props {
   channel?: Channel;
   autoPlay?: boolean;
+  /**
+   * If true, the player attempts to start with sound on. Used by the
+   * fullscreen overlay because the user clicking the Fullscreen
+   * button is a genuine user gesture, which satisfies the browser's
+   * autoplay-with-sound policy. The small preview tile keeps the
+   * default (muted) start since it autoplays without an explicit
+   * gesture and would otherwise be blocked.
+   */
+  startUnmuted?: boolean;
 }
 
 interface HlsInstance {
@@ -48,11 +57,11 @@ declare global {
 
 const RECONNECT_DELAYS_MS = [800, 2400, 6000]; // 3 retries, expanding backoff.
 
-export default function PlayerSurface({ channel, autoPlay = true }: Props) {
+export default function PlayerSurface({ channel, autoPlay = true, startUnmuted = false }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
-  const [muted, setMuted] = useState(true);
+  const [muted, setMuted] = useState(!startUnmuted);
   const [pipActive, setPipActive] = useState(false);
   const [castReady, setCastReady] = useState(false);
 
@@ -78,7 +87,19 @@ export default function PlayerSurface({ channel, autoPlay = true }: Props) {
 
     async function attach() {
       if (!video) return;
-      video.muted = true;
+      // Honour the requested initial mute state. Fullscreen renders
+      // pass startUnmuted=true so the click that opened fullscreen
+      // (a user gesture) satisfies the autoplay-with-sound policy.
+      video.muted = !startUnmuted;
+      // Restore the user's saved volume level (slider position from
+      // a previous session). The OS / device volume is layered on
+      // top by the browser, so the actual loudness is whatever the
+      // user has the device set to.
+      try {
+        const saved = localStorage.getItem('player.volume');
+        const v = saved !== null ? Number(saved) : NaN;
+        if (isFinite(v) && v >= 0 && v <= 1) video.volume = v;
+      } catch { /* ignore */ }
       if (isHls && !canNative) {
         try {
           const mod = (await import('hls.js')) as unknown as { default: unknown };
@@ -206,11 +227,12 @@ export default function PlayerSurface({ channel, autoPlay = true }: Props) {
             ref={videoRef}
             autoPlay={autoPlay}
             playsInline
-            muted
+            muted={muted}
             controls
             style={{ width: '100%', height: '100%', background: '#000', objectFit: 'contain' }}
             onPlaying={() => setPlaying(true)}
             onWaiting={() => setPlaying(false)}
+            onVolumeChange={(e) => setMuted((e.currentTarget as HTMLVideoElement).muted)}
           />
 
           {/* Player controls overlay — pinned top-right, lives above

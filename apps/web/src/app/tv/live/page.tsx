@@ -364,7 +364,7 @@ export default function LivePage() {
             onClick={wakeInfoBar}
             onKeyDown={wakeInfoBar}
           >
-            <PlayerSurface channel={active} autoPlay />
+            <PlayerSurface channel={active} autoPlay startUnmuted />
             <button
               className="live-close"
               onClick={() => setWatching(false)}

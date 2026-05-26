@@ -93,25 +93,17 @@ export default function InfoBar(p: Props) {
     return () => clearInterval(t);
   }, []);
 
-  // Apply volume to the <video> element. Re-runs when the channel
-  // changes (the player re-attaches a fresh video element) or when
-  // the user moves the slider / hits mute.
+  // Sync our muted/volume state with the actual <video> element.
+  // The video is the source of truth — PlayerSurface decides the
+  // initial mute (fullscreen starts unmuted because the click was a
+  // gesture; preview starts muted because autoplay-with-sound is
+  // blocked). We only WRITE to the video in response to user actions
+  // on the slider / mute button; otherwise we just observe and
+  // mirror it here.
   useEffect(() => {
     const v = document.querySelector<HTMLVideoElement>('.player-surface video');
     if (!v) return;
-    v.volume = volume;
-    v.muted  = muted;
-    try { localStorage.setItem(userKey('player.volume'), String(volume)); } catch { /* ignore */ }
-  }, [volume, muted, p.channel?.streamUrl]);
-
-  // Sync local "muted" state with the element's actual muted state on
-  // mount + after the video element changes, so the icon reflects what
-  // PlayerSurface set (it starts muted because browsers block autoplay
-  // with sound).
-  useEffect(() => {
-    const v = document.querySelector<HTMLVideoElement>('.player-surface video');
-    if (!v) return;
-    const sync = () => setMuted(v.muted);
+    const sync = () => { setMuted(v.muted); setVolume(v.volume); };
     sync();
     v.addEventListener('volumechange', sync);
     return () => v.removeEventListener('volumechange', sync);
@@ -178,14 +170,23 @@ export default function InfoBar(p: Props) {
     flash(`${t('live.record')} · ${p.channel.now?.title ?? p.channel.name}`);
   }
   function toggleMute() {
-    setMuted((m) => {
-      const next = !m;
-      // If the user unmutes from a muted-zero state, give them
-      // something audible — otherwise the slider would be at 0 % and
-      // they'd think the unmute didn't work.
-      if (!next && volume === 0) setVolume(0.6);
-      return next;
-    });
+    const v = videoEl();
+    if (!v) return;
+    const next = !v.muted;
+    v.muted = next;
+    // If the user unmutes from a zero-volume state, raise it to
+    // something audible — otherwise unmute looks like a no-op.
+    if (!next && v.volume === 0) v.volume = 0.6;
+    // The video's volumechange event will sync our React state.
+  }
+  function setVideoVolume(next: number) {
+    const v = videoEl();
+    if (!v) return;
+    v.volume = next;
+    // Slider above 0 implies the user wants sound. Slider at 0 mutes.
+    if (next > 0 && v.muted) v.muted = false;
+    if (next === 0)          v.muted = true;
+    try { localStorage.setItem(userKey('player.volume'), String(next)); } catch { /* ignore */ }
   }
 
   if (!p.channel) return null;
@@ -263,15 +264,7 @@ export default function InfoBar(p: Props) {
                   min={0}
                   max={100}
                   value={Math.round((muted ? 0 : volume) * 100)}
-                  onChange={(e) => {
-                    const next = Number(e.target.value) / 100;
-                    setVolume(next);
-                    // Moving the slider above 0 implies the user wants
-                    // sound — auto-unmute so they don't have to click
-                    // a separate button.
-                    if (next > 0 && muted) setMuted(false);
-                    if (next === 0)        setMuted(true);
-                  }}
+                  onChange={(e) => setVideoVolume(Number(e.target.value) / 100)}
                   className="infobar-volume-slider"
                   aria-label="Volume"
                 />

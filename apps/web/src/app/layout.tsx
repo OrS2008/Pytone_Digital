@@ -11,8 +11,26 @@ export const metadata: Metadata = {
 // the default palette or LTR direction and then re-renders with the
 // user's choice. Runs before React hydration. Mirrors the bootstrap
 // that also lives in TvBoot for client-side updates.
+//
+// Additionally: Cloudflare Pages gives every deploy its own subdomain
+// like "10638bbf.nova-stream-cce.pages.dev". Each of those is a
+// separate browser origin, so localStorage (playlist, theme, EPG URL,
+// account session) does NOT survive a deploy when the user lands on
+// the deploy-hash URL instead of the stable production alias. We
+// detect that pattern here and bounce them to the stable origin
+// before any data is read or written, preserving the path + query.
+// Branch preview URLs (claude-foo.nova-stream-cce.pages.dev) are not
+// matched — those are intentional development targets.
 const THEME_BOOT = `
 (function(){try{
+  var host = location.hostname;
+  // Match an 8-hex-character prefix followed by ".pages.dev" anywhere
+  // in the host. That's the Cloudflare Pages deploy-hash format.
+  var m = /^([0-9a-f]{8})\\.([^.]+\\.pages\\.dev)$/i.exec(host);
+  if (m) {
+    location.replace(location.protocol + '//' + m[2] + location.pathname + location.search + location.hash);
+    return;
+  }
   var t=localStorage.getItem('ns.theme');
   if(t && ['apex','aurora','mono','cyber','premium'].indexOf(t)>=0){
     document.documentElement.setAttribute('data-theme',t);
