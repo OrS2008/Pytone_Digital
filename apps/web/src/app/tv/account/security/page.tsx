@@ -1,23 +1,31 @@
 // Security — change password, 2FA, login history.
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Shell from '../Shell';
 import ActionButton from '@/components/ui/ActionButton';
+import { getCurrentDevice } from '@/lib/deviceFingerprint';
 
-const HISTORY = [
-  { event: 'Sign-in',        meta: 'iPhone 15 Pro · Tel Aviv',         time: 'Just now',            ok: true  },
-  { event: 'Sign-in',        meta: 'LG OLED C3 · Same network',        time: 'Today, 18:42',        ok: true  },
-  { event: 'Password change',meta: 'MacBook Pro 14"',                  time: 'Yesterday, 22:15',    ok: true  },
-  { event: 'Failed sign-in', meta: 'Unknown Linux · 185.220.101.42',   time: 'May 19, 03:21',       ok: false },
-  { event: 'Sign-in',        meta: 'MacBook Pro 14"',                  time: 'May 18, 21:08',       ok: true  },
-];
+interface ActivityEntry {
+  event: string;
+  meta:  string;
+  time:  string;
+  ok:    boolean;
+}
 
 export default function Security() {
   const [current, setCurrent] = useState('');
   const [next, setNext]       = useState('');
   const [confirm, setConfirm] = useState('');
   const [msg, setMsg]         = useState<{ ok: boolean; text: string } | null>(null);
+  // We only know about the current session until the auth backend
+  // ships its sessions table. Show that one entry rather than fabricated
+  // history of "iPhone 15 Pro" devices the user never owned.
+  const [history, setHistory] = useState<ActivityEntry[]>([]);
+  useEffect(() => {
+    const d = getCurrentDevice();
+    setHistory([{ event: 'Sign-in', meta: d.name, time: 'This session', ok: true }]);
+  }, []);
 
   function updatePassword(e: React.FormEvent) {
     e.preventDefault();
@@ -108,33 +116,38 @@ export default function Security() {
 
       <div className="ac-card">
         <div className="ac-card-title">Recent activity</div>
-        {HISTORY.map((h, i) => (
-          <div key={i} style={{
-            display: 'grid',
-            gridTemplateColumns: '24px 1fr 200px 80px',
-            gap: 16, padding: '12px 0', alignItems: 'center',
-            borderTop: i === 0 ? '0' : '1px solid var(--ns-hairline)',
-            fontSize: 14,
-          }}>
-            <span style={{ color: 'var(--ns-text-faint)' }}>{h.ok ? '◯' : '⚠'}</span>
-            <div>
-              <div style={{ color: 'var(--ns-text)' }}>{h.event}</div>
-              <div style={{ color: 'var(--ns-text-faint)', fontSize: 12 }}>{h.meta}</div>
-            </div>
-            <div style={{ color: 'var(--ns-text-muted)', fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{h.time}</div>
-            <div style={{
-              fontSize: 11, fontWeight: 700, letterSpacing: 1,
-              color: h.ok ? 'var(--ns-ok)' : '#FF6B7B',
+        {history.length === 0 ? (
+          <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, margin: 0 }}>
+            No recent activity yet.
+          </p>
+        ) : (
+          history.map((h, i) => (
+            <div key={i} style={{
+              display: 'grid',
+              gridTemplateColumns: '24px 1fr 200px 80px',
+              gap: 16, padding: '12px 0', alignItems: 'center',
+              borderTop: i === 0 ? '0' : '1px solid var(--ns-hairline)',
+              fontSize: 14,
             }}>
-              {h.ok ? 'SUCCESS' : 'BLOCKED'}
+              <span style={{ color: 'var(--ns-text-faint)' }}>{h.ok ? '◯' : '⚠'}</span>
+              <div>
+                <div style={{ color: 'var(--ns-text)' }}>{h.event}</div>
+                <div style={{ color: 'var(--ns-text-faint)', fontSize: 12 }}>{h.meta}</div>
+              </div>
+              <div style={{ color: 'var(--ns-text-muted)', fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{h.time}</div>
+              <div style={{
+                fontSize: 11, fontWeight: 700, letterSpacing: 1,
+                color: h.ok ? 'var(--ns-ok)' : '#FF6B7B',
+              }}>
+                {h.ok ? 'SUCCESS' : 'BLOCKED'}
+              </div>
             </div>
-          </div>
-        ))}
-        <div style={{ marginTop: 14 }}>
-          <ActionButton className="ac-auth-link" style={{
-            background: 'none', border: 0, padding: 0, fontWeight: 600,
-          }} doneLabel="Loaded ✓">View full history →</ActionButton>
-        </div>
+          ))
+        )}
+        <p style={{ marginTop: 14, color: 'var(--ns-text-faint)', fontSize: 12 }}>
+          Sign-ins from new devices and failed attempts will appear here. We&apos;ll also email you
+          if you have &quot;new sign-in&quot; alerts enabled on the Devices page.
+        </p>
       </div>
     </Shell>
   );

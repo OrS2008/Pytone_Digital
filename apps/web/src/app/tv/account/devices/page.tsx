@@ -1,32 +1,24 @@
-// Devices — shows currently-active sessions backed by DeviceManager
-// (services/auth). Users on the Single plan can have 1 active; Multi up to
-// 4. Each row supports Sign-out (releases the slot immediately).
+// Devices — currently-signed-in devices. The auth backend will own this
+// list eventually (every refresh-token session is a device); until it's
+// deployed we render the current browser only — never invented entries.
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import Shell from '../Shell';
 import Toggle from '@/components/ui/Toggle';
-
-interface Device {
-  id: string; icon: string; name: string;
-  ip: string; loc: string; last: string;
-  active: boolean;
-}
-
-const INITIAL: Device[] = [
-  { id: 'd1', icon: '📱', name: 'iPhone 15 Pro',     ip: '94.27.118.42',  loc: 'Tel Aviv, IL',  last: 'Active now',       active: true  },
-  { id: 'd2', icon: '📺', name: 'LG OLED C3 (TV)',   ip: '192.168.1.40',  loc: 'Same network',  last: '12 minutes ago',   active: false },
-  { id: 'd3', icon: '💻', name: 'MacBook Pro 14"',   ip: '94.27.118.42',  loc: 'Tel Aviv, IL',  last: '2 hours ago',      active: false },
-];
+import { getCurrentDevice, type BrowserDevice } from '@/lib/deviceFingerprint';
 
 export default function Devices() {
-  const [devices, setDevices] = useState(INITIAL);
+  // Empty SSR placeholder; populated on mount once navigator is available.
+  const [devices, setDevices] = useState<BrowserDevice[]>([]);
   const [confirm, setConfirm] = useState(false);
   const [signedOutAll, setSignedOutAll] = useState(false);
 
-  function signOut(id: string) {
-    setDevices(devices.filter((d) => d.id !== id));
-  }
+  useEffect(() => {
+    setDevices([getCurrentDevice()]);
+  }, []);
+
   function signOutAll() {
     setDevices(devices.filter((d) => d.active));
     setConfirm(false);
@@ -43,7 +35,7 @@ export default function Devices() {
           Your <strong style={{ color: 'var(--ns-text)' }}>Single</strong> plan allows
           1 device streaming at the same time. To stream from a second device,
           either sign out from an existing one or upgrade to{' '}
-          <a href="/tv/account/plans" className="ac-auth-link">Multi (4 devices)</a>.
+          <Link href="/tv/account/plans" className="ac-auth-link">Multi (4 devices)</Link>.
         </p>
       </header>
 
@@ -62,11 +54,6 @@ export default function Devices() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
-              {!d.active && (
-                <button className="ac-btn ac-btn-sm ac-btn-danger" onClick={() => signOut(d.id)}>
-                  Sign out
-                </button>
-              )}
               {d.active && (
                 <button className="ac-btn ac-btn-sm" disabled style={{ opacity: 0.5 }}>Current</button>
               )}
@@ -75,7 +62,8 @@ export default function Devices() {
         ))}
         {devices.length === 1 && (
           <p style={{ fontSize: 13, color: 'var(--ns-text-faint)', marginTop: 12 }}>
-            Only this device remains signed in.
+            This is the only device signed in. Other devices appear here automatically
+            when they sign into your account.
           </p>
         )}
       </div>
@@ -85,14 +73,14 @@ export default function Devices() {
         <div className="ac-toggle-row">
           <div>
             <div className="ac-toggle-title">Email me on every new sign-in</div>
-            <div className="ac-toggle-desc">We'll send a notice when an unfamiliar device signs in. You can revoke from the email.</div>
+            <div className="ac-toggle-desc">We&apos;ll send a notice when an unfamiliar device signs in. You can revoke from the email.</div>
           </div>
           <Toggle initialOn />
         </div>
         <div className="ac-toggle-row">
           <div>
             <div className="ac-toggle-title">Auto-revoke devices unused for 60 days</div>
-            <div className="ac-toggle-desc">Devices that haven't streamed in 60 days are signed out automatically.</div>
+            <div className="ac-toggle-desc">Devices that haven&apos;t streamed in 60 days are signed out automatically.</div>
           </div>
           <Toggle initialOn />
         </div>

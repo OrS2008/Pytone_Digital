@@ -2,16 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useCurrentZone, useSetZone } from './TvFocus';
 import { getSessionEmail } from '@/lib/session';
+import { useT } from '@/lib/i18n';
 
-const ITEMS = [
-  { label: 'Live',     href: '/tv/live' },
-  { label: 'Home',     href: '/tv' },
-  { label: 'Sports',   href: '/tv/sports' },
-  { label: 'Movies',   href: '/tv/vod' },
-  { label: 'Catch-up', href: '/tv/catchup' },
-  { label: 'Search',   href: '/tv/search' },
+const ITEMS: { key: string; href: string }[] = [
+  { key: 'nav.live',     href: '/tv/live' },
+  { key: 'nav.home',     href: '/tv' },
+  { key: 'nav.sports',   href: '/tv/sports' },
+  { key: 'nav.movies',   href: '/tv/vod' },
+  { key: 'nav.catchup',  href: '/tv/catchup' },
+  { key: 'nav.search',   href: '/tv/search' },
 ];
 
 const ZONE = 'nav';
@@ -19,10 +21,20 @@ const ZONE = 'nav';
 export default function TvNav() {
   const focusNav = useSetZone(ZONE);
   const current  = useCurrentZone();
+  const pathname = usePathname();
+  const { t } = useT();
   const [idx, setIdx] = useState(0);
   const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => { setEmail(getSessionEmail()); }, []);
+
+  // Highlight the nav link that matches the current route so the user
+  // always sees which section they're on (not just the keyboard-focused
+  // link). Exact match for /tv → Home; prefix match for /tv/live etc.
+  const activeIdx = ITEMS.findIndex((it) => {
+    if (it.href === '/tv') return pathname === '/tv';
+    return pathname?.startsWith(it.href);
+  });
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -47,10 +59,10 @@ export default function TvNav() {
         <a
           key={it.href}
           href={it.href}
-          className={`tv-nav-link ${current === ZONE && i === idx ? 'focused' : ''}`}
+          className={`tv-nav-link ${current === ZONE && i === idx ? 'focused' : ''} ${i === activeIdx ? 'active' : ''}`}
           onMouseEnter={() => { focusNav(); setIdx(i); }}
         >
-          {it.label}
+          {t(it.key)}
         </a>
       ))}
       <Link

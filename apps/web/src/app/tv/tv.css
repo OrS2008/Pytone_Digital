@@ -170,6 +170,61 @@
   box-shadow: 0 0 24px rgba(255, 59, 110, 0.6);
 }
 
+/* Empty-state hero — used when no playlist is configured. Replaces the
+   "stock photo" splash with a calmer gradient so it doesn't look like a
+   stale demo. */
+.tv-hero-empty {
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(255, 59, 110, 0.18), transparent 55%),
+    radial-gradient(ellipse at 80% 60%, rgba(108, 80, 255, 0.18), transparent 60%),
+    linear-gradient(160deg, #0B0E16 0%, #06070A 100%);
+}
+
+/* Empty-state card used on /tv, /tv/vod, /tv/sports when the user has
+   no playlist. Replaces the rows of placeholder tiles with one clear
+   call to action. */
+.tv-empty {
+  display: flex;
+  justify-content: center;
+  padding: 80px 24px 120px;
+}
+.tv-empty-card {
+  max-width: 640px;
+  width: 100%;
+  text-align: center;
+  padding: 56px 40px;
+  border-radius: 24px;
+  background: rgba(17, 20, 27, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.tv-empty-icon {
+  font-size: 56px;
+  line-height: 1;
+  margin-bottom: 18px;
+}
+.tv-empty-title {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  margin: 0 0 12px;
+  color: #E9EBF1;
+}
+.tv-empty-sub {
+  font-size: 16px;
+  line-height: 1.55;
+  color: #B7BEC9;
+  margin: 0 0 28px;
+}
+.tv-empty-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.tv-empty-actions .tv-btn {
+  text-decoration: none;
+}
+
 .tv-nav {
   display: flex;
   align-items: center;
@@ -194,6 +249,16 @@
 .tv-nav-link.focused {
   color: #fff;
   border-color: #FF3B6E;
+}
+/* Active route — underlined accent so the user always knows which
+   section they're on (the focused state is for keyboard navigation
+   only and disappears when focus moves). */
+.tv-nav-link.active {
+  color: #fff;
+  text-decoration: underline;
+  text-decoration-color: #FF3B6E;
+  text-decoration-thickness: 3px;
+  text-underline-offset: 8px;
 }
 
 /* Always-visible account avatar in the top-right of the nav. Clicking

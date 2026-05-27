@@ -1,23 +1,96 @@
 // Parental controls — PIN-protected profiles, content rating cap, kids
 // profile, channel block list, sign-out timer.
+//
+// State persists to localStorage so settings survive reloads. The real
+// backend will replace localStorage with a per-user row in Postgres
+// (services/auth/migrations), but the surface stays the same.
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Shell from '../Shell';
 import Toggle from '@/components/ui/Toggle';
 import ActionButton from '@/components/ui/ActionButton';
+import { userKey } from '@/lib/session';
+
+interface Profile {
+  id:    string;
+  name:  string;
+  icon:  string;
+  cap:   string;
+  primary?: boolean;
+  kids?: boolean;
+}
+
+const RATING_OPTIONS = [
+  '16+ (TV-14 / PG-13)',
+  '18+ (TV-MA / R)',
+  '13+ (TV-PG)',
+  'All ages',
+];
+
+function loadProfiles(): Profile[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(userKey('parental.profiles'));
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return [];
+}
+function saveProfiles(list: Profile[]) {
+  try { localStorage.setItem(userKey('parental.profiles'), JSON.stringify(list)); } catch { /* ignore */ }
+}
+function loadBlocked(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(userKey('parental.blocked'));
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return [];
+}
+function saveBlocked(list: string[]) {
+  try { localStorage.setItem(userKey('parental.blocked'), JSON.stringify(list)); } catch { /* ignore */ }
+}
 
 export default function Parental() {
-  const [blocked, setBlocked] = useState(['Sport 18+', 'Adult Movies', 'Erotica HD']);
-  const [query,   setQuery]   = useState('');
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [blocked,  setBlocked]  = useState<string[]>([]);
+  const [query,    setQuery]    = useState('');
+  const [adding,   setAdding]   = useState<'profile' | 'kids' | null>(null);
+  const [newName,  setNewName]  = useState('');
+
+  useEffect(() => {
+    setProfiles(loadProfiles());
+    setBlocked(loadBlocked());
+  }, []);
+
+  function addProfile(kind: 'profile' | 'kids') {
+    const name = newName.trim();
+    if (!name) return;
+    const p: Profile = kind === 'kids'
+      ? { id: 'p-' + Date.now(), name, icon: '🧒', cap: 'PG', kids: true }
+      : { id: 'p-' + Date.now(), name, icon: '👤', cap: 'All ratings', primary: profiles.length === 0 };
+    const next = [...profiles, p];
+    setProfiles(next); saveProfiles(next);
+    setAdding(null); setNewName('');
+  }
+  function removeProfile(id: string) {
+    const next = profiles.filter((p) => p.id !== id);
+    setProfiles(next); saveProfiles(next);
+  }
 
   function addBlock() {
     const q = query.trim();
     if (!q) return;
-    if (!blocked.includes(q)) setBlocked([...blocked, q]);
+    if (!blocked.includes(q)) {
+      const next = [...blocked, q];
+      setBlocked(next); saveBlocked(next);
+    }
     setQuery('');
   }
-  function remove(n: string) { setBlocked(blocked.filter((b) => b !== n)); }
+  function removeBlock(n: string) {
+    const next = blocked.filter((b) => b !== n);
+    setBlocked(next); saveBlocked(next);
+  }
 
   return (
     <Shell active="parental">
@@ -63,71 +136,108 @@ export default function Parental() {
             <div className="ac-toggle-title">Maximum rating allowed without PIN</div>
             <div className="ac-toggle-desc">Movies and TV beyond this rating require the PIN to open.</div>
           </div>
-          <select className="ac-input" style={{ width: 220 }} defaultValue="16+ (TV-14 / PG-13)">
-            <option>16+ (TV-14 / PG-13)</option>
-            <option>18+ (TV-MA / R)</option>
-            <option>13+ (TV-PG)</option>
-            <option>All ages</option>
+          <select className="ac-input" style={{ width: 220 }} defaultValue={RATING_OPTIONS[0]}>
+            {RATING_OPTIONS.map((r) => <option key={r}>{r}</option>)}
           </select>
         </div>
       </div>
 
       <div className="ac-card">
-        <div className="ac-card-title">Profiles · 2 / 4</div>
-        <div className="ac-device">
-          <div className="ac-device-icon" style={{ background: 'var(--ns-accent-soft)', color: 'var(--ns-accent)' }}>OS</div>
-          <div className="ac-device-meta">
-            <div className="ac-device-name">Or <span className="ac-device-tag">PRIMARY</span></div>
-            <div className="ac-device-sub">Adult · all ratings · no PIN required for this profile</div>
+        <div className="ac-card-title">Profiles · {profiles.length} / 6</div>
+        {profiles.length === 0 ? (
+          <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, marginTop: 0 }}>
+            No profiles yet. Add an adult profile for yourself and a Kids profile if you want
+            child-safe browsing for someone else.
+          </p>
+        ) : (
+          profiles.map((p) => (
+            <div key={p.id} className="ac-device">
+              <div className="ac-device-icon" style={p.primary ? {
+                background: 'var(--ns-accent-soft)', color: 'var(--ns-accent)',
+              } : undefined}>{p.icon}</div>
+              <div className="ac-device-meta">
+                <div className="ac-device-name">
+                  {p.name}
+                  {p.primary && <span className="ac-device-tag">PRIMARY</span>}
+                  {p.kids    && <span className="ac-device-tag">KIDS</span>}
+                </div>
+                <div className="ac-device-sub">
+                  {p.kids ? 'Kids profile · cap at ' + p.cap : 'Adult · ' + p.cap}
+                </div>
+              </div>
+              {!p.primary && (
+                <button className="ac-btn ac-btn-sm ac-btn-danger" onClick={() => removeProfile(p.id)}>
+                  Remove
+                </button>
+              )}
+            </div>
+          ))
+        )}
+        {adding ? (
+          <form
+            onSubmit={(e) => { e.preventDefault(); addProfile(adding); }}
+            style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}
+          >
+            <input
+              className="ac-input"
+              autoFocus
+              placeholder={adding === 'kids' ? 'Kids profile name' : 'Profile name'}
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              style={{ flex: 1, minWidth: 200 }}
+            />
+            <button type="submit" className="ac-btn ac-btn-primary">Add</button>
+            <button type="button" className="ac-btn" onClick={() => { setAdding(null); setNewName(''); }}>Cancel</button>
+          </form>
+        ) : profiles.length < 6 && (
+          <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
+            <button className="ac-btn ac-btn-primary" onClick={() => setAdding('profile')}>+ Add profile</button>
+            <button className="ac-btn" onClick={() => setAdding('kids')}>+ Add Kids profile</button>
           </div>
-          <ActionButton>Edit</ActionButton>
-        </div>
-        <div className="ac-device">
-          <div className="ac-device-icon">🧒</div>
-          <div className="ac-device-meta">
-            <div className="ac-device-name">Kids</div>
-            <div className="ac-device-sub">Kids profile · cap at PG · 22 channels visible · 90 min/day limit</div>
-          </div>
-          <ActionButton>Edit</ActionButton>
-        </div>
-        <ActionButton className="ac-btn ac-btn-primary" style={{ marginTop: 14 }} doneLabel="Profile added ✓">+ Add profile</ActionButton>
+        )}
       </div>
 
       <div className="ac-card">
         <div className="ac-card-title">Channel block list</div>
         <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, marginTop: 0 }}>
-          Hide specific channels from this profile entirely (they don't appear in the rail or search).
+          Hide specific channels from this profile entirely (they don&apos;t appear in the rail or search).
         </p>
         <form onSubmit={(e) => { e.preventDefault(); addBlock(); }}>
           <input
             className="ac-input"
-            placeholder="Search and block channels…"
+            placeholder="Channel name to block, then Enter…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </form>
-        <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {blocked.map(n => (
-            <button
-              key={n}
-              onClick={() => remove(n)}
-              style={{
-                padding: '6px 12px',
-                background: 'var(--ns-bg-hover)',
-                border: '1px solid var(--ns-border)',
-                borderRadius: 999,
-                fontSize: 13,
-                display: 'flex', alignItems: 'center', gap: 6,
-                color: 'var(--ns-text)',
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-              title="Click to remove"
-            >
-              {n} <span style={{ color: 'var(--ns-text-faint)' }}>×</span>
-            </button>
-          ))}
-        </div>
+        {blocked.length === 0 ? (
+          <p style={{ marginTop: 14, color: 'var(--ns-text-faint)', fontSize: 13 }}>
+            No channels are currently blocked.
+          </p>
+        ) : (
+          <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {blocked.map((n) => (
+              <button
+                key={n}
+                onClick={() => removeBlock(n)}
+                style={{
+                  padding: '6px 12px',
+                  background: 'var(--ns-bg-hover)',
+                  border: '1px solid var(--ns-border)',
+                  borderRadius: 999,
+                  fontSize: 13,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  color: 'var(--ns-text)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+                title="Click to remove"
+              >
+                {n} <span style={{ color: 'var(--ns-text-faint)' }}>×</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </Shell>
   );

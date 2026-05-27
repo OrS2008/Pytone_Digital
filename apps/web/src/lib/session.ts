@@ -16,6 +16,7 @@ const KEY_EMAIL     = 'ns.session.email';
 const KEY_ACTIVATED = 'ns.session.activated';
 const KEY_NAME      = 'ns.session.name';
 const KEY_PICTURE   = 'ns.session.picture';
+const KEY_TRIAL_AT  = 'ns.session.trialStartedAt';
 
 export function getSessionEmail(): string | null {
   if (typeof window === 'undefined') return null;
@@ -38,9 +39,33 @@ export function isActivated(): boolean {
 
 export function setActivated(on: boolean) {
   try {
-    if (on) localStorage.setItem(KEY_ACTIVATED, '1');
-    else    localStorage.removeItem(KEY_ACTIVATED);
+    if (on) {
+      localStorage.setItem(KEY_ACTIVATED, '1');
+      // First activation also starts the trial clock so the
+      // subscription / overview screens have real "started" /
+      // "ends" dates to show instead of em-dashes.
+      if (!localStorage.getItem(KEY_TRIAL_AT)) {
+        localStorage.setItem(KEY_TRIAL_AT, String(Date.now()));
+      }
+    } else {
+      localStorage.removeItem(KEY_ACTIVATED);
+    }
   } catch { /* ignore */ }
+}
+
+// Trial timing. Returns 0 if the trial hasn't been started yet — the UI
+// hides the dates in that case rather than rendering "Jan 1, 1970".
+export function getTrialStartedAt(): number {
+  if (typeof window === 'undefined') return 0;
+  try {
+    const v = localStorage.getItem(KEY_TRIAL_AT);
+    return v ? Number(v) || 0 : 0;
+  } catch { return 0; }
+}
+export const TRIAL_DAYS = 7;
+export function getTrialEndsAt(): number {
+  const start = getTrialStartedAt();
+  return start === 0 ? 0 : start + TRIAL_DAYS * 24 * 60 * 60 * 1000;
 }
 
 export function getSessionName():    string | null { if (typeof window === 'undefined') return null; try { return localStorage.getItem(KEY_NAME); }    catch { return null; } }
@@ -56,6 +81,8 @@ export function signOut() {
     localStorage.removeItem(KEY_ACTIVATED);
     localStorage.removeItem(KEY_NAME);
     localStorage.removeItem(KEY_PICTURE);
+    // The trial clock is per-account, not per-session — leave it so a
+    // re-login doesn't reset the 7-day window.
   } catch { /* ignore */ }
   if (typeof window !== 'undefined') window.location.href = '/tv/login';
 }

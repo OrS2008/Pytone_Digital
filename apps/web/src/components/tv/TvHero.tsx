@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation';
 import { useCurrentZone, useSetZone } from './TvFocus';
 import { getCachedChannels, loadChannels } from '@/lib/channelCache';
 import { proxiedStreamUrl } from '@/lib/streamProxy';
+import { useT } from '@/lib/i18n';
 import type { M3UChannel } from '@/lib/m3u';
 
 const ZONE = 'hero';
@@ -51,6 +52,7 @@ export default function TvHero() {
   const router    = useRouter();
   const focusHero = useSetZone(ZONE);
   const current   = useCurrentZone();
+  const { t } = useT();
   const [btn, setBtn] = useState(0);
 
   const [channels, setChannels] = useState<M3UChannel[]>(
@@ -159,28 +161,27 @@ export default function TvHero() {
   };
   const onMoreInfo = () => router.push('/tv/live');
 
-  // Pure splash fallback when no playlist is configured.
+  // Splash when no playlist is configured. No fake imagery — a clean
+  // gradient + clear next action. We intentionally don't ship a "demo
+  // catalogue" anymore because paying customers found the placeholder
+  // content misleading.
   if (!current_channel) {
     return (
-      <section className="tv-hero" onMouseEnter={focusHero}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="https://picsum.photos/seed/novastream-tv-hero/1920/1080" alt="" />
+      <section className="tv-hero tv-hero-empty" onMouseEnter={focusHero}>
         <div className="tv-hero-shade" />
         <div className="tv-hero-content">
-          <div className="tv-hero-eyebrow">Welcome</div>
-          <h1 className="tv-hero-title">Add a playlist to start watching</h1>
-          <p className="tv-hero-sub">
-            Drop your M3U URL in Account → Sources. Your channels will appear here.
-          </p>
+          <div className="tv-hero-eyebrow">{t('hero.welcome')}</div>
+          <h1 className="tv-hero-title">{t('hero.bringYourOwn')}</h1>
+          <p className="tv-hero-sub">{t('hero.bringYourOwnSub')}</p>
           <div className="tv-hero-actions">
             <button
               onClick={() => router.push('/tv/account/sources')}
               className={`tv-btn tv-btn-primary ${current === ZONE && btn === 0 ? 'focused' : ''}`}
-            >Add playlist</button>
+            >{t('hero.addPlaylist')}</button>
             <button
-              onClick={onMoreInfo}
+              onClick={() => router.push('/tv/account/help')}
               className={`tv-btn ${current === ZONE && btn === 1 ? 'focused' : ''}`}
-            >Browse demo</button>
+            >{t('hero.howWorks')}</button>
           </div>
         </div>
       </section>
@@ -215,20 +216,20 @@ export default function TvHero() {
       )}
       <div className="tv-hero-shade" />
       <div className="tv-hero-content">
-        <div className="tv-hero-eyebrow">Live now · {current_channel.category}</div>
+        <div className="tv-hero-eyebrow">{t('hero.liveNowCategory')} · {current_channel.category}</div>
         <h1 className="tv-hero-title">{current_channel.name}</h1>
         <p className="tv-hero-sub">
-          Channel #{current_channel.number} streaming live. Hit Play to open in the channel rail.
+          #{current_channel.number} · {current_channel.category}
         </p>
         <div className="tv-hero-actions">
           <button
             onClick={onPlay}
             className={`tv-btn tv-btn-primary ${current === ZONE && btn === 0 ? 'focused' : ''}`}
-          >▶ Play</button>
+          >▶ {t('hero.playNow')}</button>
           <button
             onClick={onMoreInfo}
             className={`tv-btn ${current === ZONE && btn === 1 ? 'focused' : ''}`}
-          >Browse all channels</button>
+          >{t('hero.browseAll')}</button>
         </div>
         {featured.length > 1 && (
           <div style={{

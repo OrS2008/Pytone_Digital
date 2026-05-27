@@ -22,7 +22,6 @@ import ChannelRail from '@/components/tv/live/ChannelRail';
 import PlayerSurface from '@/components/tv/live/PlayerSurface';
 import InfoBar from '@/components/tv/live/InfoBar';
 import NumberZap from '@/components/tv/live/NumberZap';
-import { MOCK_CHANNELS } from '@/components/tv/live/mockChannels';
 import type { Channel } from '@/components/tv/live/types';
 import { userKey } from '@/lib/session';
 import { recordWatch } from '@/lib/watchHistory';
@@ -30,6 +29,7 @@ import { getCachedChannels, getUserSourceUrl, loadChannelsResult } from '@/lib/c
 import { loadEpgIndex, hydrateChannels, getUserEpgUrl } from '@/lib/epgCache';
 import { proxiedStreamUrl } from '@/lib/streamProxy';
 import { buildCatchupUrl } from '@/lib/catchup';
+import { useT } from '@/lib/i18n';
 import './live.css';
 
 type LoadState =
@@ -41,8 +41,9 @@ type LoadState =
 
 export default function LivePage() {
   // Synchronous hydration: if the cache already has the user's
-  // playlist from a previous visit / route, use it instantly. Mock
-  // channels only ever show for users with no playlist configured.
+  // playlist from a previous visit / route, use it instantly.
+  // Otherwise the rail starts empty and the page renders an
+  // "add your playlist" empty state — no demo channels.
   const initialCached = (() => {
     if (typeof window === 'undefined') return null;
     return getCachedChannels();
@@ -57,7 +58,7 @@ export default function LivePage() {
     return idx >= 0 ? { idx, watch: true, startMs } : { idx: 0, watch: false, startMs };
   })();
 
-  const [channels, setChannels] = useState<Channel[]>(initialCached ?? MOCK_CHANNELS);
+  const [channels, setChannels] = useState<Channel[]>(initialCached ?? []);
   const [activeIdx, setActiveIdx] = useState(initialDeep.idx);
   const [infoVisible, setInfoVisible] = useState(true);
   const [watching, setWatching] = useState(initialDeep.watch);
@@ -297,6 +298,7 @@ export default function LivePage() {
     [channels, tune],
   );
 
+  const { t } = useT();
   const layout = useMemo(() => 'live-layout' + (watching ? ' watching' : ''), [watching]);
   return (
     <TvFocusProvider>
@@ -312,10 +314,20 @@ export default function LivePage() {
           </div>
         )}
         {!watching && load.kind === 'mock' && (
-          <div className="live-status">
-            <Link href="/tv/account/sources" className="live-status-link">
-              Add your playlist to see your channels →
-            </Link>
+          <div className="live-empty">
+            <div className="live-empty-card">
+              <div className="live-empty-icon">📺</div>
+              <h2 className="live-empty-title">{t('live.empty.title')}</h2>
+              <p className="live-empty-sub">{t('live.empty.sub')}</p>
+              <div className="live-empty-actions">
+                <Link href="/tv/account/sources" className="tv-btn tv-btn-primary">
+                  {t('live.empty.cta')}
+                </Link>
+                <Link href="/tv/account/help" className="tv-btn">
+                  {t('live.empty.help')}
+                </Link>
+              </div>
+            </div>
           </div>
         )}
         {!watching && load.kind === 'error' && (
@@ -343,7 +355,7 @@ export default function LivePage() {
           />
         )}
 
-        <div className="live-body">
+        <div className="live-body" style={channels.length === 0 ? { display: 'none' } : undefined}>
           <ChannelRail
             channels={channels}
             activeIdx={activeIdx}

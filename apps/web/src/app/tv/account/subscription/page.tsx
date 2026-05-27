@@ -7,12 +7,28 @@
 // user can audit charges, plus the current plan state.
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Shell from '../Shell';
+import { getTrialStartedAt, getTrialEndsAt } from '@/lib/session';
+
+function fmtDate(ms: number): string {
+  if (!ms) return '—';
+  return new Date(ms).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function daysLeft(endsAt: number): number {
+  if (!endsAt) return 0;
+  return Math.max(0, Math.ceil((endsAt - Date.now()) / (24 * 60 * 60 * 1000)));
+}
 
 export default function Subscription() {
   const [cancelling, setCancelling] = useState(false);
   const [cancelled,  setCancelled]  = useState(false);
+  const [trial, setTrial] = useState<{ startedAt: number; endsAt: number }>({ startedAt: 0, endsAt: 0 });
+
+  useEffect(() => {
+    setTrial({ startedAt: getTrialStartedAt(), endsAt: getTrialEndsAt() });
+  }, []);
+  const left = daysLeft(trial.endsAt);
 
   return (
     <Shell active="subscription">
@@ -36,8 +52,10 @@ export default function Subscription() {
           7-day trial. 1 concurrent device. All features unlocked.
         </p>
         <dl className="ac-detail">
-          <dt>Trial started</dt><dd>—</dd>
-          <dt>Trial ends</dt><dd>—</dd>
+          <dt>Trial started</dt><dd>{fmtDate(trial.startedAt)}</dd>
+          <dt>Trial ends</dt><dd>
+            {trial.endsAt ? `${fmtDate(trial.endsAt)} · ${left} day${left === 1 ? '' : 's'} left` : '—'}
+          </dd>
           <dt>Device limit</dt><dd>1 of 1 used</dd>
           <dt>Cost so far</dt><dd>$0.00</dd>
         </dl>

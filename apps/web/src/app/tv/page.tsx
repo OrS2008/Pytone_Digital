@@ -4,20 +4,16 @@ import { useEffect, useState } from 'react';
 import { TvFocusProvider, useSetZone } from '@/components/tv/TvFocus';
 import TvNav from '@/components/tv/TvNav';
 import TvHero from '@/components/tv/TvHero';
-import TvHomeRow from '@/components/tv/TvHomeRow';
 import SmartHomeRow from '@/components/tv/SmartHomeRow';
 import ContinueWatchingRow from '@/components/tv/ContinueWatchingRow';
 import { getCachedChannels, loadChannels } from '@/lib/channelCache';
 import { useT } from '@/lib/i18n';
 
-/*
- * /tv — the TV-optimised home screen.
- *
- * Layout: hero up top, then a series of rows. When the user has a
- * playlist loaded we fill the rows with their actual channels grouped
- * by SmartHomeRow's category scorer. Without a playlist we fall back
- * to the legacy picsum-backed rows so the screen still looks alive.
- */
+// /tv — the TV-optimised home screen.
+//
+// When the user has a playlist, we render category rows backed by their
+// real channels via SmartHomeRow. With no playlist we render a clean
+// CTA pointing them to Sources — no fake content, no placeholders.
 
 function TvHomeInner() {
   const focusHero = useSetZone('hero');
@@ -28,8 +24,6 @@ function TvHomeInner() {
 
   useEffect(() => { focusHero(); }, [focusHero]);
 
-  // If the cache is empty on mount we kick a load — the row components
-  // each subscribe and re-render once channels arrive.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -46,37 +40,20 @@ function TvHomeInner() {
       <div style={{ marginTop: 32, paddingBottom: 64 }}>
         <ContinueWatchingRow />
 
-        {hasPlaylist ? (
+        {hasPlaylist && (
           <>
             <SmartHomeRow title={t('home.liveNow')}     pick="live"          limit={12} />
             <SmartHomeRow title={t('home.sports')}      pick="sports"        limit={12} />
             <SmartHomeRow title={t('home.recommended')} pick="entertainment" limit={12} />
             <SmartHomeRow title={t('home.recent')}      pick="movies"        limit={12} />
-            <SmartHomeRow title="News"                  pick="news"          limit={12} />
-            <SmartHomeRow title="Kids"                  pick="kids"          limit={12} />
-            <SmartHomeRow title="Music"                 pick="music"         limit={12} />
-            <SmartHomeRow title="Documentaries"         pick="documentary"   limit={12} />
+            <SmartHomeRow title={t('home.news')}        pick="news"          limit={12} />
+            <SmartHomeRow title={t('home.kids')}        pick="kids"          limit={12} />
+            <SmartHomeRow title={t('home.music')}       pick="music"         limit={12} />
+            <SmartHomeRow title={t('home.documentaries')} pick="documentary" limit={12} />
           </>
-        ) : (
-          // Fallback when no playlist is configured — the legacy rows
-          // give the home a "filled" look until the user adds a source.
-          [
-            { id: 'home-live',       title: t('home.liveNow') },
-            { id: 'home-sports',     title: t('home.sports') },
-            { id: 'home-trending',   title: t('home.trending') },
-            { id: 'home-recommended',title: t('home.recommended') },
-            { id: 'home-recent',     title: t('home.recent') },
-            { id: 'home-replay',     title: t('home.replay') },
-          ].map((r, i, arr) => (
-            <TvHomeRow
-              key={r.id}
-              zoneId={r.id}
-              title={r.title}
-              upZone={i === 0 ? 'hero' : arr[i - 1].id}
-              downZone={i === arr.length - 1 ? undefined : arr[i + 1].id}
-            />
-          ))
         )}
+        {/* When no playlist is configured the hero already carries the
+            "Add my playlist" CTA — we don't duplicate it below. */}
       </div>
     </main>
   );
