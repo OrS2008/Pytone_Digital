@@ -114,14 +114,13 @@ export function* iterProgrammes(xml: string): Generator<EpgProgramme> {
   }
 }
 
-// Group programmes per channel id, sorted by start time. We only keep
-// programmes that haven't ended yet — the "current" + "next" + future
-// slots are all we display in this UI.
+// Group programmes per channel id, sorted by start time. The index
+// keeps EVERY programme (past, present, future) so both Live (which
+// picks now / next) and Catch-up (which picks the last N days) can
+// reuse the same parse pass.
 export function indexProgrammes(xml: string): Map<string, EpgProgramme[]> {
-  const now = Date.now();
   const out: Map<string, EpgProgramme[]> = new Map();
   for (const prog of iterProgrammes(xml)) {
-    if (prog.stop < now) continue;
     const arr = out.get(prog.channelId);
     if (arr) arr.push(prog);
     else out.set(prog.channelId, [prog]);
