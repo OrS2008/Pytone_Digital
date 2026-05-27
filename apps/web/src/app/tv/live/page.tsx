@@ -457,6 +457,11 @@ export default function LivePage() {
               onTune={(i) => tune(i, { enterWatching: true })}
               activeIdx={activeIdx}
               channels={channels}
+              inCatchup={catchupMs > 0}
+              onReturnLive={() => setCatchupMs(0)}
+              onRestartProgramme={() => {
+                if (active?.now) setCatchupMs(active.now.start.getTime());
+              }}
             />
           </div>
         )}

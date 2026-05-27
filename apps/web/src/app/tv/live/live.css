@@ -122,74 +122,131 @@
   font-size: 96px; font-weight: 800; color: #2B3142; letter-spacing: -3px;
 }
 
-/* --- Info bar (HOT/YES-style channel banner) ------------------------ */
+/* --- Info bar — the channel banner shown over the player ------------
+   A floating card pinned to the bottom of the player. Slides up
+   from below and dismisses with the auto-hide window. Layout:
+
+       header  channel chip · clock
+       body    programme metadata · coming-up sidebar
+       footer  primary actions · volume control
+
+   The body grid uses min-width:0 columns so long Hebrew descriptions
+   can't push the Coming Up column off the side of the screen. The
+   actions row keeps its label-bearing pill buttons on the left and
+   the volume control flush-right via justify-content. */
 .infobar {
   position: absolute;
-  left: 0; right: 0; bottom: 0;
-  background: linear-gradient(to top, #06070AEE 0%, #06070ACC 60%, #06070A00 100%);
-  padding: 24px 48px 32px;
-  transform: translateY(120%);
-  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  left: 16px; right: 16px; bottom: 16px;
+  background:
+    linear-gradient(180deg, rgba(15,17,22,0.92) 0%, rgba(10,11,16,0.96) 100%);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 18px;
+  padding: 18px 24px 16px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.55);
+  backdrop-filter: blur(12px);
+  transform: translateY(140%);
+  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1), opacity 200ms ease-out;
+  opacity: 0;
   pointer-events: none;
+  display: flex; flex-direction: column;
+  gap: 14px;
 }
 .infobar.visible {
   transform: translateY(0);
+  opacity: 1;
   pointer-events: auto;
 }
 
-.infobar-row1 {
-  display: flex;
-  align-items: center;
+/* --- Header: channel chip on the left, clock on the right ------------ */
+.infobar-header {
+  display: flex; align-items: center;
   gap: 18px;
+}
+.infobar-header-chip {
+  display: flex; align-items: center; gap: 12px;
+  min-width: 0;
 }
 .infobar-num {
   background: #FF3B6E;
-  color: white;
+  color: #fff;
   font-weight: 800;
-  font-size: 22px;
-  padding: 6px 14px;
+  font-size: 18px;
+  padding: 4px 12px;
   border-radius: 8px;
   font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 .infobar-logo {
-  width: 56px; height: 40px;
+  width: 48px; height: 36px;
   background: #11141B;
   border-radius: 6px;
   display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
 }
-.infobar-logo img { max-width: 52px; max-height: 36px; object-fit: contain; }
-.infobar-chname { font-size: 22px; font-weight: 700; }
-.infobar-clock {
-  margin-left: auto;
-  font-variant-numeric: tabular-nums;
+.infobar-logo img { max-width: 44px; max-height: 32px; object-fit: contain; }
+.infobar-chname {
   font-size: 18px;
-  color: #B7BEC9;
+  font-weight: 700;
+  color: #E9EBF1;
+  white-space: nowrap; text-overflow: ellipsis; overflow: hidden;
+}
+.infobar-mode-chip {
+  font-size: 10px; font-weight: 800; letter-spacing: 1.5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(255,59,110,0.18);
+  color: #FF6B7B;
+  border: 1px solid rgba(255,107,123,0.35);
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+.infobar-clock {
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+  font-size: 16px;
+  font-weight: 600;
+  color: #8B95A7;
+  flex-shrink: 0;
 }
 
-.infobar-row2 {
-  margin-top: 14px;
+/* --- Body: programme metadata + coming-up sidebar -------------------- */
+.infobar-body {
   display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 48px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+  gap: 32px;
   align-items: start;
 }
+.infobar-now {
+  min-width: 0;
+}
 .infobar-now-title {
-  font-size: 32px;
-  font-weight: 700;
-  line-height: 1.1;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.2px;
   margin: 0;
+  color: #fff;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
-.infobar-now-time {
+.infobar-now-meta {
   margin-top: 6px;
-  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
   color: #B7BEC9;
+  font-variant-numeric: tabular-nums;
 }
+.infobar-now-meta-dot { color: #4B5160; }
+.infobar-now-meta-empty { font-style: italic; color: #6E7480; }
 .infobar-now-desc {
-  margin-top: 10px;
-  font-size: 15px;
-  color: #B7BEC9;
-  line-height: 1.4;
-  max-width: 720px;
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #8B95A7;
+  line-height: 1.45;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -198,85 +255,102 @@
 
 .progressbar {
   position: relative;
-  height: 4px;
-  background: rgba(255,255,255,0.12);
+  height: 3px;
+  background: rgba(255,255,255,0.08);
   border-radius: 2px;
-  margin-top: 16px;
+  margin-top: 12px;
   overflow: hidden;
 }
 .progressbar-fill {
   position: absolute; left: 0; top: 0; bottom: 0;
-  background: #FF3B6E;
+  background: linear-gradient(90deg, #FF3B6E 0%, #FF6B7B 100%);
+  transition: width 800ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .infobar-next {
-  border-left: 1px solid #1F232C;
-  padding-left: 24px;
+  min-width: 0;
+  padding-inline-start: 24px;
+  border-inline-start: 1px solid rgba(255,255,255,0.06);
 }
 .infobar-next-title {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 800;
   letter-spacing: 2px;
   color: #6E7480;
   text-transform: uppercase;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 .infobar-next-row {
   display: grid;
-  grid-template-columns: 56px 1fr;
+  grid-template-columns: 48px 1fr;
   gap: 10px;
-  padding: 6px 0;
+  padding: 4px 0;
   align-items: baseline;
+  min-width: 0;
 }
 .infobar-next-time {
   font-variant-numeric: tabular-nums;
   color: #B7BEC9;
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: 700;
 }
 .infobar-next-name {
   color: #E9EBF1;
-  font-size: 15px;
+  font-size: 13px;
   white-space: nowrap; text-overflow: ellipsis; overflow: hidden;
+  min-width: 0;
 }
 
-.infobar-actions {
-  margin-top: 18px;
+/* --- Footer: actions on one side, volume on the other ---------------- */
+.infobar-footer {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  margin-top: 2px;
+}
+.infobar-actions {
+  display: flex;
+  gap: 6px;
   flex-wrap: wrap;
   align-items: center;
+  flex: 1;
+  min-width: 0;
 }
 
-/* Volume control — speaker toggle + slider + percentage. Lives
-   inline with the other action buttons so it doesn't take a row of
-   its own at the typical desktop width. */
+/* Volume control — speaker icon + slider + percentage.
+   Sits in the footer opposite the action buttons. Flex layout keeps
+   it tight and right-aligned regardless of how many action buttons
+   are visible. */
 .infobar-volume {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-inline-start: auto;
-  padding: 8px 14px;
-  background: rgba(255,255,255,0.06);
-  border-radius: 10px;
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 8px;
   border: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
 }
 .infobar-volume-btn {
   background: transparent;
   color: #E9EBF1;
   border: 0;
-  font-size: 20px;
+  font-size: 16px;
   width: 28px; height: 28px;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   border-radius: 6px;
+  padding: 0;
 }
 .infobar-volume-btn:hover { background: rgba(255,255,255,0.08); }
 .infobar-volume-slider {
   -webkit-appearance: none;
   appearance: none;
-  width: 140px;
+  width: 120px;
   height: 4px;
-  background: rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.15);
   border-radius: 2px;
   outline: none;
   cursor: pointer;
@@ -285,42 +359,74 @@
   -webkit-appearance: none;
   appearance: none;
   width: 14px; height: 14px;
-  background: #FF3B6E;
+  background: #fff;
   border-radius: 50%;
   cursor: pointer;
   border: 0;
   transition: transform 100ms ease-out;
+  box-shadow: 0 0 0 4px rgba(255,255,255,0.08);
 }
-.infobar-volume-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+.infobar-volume-slider::-webkit-slider-thumb:hover { transform: scale(1.15); }
 .infobar-volume-slider::-moz-range-thumb {
   width: 14px; height: 14px;
-  background: #FF3B6E;
+  background: #fff;
   border-radius: 50%;
   cursor: pointer;
   border: 0;
 }
 .infobar-volume-pct {
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
   color: #B7BEC9;
-  min-width: 36px;
-  text-align: right;
+  min-width: 32px;
+  text-align: end;
 }
 .infobar-btn {
-  padding: 12px 22px;
-  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  font-size: 13px;
   font-weight: 700;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.08);
+  font-family: inherit;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.07);
   color: #E9EBF1;
-  border: 3px solid transparent;
+  border: 1px solid rgba(255,255,255,0.06);
   outline: none;
   cursor: pointer;
+  transition: background 120ms ease, transform 120ms ease, border-color 120ms ease;
+  white-space: nowrap;
 }
-.infobar-btn.primary { background: #FF3B6E; color: white; }
-.infobar-btn:focus, .infobar-btn.focused {
+.infobar-btn:hover:not(:disabled) {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.14);
+}
+.infobar-btn:active:not(:disabled) { transform: scale(0.97); }
+.infobar-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.infobar-btn.primary {
+  background: #FF3B6E;
+  color: #fff;
+  border-color: #FF3B6E;
+}
+.infobar-btn.primary:hover:not(:disabled) {
+  background: #FF5481;
+  border-color: #FF5481;
+}
+.infobar-btn:focus-visible, .infobar-btn.focused {
   border-color: rgba(255,255,255,0.85);
-  transform: scale(1.04);
+  transform: scale(1.03);
+}
+.infobar-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
 }
 
 /* --- Number-zap overlay --------------------------------------------- */
@@ -356,12 +462,23 @@
   .rail-now  { font-size: 12px; }
   .rail-next { font-size: 11px; }
   .player-surface .placeholder-meta .ch-num { font-size: 60px; }
-  .infobar { padding: 14px 18px 18px; }
-  .infobar-chname { font-size: 16px; }
-  .infobar-now-title { font-size: 18px; }
-  .infobar-row2 { grid-template-columns: 1fr; gap: 14px; }
-  .infobar-next { border-left: 0; padding-left: 0; border-top: 1px solid #1F232C; padding-top: 12px; }
-  .infobar-btn { padding: 8px 14px; font-size: 13px; }
+
+  /* Compact info bar: stack the body, keep the header + footer
+     horizontal but tighter, hide the percentage label to save room. */
+  .infobar { left: 8px; right: 8px; bottom: 8px; padding: 14px 14px 12px; gap: 10px; }
+  .infobar-chname { font-size: 15px; }
+  .infobar-now-title { font-size: 16px; }
+  .infobar-body { grid-template-columns: 1fr; gap: 12px; }
+  .infobar-next {
+    border-inline-start: 0;
+    padding-inline-start: 0;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    padding-top: 10px;
+  }
+  .infobar-footer { flex-wrap: wrap; }
+  .infobar-btn { padding: 7px 12px; font-size: 12px; }
+  .infobar-volume-slider { width: 80px; }
+  .infobar-volume-pct { display: none; }
   .numzap { font-size: 40px; top: 80px; right: 14px; padding: 10px 18px; }
 }
 
