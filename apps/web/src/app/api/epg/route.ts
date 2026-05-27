@@ -59,7 +59,9 @@ export async function GET(req: NextRequest) {
     try {
       upstream = await fetch(u.toString(), {
         // accept gzip so a typical 80 MB XMLTV ships in ~6 MB and
-        // streams much faster across the wire
+        // streams much faster across the wire. The runtime
+        // auto-decompresses HTTP transport encoding, so by the time
+        // we read upstream.body it's the raw resource bytes.
         headers: { 'user-agent': 'Nova Stream/1.0', 'accept-encoding': 'gzip, deflate' },
         redirect: 'follow',
         signal: ac.signal,
@@ -72,7 +74,28 @@ export async function GET(req: NextRequest) {
     return new Response(`upstream returned ${upstream.status}`, { status: 502 });
   }
 
-  const reader = upstream.body.getReader();
+  // Many providers publish .xml.gz instead of .xml. The HTTP transport
+  // gzip is already unwrapped above; what we have left is a raw
+  // gzipped FILE (resource-level compression), which is a different
+  // beast. We detect it by URL suffix and by the upstream
+  // content-type, then pipe through a DecompressionStream so the
+  // client receives plain XML and our parser works.
+  const upstreamCt = (upstream.headers.get('content-type') || '').toLowerCase();
+  const looksGz =
+       /\.gz(?:\?|$)/i.test(u.pathname)
+    || upstreamCt.includes('gzip')
+    || upstreamCt.includes('x-gzip');
+  let bodyStream: ReadableStream<Uint8Array> = upstream.body;
+  if (looksGz) {
+    try {
+      bodyStream = upstream.body.pipeThrough(new DecompressionStream('gzip'));
+    } catch {
+      // DecompressionStream unsupported in this runtime — fall back
+      // to the raw body and hope the client can cope.
+    }
+  }
+
+  const reader = bodyStream.getReader();
   let total = 0;
   const stream = new ReadableStream({
     async pull(controller) {
