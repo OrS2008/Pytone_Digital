@@ -75,11 +75,30 @@ export function parseM3U(text: string): M3UChannel[] {
   const out: M3UChannel[] = [];
   let pending: ExtInf | null = null;
   let positional = 0;
+  // Header-level defaults. Some providers (Xtream Codes especially)
+  // declare catchup once on the #EXTM3U line and expect every channel
+  // below to inherit it. Without inheriting, we'd think nothing on the
+  // playlist supports DVR.
+  const defaults: Pick<ExtInf, 'catchupKind' | 'catchupSource' | 'catchupDays'> = {};
 
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) continue;
-    if (line.startsWith('#EXTM3U')) continue;
+    if (line.startsWith('#EXTM3U')) {
+      // Parse attributes off the header so per-channel entries can
+      // omit catchup= and still inherit it.
+      const head = line.slice('#EXTM3U'.length);
+      let m: RegExpExecArray | null;
+      ATTR.lastIndex = 0;
+      while ((m = ATTR.exec(head)) !== null) {
+        const k = m[1].toLowerCase();
+        const v = m[2];
+        if (k === 'catchup' || k === 'catchup-type') defaults.catchupKind   = v.toLowerCase();
+        if (k === 'catchup-source')                  defaults.catchupSource = v;
+        if (k === 'catchup-days')                    defaults.catchupDays   = Number(v) || undefined;
+      }
+      continue;
+    }
     if (line.startsWith('#EXTINF:')) { pending = parseExtInf(line); continue; }
     if (line.startsWith('#')) continue; // ignore other directives (EXTGRP, EXTVLCOPT, etc.)
     if (!pending) continue;             // url with no preceding EXTINF, skip
@@ -94,9 +113,9 @@ export function parseM3U(text: string): M3UChannel[] {
       category:      pending.group   || 'Uncategorised',
       streamUrl:     line,
       tvgId:         pending.tvgId,
-      catchupKind:   pending.catchupKind,
-      catchupSource: pending.catchupSource,
-      catchupDays:   pending.catchupDays,
+      catchupKind:   pending.catchupKind   ?? defaults.catchupKind,
+      catchupSource: pending.catchupSource ?? defaults.catchupSource,
+      catchupDays:   pending.catchupDays   ?? defaults.catchupDays,
     });
     pending = null;
   }

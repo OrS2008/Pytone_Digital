@@ -473,12 +473,14 @@ export default function LivePage() {
 }
 
 // Floating banner shown over the player when we're in catch-up mode.
-// Two states:
-//   - the channel supports DVR        → "Replaying from HH:MM" + Return-live
-//   - the channel doesn't support DVR → explanation + Return-live (we
-//                                       fall through to the live edge
-//                                       so the user isn't staring at
-//                                       a frozen frame)
+// Two distinct UIs:
+//   - error    → big, centred, blocking-looking card that explains
+//                exactly why the past programme isn't playing and
+//                lays out the options. We commit to making this
+//                unmissable because falling through to the live edge
+//                silently is what tripped users up before.
+//   - success  → small pill at the top showing the replay timestamp
+//                and a one-tap Return-to-live shortcut.
 function CatchupBanner({
   startMs,
   error,
@@ -494,6 +496,82 @@ function CatchupBanner({
   const label =
     `${String(when.getDate()).padStart(2, '0')}/${String(when.getMonth() + 1).padStart(2, '0')} ` +
     `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`;
+
+  if (error) {
+    return (
+      <div
+        role="alert"
+        style={{
+          position: 'absolute',
+          inset: fullscreen ? '0' : '0',
+          background: 'rgba(6, 7, 10, 0.78)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          zIndex: 5,
+        }}
+      >
+        <div style={{
+          maxWidth: 520,
+          background: '#10131A',
+          border: '1px solid rgba(255,107,123,0.35)',
+          borderRadius: 16,
+          padding: '24px 26px',
+          color: '#E9EBF1',
+          textAlign: 'center',
+          boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
+        }}>
+          <div style={{ fontSize: 36, marginBottom: 8 }}>⚠</div>
+          <h3 style={{
+            margin: '0 0 8px',
+            fontSize: 18,
+            fontWeight: 800,
+            color: '#FF6B7B',
+          }}>
+            Catch-up not available
+          </h3>
+          <p style={{ margin: '0 0 6px', fontSize: 14, color: '#E9EBF1', lineHeight: 1.5 }}>
+            You asked to replay from{' '}
+            <strong style={{ color: '#fff' }}>{label}</strong>, but this channel can&apos;t.
+          </p>
+          <p style={{ margin: '0 0 18px', fontSize: 13, color: '#B7BEC9', lineHeight: 1.5 }}>
+            {error}
+          </p>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={onReturnLive}
+              style={{
+                background: '#FF3B6E', color: '#fff',
+                border: 0, borderRadius: 10,
+                padding: '10px 20px',
+                fontWeight: 700, fontSize: 14,
+                cursor: 'pointer',
+              }}
+            >
+              ▶ Watch live instead
+            </button>
+            <Link
+              href="/tv/catchup"
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                color: '#E9EBF1',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 10,
+                padding: '10px 20px',
+                fontWeight: 700, fontSize: 14,
+                textDecoration: 'none',
+              }}
+            >
+              ← Back to catch-up
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       role="status"
@@ -506,18 +584,16 @@ function CatchupBanner({
         zIndex: 4,
         display: 'flex', alignItems: 'center', gap: 12,
         padding: '8px 14px',
-        background: error ? 'rgba(255,107,123,0.18)' : 'rgba(0, 0, 0, 0.65)',
-        border: '1px solid ' + (error ? 'rgba(255,107,123,0.45)' : 'rgba(255,255,255,0.15)'),
+        background: 'rgba(0, 0, 0, 0.65)',
+        border: '1px solid rgba(255,255,255,0.15)',
         borderRadius: 999,
         color: '#fff',
         fontSize: 13,
         backdropFilter: 'blur(8px)',
       }}
     >
-      <span style={{ fontWeight: 700 }}>{error ? '⚠' : '⏪'}</span>
-      <span style={{ maxWidth: 480, lineHeight: 1.35 }}>
-        {error ?? `Replaying from ${label}`}
-      </span>
+      <span style={{ fontWeight: 700 }}>⏪</span>
+      <span style={{ maxWidth: 480, lineHeight: 1.35 }}>Replaying from {label}</span>
       <button
         onClick={onReturnLive}
         style={{

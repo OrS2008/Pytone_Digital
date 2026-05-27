@@ -78,9 +78,49 @@ function expandTemplate(template: string, req: CatchupRequest): string {
   });
 }
 
+// Xtream Codes (the most common IPTV backend) uses a predictable URL
+// shape: live  → http://host:port/live/USER/PASS/STREAM_ID.m3u8
+//        catch → http://host:port/streaming/timeshift.php
+//                  ?username=USER&password=PASS&stream=STREAM_ID
+//                  &start=YYYY-MM-DD:HH-MM&duration=MIN
+// If the stream URL matches that shape we can build a working
+// timeshift URL even without explicit catchup= / catchup-source=
+// attributes — useful for the many providers that ship a barebones
+// M3U but still run a Xtream backend with DVR enabled.
+const XTREAM_LIVE_RE = /^(https?:\/\/[^/]+)\/live\/([^/]+)\/([^/]+)\/(\d+)(?:\.[a-z0-9]+)?(?:\?.*)?$/i;
+
+function inferXtreamCatchup(req: CatchupRequest): string | null {
+  const m = XTREAM_LIVE_RE.exec(req.channel.streamUrl);
+  if (!m) return null;
+  const [, base, user, pass, sid] = m;
+  const d = new Date(req.startMs);
+  const Y = d.getUTCFullYear();
+  const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const da = String(d.getUTCDate()).padStart(2, '0');
+  const H  = String(d.getUTCHours()).padStart(2, '0');
+  const M  = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${base}/streaming/timeshift.php`
+    + `?username=${encodeURIComponent(user)}`
+    + `&password=${encodeURIComponent(pass)}`
+    + `&stream=${sid}`
+    + `&start=${Y}-${mo}-${da}:${H}-${M}`
+    + `&duration=${req.durationMin}`;
+}
+
 export function buildCatchupUrl(req: CatchupRequest): CatchupResult {
   const ch = req.channel;
-  if (!ch.catchupKind && !ch.catchupSource) {
+
+  // "default" with an explicit catchup-source: just expand the template.
+  if (ch.catchupSource) {
+    return { url: expandTemplate(ch.catchupSource, req) };
+  }
+
+  if (!ch.catchupKind) {
+    // Last-resort: if the stream URL is recognisably a Xtream URL,
+    // try the timeshift endpoint. It either works (provider has DVR)
+    // or returns 404 (handled like any other unplayable stream).
+    const xt = inferXtreamCatchup(req);
+    if (xt) return { url: xt };
     return {
       url: null,
       reason:
@@ -88,11 +128,6 @@ export function buildCatchupUrl(req: CatchupRequest): CatchupResult {
         "Ask your provider for a playlist with catchup / catchup-source " +
         "attributes, or use a different provider that supports DVR.",
     };
-  }
-
-  // "default" with an explicit catchup-source: just expand the template.
-  if (ch.catchupSource) {
-    return { url: expandTemplate(ch.catchupSource, req) };
   }
 
   // No source template but a catchup kind is set. Fall back to the
