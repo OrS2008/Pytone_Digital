@@ -23,6 +23,14 @@ export interface M3UChannel {
   category: string;
   streamUrl: string;
   tvgId?: string;
+  // Catch-up support. Providers signal whether a channel has a DVR
+  // archive via `catchup="default"` (or "append" / "shift" / "flussonic")
+  // plus a `catchup-source` URL template that gets ${start}, ${duration}
+  // etc. substituted at playback time. Channels without these stay
+  // live-only — the catch-up UI tells the user so.
+  catchupKind?: string;
+  catchupSource?: string;
+  catchupDays?: number;
 }
 
 interface ExtInf {
@@ -31,6 +39,9 @@ interface ExtInf {
   tvgChno?: number;
   group?: string;
   name: string;
+  catchupKind?: string;
+  catchupSource?: string;
+  catchupDays?: number;
 }
 
 const ATTR = /([\w-]+)="([^"]*)"/g;
@@ -46,10 +57,14 @@ function parseExtInf(line: string): ExtInf | null {
   while ((m = ATTR.exec(head)) !== null) {
     const [, k, v] = m;
     switch (k.toLowerCase()) {
-      case 'tvg-id':       out.tvgId   = v; break;
-      case 'tvg-logo':     out.tvgLogo = v; break;
-      case 'group-title':  out.group   = v; break;
-      case 'tvg-chno':     out.tvgChno = Number(v) || undefined; break;
+      case 'tvg-id':         out.tvgId   = v; break;
+      case 'tvg-logo':       out.tvgLogo = v; break;
+      case 'group-title':    out.group   = v; break;
+      case 'tvg-chno':       out.tvgChno = Number(v) || undefined; break;
+      case 'catchup':
+      case 'catchup-type':   out.catchupKind   = v.toLowerCase(); break;
+      case 'catchup-source': out.catchupSource = v; break;
+      case 'catchup-days':   out.catchupDays   = Number(v) || undefined; break;
     }
   }
   return out;
@@ -72,13 +87,16 @@ export function parseM3U(text: string): M3UChannel[] {
     positional += 1;
     const number = pending.tvgChno ?? positional;
     out.push({
-      id:         pending.tvgId || `ch-${positional}`,
+      id:            pending.tvgId || `ch-${positional}`,
       number,
-      name:       pending.name,
-      logoUrl:    pending.tvgLogo || '',
-      category:   pending.group   || 'Uncategorised',
-      streamUrl:  line,
-      tvgId:      pending.tvgId,
+      name:          pending.name,
+      logoUrl:       pending.tvgLogo || '',
+      category:      pending.group   || 'Uncategorised',
+      streamUrl:     line,
+      tvgId:         pending.tvgId,
+      catchupKind:   pending.catchupKind,
+      catchupSource: pending.catchupSource,
+      catchupDays:   pending.catchupDays,
     });
     pending = null;
   }

@@ -24,4 +24,10 @@ export interface Channel {
   now?: Programme;
   next1?: Programme;
   next2?: Programme;
+  // Provider-side DVR / catch-up support, surfaced from the M3U.
+  // The /tv/live player consults these when ?start= is in the URL.
+  tvgId?: string;
+  catchupKind?: string;
+  catchupSource?: string;
+  catchupDays?: number;
 }

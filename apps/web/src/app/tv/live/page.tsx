@@ -29,6 +29,7 @@ import { recordWatch } from '@/lib/watchHistory';
 import { getCachedChannels, getUserSourceUrl, loadChannelsResult } from '@/lib/channelCache';
 import { loadEpgIndex, hydrateChannels, getUserEpgUrl } from '@/lib/epgCache';
 import { proxiedStreamUrl } from '@/lib/streamProxy';
+import { buildCatchupUrl } from '@/lib/catchup';
 import './live.css';
 
 type LoadState =
@@ -47,17 +48,24 @@ export default function LivePage() {
     return getCachedChannels();
   })();
   const initialDeep = (() => {
-    if (typeof window === 'undefined') return { idx: 0, watch: false };
-    const want = new URLSearchParams(window.location.search).get('ch');
-    if (!want || !initialCached) return { idx: 0, watch: false };
+    if (typeof window === 'undefined') return { idx: 0, watch: false, startMs: 0 };
+    const params = new URLSearchParams(window.location.search);
+    const want = params.get('ch');
+    const startMs = Number(params.get('start')) || 0;
+    if (!want || !initialCached) return { idx: 0, watch: false, startMs };
     const idx = initialCached.findIndex((c) => String(c.number) === want);
-    return idx >= 0 ? { idx, watch: true } : { idx: 0, watch: false };
+    return idx >= 0 ? { idx, watch: true, startMs } : { idx: 0, watch: false, startMs };
   })();
 
   const [channels, setChannels] = useState<Channel[]>(initialCached ?? MOCK_CHANNELS);
   const [activeIdx, setActiveIdx] = useState(initialDeep.idx);
   const [infoVisible, setInfoVisible] = useState(true);
   const [watching, setWatching] = useState(initialDeep.watch);
+  // Catch-up mode. When set, the active channel plays from this past
+  // timestamp instead of the live edge. Cleared when the user clicks
+  // "Return to live" or picks a different channel from the rail.
+  const [catchupMs, setCatchupMs] = useState<number>(initialDeep.startMs);
+  const [catchupError, setCatchupError] = useState<string | null>(null);
   const [load, setLoad] = useState<LoadState>(
     initialCached
       ? { kind: 'ready', count: initialCached.length, sourceTitle: getUserSourceUrl()?.title || 'My playlist' }
@@ -71,6 +79,54 @@ export default function LivePage() {
   );
 
   const active = channels[activeIdx];
+
+  // Derive the channel object the player actually plays. When we're
+  // in catch-up mode AND the channel's playlist entry declares
+  // catchup-source / catchup="...", we swap its live URL for the
+  // expanded catch-up URL. If the channel doesn't support it, we
+  // surface a friendly explanation in the meta strip and just play
+  // the live edge.
+  const playable: Channel | undefined = useMemo(() => {
+    if (!active) return undefined;
+    if (!catchupMs) { return active; }
+    const programme = active.now && active.now.start.getTime() <= catchupMs && active.now.stop.getTime() > catchupMs
+      ? active.now
+      : active.next1 && active.next1.start.getTime() <= catchupMs && active.next1.stop.getTime() > catchupMs
+      ? active.next1
+      : undefined;
+    const durationMin = programme
+      ? Math.max(1, Math.round((programme.stop.getTime() - programme.start.getTime()) / 60_000))
+      : 60;
+    const built = buildCatchupUrl({
+      channel: {
+        id: active.id, number: active.number, name: active.name,
+        logoUrl: active.logoUrl, category: active.category,
+        streamUrl: active.streamUrl || '',
+        tvgId: active.tvgId,
+        catchupKind: active.catchupKind,
+        catchupSource: active.catchupSource,
+        catchupDays: active.catchupDays,
+      },
+      startMs: catchupMs,
+      durationMin,
+    });
+    if (!built.url) {
+      return active; // fall through to live edge; banner explains why
+    }
+    return { ...active, streamUrl: built.url };
+  }, [active, catchupMs]);
+
+  // Sync the catch-up error message whenever active / catchupMs change.
+  useEffect(() => {
+    if (!active || !catchupMs) { setCatchupError(null); return; }
+    if (!active.catchupKind && !active.catchupSource) {
+      setCatchupError(
+        "This channel's playlist doesn't include catch-up support — playing live instead.",
+      );
+    } else {
+      setCatchupError(null);
+    }
+  }, [active, catchupMs]);
 
   useEffect(() => {
     let cancelled = false;
@@ -205,10 +261,13 @@ export default function LivePage() {
   // user can switch channels without losing what they're on (player keeps
   // playing in the background).
   const tune = useCallback(
-    (idx: number, opts?: { enterWatching?: boolean }) => {
+    (idx: number, opts?: { enterWatching?: boolean; keepCatchup?: boolean }) => {
       if (idx < 0 || idx >= channels.length) return;
       setActiveIdx(idx);
       setInfoVisible(true);
+      // Switching channel exits catch-up mode — the previous timestamp
+      // doesn't make sense on a different schedule.
+      if (!opts?.keepCatchup) setCatchupMs(0);
       if (opts?.enterWatching) setWatching(true);
     },
     [channels.length],
@@ -293,13 +352,20 @@ export default function LivePage() {
           {!watching && (
             <div className="live-preview">
               <div className="live-preview-player">
-                {active ? (
-                  <PlayerSurface channel={active} autoPlay />
+                {playable ? (
+                  <PlayerSurface channel={playable} autoPlay />
                 ) : (
                   <div className="live-preview-empty">
                     <div style={{ fontSize: 32 }}>📺</div>
                     <div>Pick a channel from the list to start watching.</div>
                   </div>
+                )}
+                {catchupMs > 0 && (
+                  <CatchupBanner
+                    startMs={catchupMs}
+                    error={catchupError}
+                    onReturnLive={() => setCatchupMs(0)}
+                  />
                 )}
               </div>
               {active && (
@@ -369,7 +435,15 @@ export default function LivePage() {
             onClick={wakeInfoBar}
             onKeyDown={wakeInfoBar}
           >
-            <PlayerSurface channel={active} autoPlay startUnmuted />
+            <PlayerSurface channel={playable} autoPlay startUnmuted />
+            {catchupMs > 0 && (
+              <CatchupBanner
+                startMs={catchupMs}
+                error={catchupError}
+                onReturnLive={() => setCatchupMs(0)}
+                fullscreen
+              />
+            )}
             <button
               className="live-close"
               onClick={() => setWatching(false)}
@@ -390,6 +464,67 @@ export default function LivePage() {
         <NumberZap onCommit={tuneByNumber} />
       </div>
     </TvFocusProvider>
+  );
+}
+
+// Floating banner shown over the player when we're in catch-up mode.
+// Two states:
+//   - the channel supports DVR        → "Replaying from HH:MM" + Return-live
+//   - the channel doesn't support DVR → explanation + Return-live (we
+//                                       fall through to the live edge
+//                                       so the user isn't staring at
+//                                       a frozen frame)
+function CatchupBanner({
+  startMs,
+  error,
+  onReturnLive,
+  fullscreen,
+}: {
+  startMs: number;
+  error: string | null;
+  onReturnLive: () => void;
+  fullscreen?: boolean;
+}) {
+  const when = new Date(startMs);
+  const label =
+    `${String(when.getDate()).padStart(2, '0')}/${String(when.getMonth() + 1).padStart(2, '0')} ` +
+    `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`;
+  return (
+    <div
+      role="status"
+      style={{
+        position: 'absolute',
+        top: fullscreen ? 16 : 10,
+        left:  fullscreen ? '50%' : 10,
+        right: fullscreen ? 'auto' : 10,
+        transform: fullscreen ? 'translateX(-50%)' : undefined,
+        zIndex: 4,
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '8px 14px',
+        background: error ? 'rgba(255,107,123,0.18)' : 'rgba(0, 0, 0, 0.65)',
+        border: '1px solid ' + (error ? 'rgba(255,107,123,0.45)' : 'rgba(255,255,255,0.15)'),
+        borderRadius: 999,
+        color: '#fff',
+        fontSize: 13,
+        backdropFilter: 'blur(8px)',
+      }}
+    >
+      <span style={{ fontWeight: 700 }}>{error ? '⚠' : '⏪'}</span>
+      <span style={{ maxWidth: 480, lineHeight: 1.35 }}>
+        {error ?? `Replaying from ${label}`}
+      </span>
+      <button
+        onClick={onReturnLive}
+        style={{
+          background: '#FF3B6E', color: '#fff',
+          border: 0, borderRadius: 999,
+          padding: '6px 14px', fontWeight: 700, fontSize: 12,
+          cursor: 'pointer',
+        }}
+      >
+        ▶ Return to live
+      </button>
+    </div>
   );
 }
 
