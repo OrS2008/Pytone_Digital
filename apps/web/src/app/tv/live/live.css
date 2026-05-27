@@ -500,6 +500,13 @@
 .live-preview-meta-empty {
   font-size: 13px; color: #6E7480; font-style: italic;
 }
+.live-preview-meta-link {
+  color: #FF3B6E !important;
+  font-style: normal;
+  text-decoration: none;
+  font-weight: 600;
+}
+.live-preview-meta-link:hover { text-decoration: underline; }
 .live-preview-fs {
   flex-shrink: 0;
   background: #FF3B6E; color: #fff;

@@ -326,13 +326,18 @@ export default function LivePage() {
                       ) : (
                         <div className="live-preview-meta-row">
                           <span className="live-preview-meta-eyebrow">Now</span>
-                          <span className="live-preview-meta-empty">
-                            {epgState === 'loading'
-                              ? 'Loading programme guide…'
-                              : epgState === 'none'
-                              ? 'Live stream · no programme guide configured'
-                              : 'No programme info'}
-                          </span>
+                          {epgState === 'loading' ? (
+                            <span className="live-preview-meta-empty">Loading programme guide…</span>
+                          ) : epgState === 'none' ? (
+                            <Link
+                              href="/tv/account/sources?tab=epg"
+                              className="live-preview-meta-empty live-preview-meta-link"
+                            >
+                              Live stream · add a programme guide →
+                            </Link>
+                          ) : (
+                            <span className="live-preview-meta-empty">No programme info</span>
+                          )}
                         </div>
                       )}
                       {active.next1 && (

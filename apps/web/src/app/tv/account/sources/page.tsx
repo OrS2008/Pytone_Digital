@@ -24,7 +24,14 @@ const INITIAL_EPG:  Source[] = [];
 const INITIAL_VOD:  Source[] = [];
 
 export default function Sources() {
-  const [tab,      setTab]      = useState<Tab>('live');
+  // Initial tab honours ?tab=epg / ?tab=vod so the "add a programme
+  // guide" link on /tv/live drops the user straight onto the right
+  // panel instead of making them hunt for it.
+  const [tab, setTab] = useState<Tab>(() => {
+    if (typeof window === 'undefined') return 'live';
+    const q = new URLSearchParams(window.location.search).get('tab');
+    return q === 'epg' || q === 'vod' ? q : 'live';
+  });
   const [addTab,   setAddTab]   = useState<AddTab>('m3u');
   const [name,     setName]     = useState('');
   const [url,      setUrl]      = useState('');
