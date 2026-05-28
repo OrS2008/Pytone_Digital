@@ -325,6 +325,66 @@
 .ac-plan-features .mute  { color: var(--ns-text-faint); }
 .ac-plan-features .mute .check { color: var(--ns-text-dim); }
 
+/* Monthly / Yearly switch above the plan cards. The yearly side
+   surfaces the savings inline so the customer never has to recompute
+   12 × monthly themselves. */
+.cycle-toggle {
+  display: inline-flex;
+  align-self: center;
+  margin: 8px auto 22px;
+  padding: 4px;
+  background: var(--ns-bg-hover, rgba(255,255,255,0.04));
+  border: 1px solid var(--ns-border, rgba(255,255,255,0.08));
+  border-radius: 999px;
+  gap: 4px;
+}
+/* The page lays out blocks vertically; centre the toggle on its row. */
+.ac-panel .cycle-toggle { display: flex; width: max-content; margin-left: auto; margin-right: auto; }
+.cycle-toggle-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ns-text-muted, #B7BEC9);
+  font: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 140ms ease, color 140ms ease;
+}
+.cycle-toggle-btn:hover { color: var(--ns-text, #E9EBF1); }
+.cycle-toggle-btn.active {
+  background: var(--ns-accent, #FF3B6E);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(255, 59, 110, 0.35);
+}
+.cycle-toggle-save {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(125, 249, 198, 0.18);
+  color: #7DF9C6;
+  text-transform: uppercase;
+}
+.cycle-toggle-btn.active .cycle-toggle-save {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+/* Equivalent-monthly hint shown under the yearly price. Keeps the
+   apples-to-apples comparison visible without forcing a recalculation. */
+.ac-plan-equivalent {
+  font-size: 13px;
+  color: var(--ns-text-faint);
+  margin: -16px 0 24px;
+}
+
 /* Devices ------------------------------------------------------------- */
 .ac-device {
   display: grid;

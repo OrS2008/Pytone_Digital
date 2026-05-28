@@ -32,11 +32,25 @@ export function stripe(): Stripe {
 }
 
 // Price IDs come from env so the same code path works in test mode
-// (price_test_...) and live mode (price_live_...). The two plans are
-// the only paid options.
-export function priceFor(plan: 'single' | 'multi'): string {
-  const id = plan === 'single' ? process.env.STRIPE_PRICE_SINGLE : process.env.STRIPE_PRICE_MULTI;
-  if (!id) throw new Error(`Missing env STRIPE_PRICE_${plan.toUpperCase()}.`);
+// (price_test_...) and live mode (price_live_...). Each plan has two
+// prices in Stripe — one billed monthly, one billed yearly — and the
+// checkout route forwards whichever cycle the customer picked.
+export type Plan  = 'single' | 'multi';
+export type Cycle = 'monthly' | 'yearly';
+
+export function priceFor(plan: Plan, cycle: Cycle = 'monthly'): string {
+  // Env layout:
+  //   STRIPE_PRICE_SINGLE_MONTHLY   STRIPE_PRICE_SINGLE_YEARLY
+  //   STRIPE_PRICE_MULTI_MONTHLY    STRIPE_PRICE_MULTI_YEARLY
+  // The legacy STRIPE_PRICE_SINGLE / STRIPE_PRICE_MULTI vars are still
+  // honoured as a monthly fallback so an existing deploy that only set
+  // the legacy names keeps working until the yearly prices are added.
+  const cycleKey = `STRIPE_PRICE_${plan.toUpperCase()}_${cycle.toUpperCase()}`;
+  const legacyKey = `STRIPE_PRICE_${plan.toUpperCase()}`;
+  const id = process.env[cycleKey] || (cycle === 'monthly' ? process.env[legacyKey] : undefined);
+  if (!id) {
+    throw new Error(`Missing env ${cycleKey}${cycle === 'monthly' ? ` (or ${legacyKey})` : ''}.`);
+  }
   return id;
 }
 

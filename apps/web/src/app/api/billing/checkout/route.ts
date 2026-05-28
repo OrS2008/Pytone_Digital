@@ -16,7 +16,7 @@
 // Without the webhook, this endpoint is just a checkout-link factory.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe, priceFor, baseUrl, findOrCreateCustomer, BillingNotConfiguredError } from '@/lib/stripe';
+import { stripe, priceFor, baseUrl, findOrCreateCustomer, BillingNotConfiguredError, type Cycle } from '@/lib/stripe';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -39,13 +39,16 @@ function allowedCaller(req: NextRequest): boolean {
 export async function POST(req: NextRequest) {
   if (!allowedCaller(req)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
-  let body: { plan?: string; email?: string };
+  let body: { plan?: string; cycle?: string; email?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'Body must be JSON.' }, { status: 400 });
   }
   const { plan, email } = body;
+  // Default to monthly when the caller omits cycle so older clients
+  // (and the legacy "Start Single" button without a toggle) keep working.
+  const cycle: Cycle = body.cycle === 'yearly' ? 'yearly' : 'monthly';
 
   if (plan !== 'single' && plan !== 'multi') {
     return NextResponse.json({ error: 'plan must be "single" or "multi".' }, { status: 400 });
@@ -60,12 +63,12 @@ export async function POST(req: NextRequest) {
     const session = await s.checkout.sessions.create({
       mode: 'subscription',
       customer: customer.id,
-      line_items: [{ price: priceFor(plan), quantity: 1 }],
+      line_items: [{ price: priceFor(plan, cycle), quantity: 1 }],
       // 7-day trial regardless of which plan they pick. The user gets a
       // chance to use the product before being charged.
       subscription_data: {
         trial_period_days: 7,
-        metadata: { plan, app: 'nova-stream' },
+        metadata: { plan, cycle, app: 'nova-stream' },
       },
       success_url: `${baseUrl()}/tv/account/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url:  `${baseUrl()}/tv/account/plans?canceled=1`,
@@ -85,7 +88,7 @@ export async function POST(req: NextRequest) {
     if (e instanceof BillingNotConfiguredError) {
       return NextResponse.json({
         error: e.message,
-        hint: 'Add STRIPE_SECRET_KEY, STRIPE_PRICE_SINGLE and STRIPE_PRICE_MULTI in your deploy platform\'s environment variables, then redeploy.',
+        hint: 'Add STRIPE_SECRET_KEY and the four price IDs (STRIPE_PRICE_SINGLE_MONTHLY / _YEARLY, STRIPE_PRICE_MULTI_MONTHLY / _YEARLY) in your deploy platform\'s environment variables, then redeploy.',
       }, { status: 503 });
     }
     // Log the real reason server-side so it shows up in deploy logs,
