@@ -129,12 +129,18 @@ function inferXtreamCatchup(req: CatchupRequest): string | null {
   const da = String(d.getDate()).padStart(2, '0');
   const H  = String(d.getHours()).padStart(2, '0');
   const M  = String(d.getMinutes()).padStart(2, '0');
-  // .ts is universally supported across every Xtream fork for
-  // timeshift output — .m3u8 only works on some panels.
+  // Always .m3u8 for browser playback. .ts is what desktop / mobile
+  // IPTV apps (Cloddy, TiViMate) use because they bundle a native
+  // MPEG-TS demuxer, but <video> in every browser can only play
+  // .m3u8 (via hls.js) — raw MPEG-TS sets video.src and fires no
+  // events, which is exactly the "auto-jumps to live" symptom users
+  // reported. Panels that serve .m3u8 live almost always serve
+  // .m3u8 timeshift; the few that don't aren't browser-playable
+  // anyway, so .m3u8 is the right default everywhere.
   return `${base}/timeshift/${encodeURIComponent(user)}/${encodeURIComponent(pass)}`
     + `/${req.durationMin}`
     + `/${Y}-${mo}-${da}:${H}-${M}`
-    + `/${sid}.ts`;
+    + `/${sid}.m3u8`;
 }
 
 export function buildCatchupUrl(req: CatchupRequest): CatchupResult {
