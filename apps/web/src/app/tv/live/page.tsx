@@ -81,9 +81,13 @@ export default function LivePage() {
     const params = new URLSearchParams(window.location.search);
     const want = params.get('ch');
     const startMs = Number(params.get('start')) || 0;
+    // ?preview=1 means "tune this channel but stay in the small
+    // preview" — Search uses this so a click on a result doesn't
+    // hijack the user into fullscreen.
+    const preview = params.get('preview') === '1';
     if (!want || !initialCached) return { idx: 0, watch: false, startMs };
     const idx = initialCached.findIndex((c) => String(c.number) === want);
-    return idx >= 0 ? { idx, watch: true, startMs } : { idx: 0, watch: false, startMs };
+    return idx >= 0 ? { idx, watch: !preview, startMs } : { idx: 0, watch: false, startMs };
   })();
 
   const [channels, setChannels] = useState<Channel[]>(initialCached ?? []);
@@ -196,11 +200,20 @@ export default function LivePage() {
       }
       setChannels(result.channels);
 
-      // Deep-link from /tv/search or Continue Watching.
-      const want = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('ch') : null;
+      // Deep-link from /tv/search or Continue Watching. Search opts
+      // into preview-only mode via &preview=1; every other caller
+      // jumps straight into fullscreen because they came from a
+      // "play this now" affordance (Continue Watching, catch-up
+      // programme card, recordings).
+      const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      const want = params?.get('ch') ?? null;
+      const preview = params?.get('preview') === '1';
       if (want) {
         const idx = result.channels.findIndex((c) => String(c.number) === want);
-        if (idx >= 0) { setActiveIdx(idx); setWatching(true); }
+        if (idx >= 0) {
+          setActiveIdx(idx);
+          if (!preview) setWatching(true);
+        }
       }
       setLoad({ kind: 'ready', count: result.channels.length, sourceTitle: src.title });
 

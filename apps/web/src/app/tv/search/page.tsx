@@ -185,11 +185,13 @@ export default function SearchHome() {
               }}>
                 {filtered.map((c) => (
                   // Deep-link straight into the player at fullscreen
-                  // by passing ?ch=<number> — the live page reads
-                  // this and enters watching mode on mount.
+                  // by passing ?ch=<number>&preview=1 — the live page
+                  // tunes the channel and starts the small-preview
+                  // player but stays out of fullscreen. The user
+                  // explicitly clicks ⛶ Fullscreen when they want it.
                   <Link
                     key={c.id + '-' + c.number}
-                    href={`/tv/live?ch=${encodeURIComponent(String(c.number))}`}
+                    href={`/tv/live?ch=${encodeURIComponent(String(c.number))}&preview=1`}
                     style={{
                       display: 'grid',
                       gridTemplateColumns: '48px 1fr',
