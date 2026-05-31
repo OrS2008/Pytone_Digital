@@ -33,6 +33,33 @@ import { buildCatchupUrl } from '@/lib/catchup';
 import { useT } from '@/lib/i18n';
 import './live.css';
 
+// Fullscreen API helpers. Spec-name in modern browsers, webkit-
+// prefixed on Safari (iPadOS, macOS Safari) — we try both so a
+// single click works everywhere instead of failing silently on iOS.
+interface FsCapableElement extends HTMLElement {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+}
+interface FsCapableDocument extends Document {
+  webkitExitFullscreen?:    () => Promise<void> | void;
+  webkitFullscreenElement?: Element | null;
+}
+function requestFullscreen(el: HTMLElement): Promise<void> {
+  const node = el as FsCapableElement;
+  const fn = node.requestFullscreen || node.webkitRequestFullscreen;
+  if (!fn) return Promise.reject(new Error('Fullscreen API unavailable'));
+  return Promise.resolve(fn.call(node));
+}
+function exitFullscreen(): Promise<void> {
+  const doc = document as FsCapableDocument;
+  const fn = doc.exitFullscreen || doc.webkitExitFullscreen;
+  if (!fn) return Promise.resolve();
+  return Promise.resolve(fn.call(doc));
+}
+function currentFullscreenElement(): Element | null {
+  const doc = document as FsCapableDocument;
+  return doc.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
+}
+
 type LoadState =
   | { kind: 'idle' }
   | { kind: 'loading' }
@@ -63,6 +90,11 @@ export default function LivePage() {
   const [activeIdx, setActiveIdx] = useState(initialDeep.idx);
   const [infoVisible, setInfoVisible] = useState(true);
   const [watching, setWatching] = useState(initialDeep.watch);
+  // Ref to the player overlay so we can put it into OS-level
+  // fullscreen via the Fullscreen API. The overlay always covers
+  // the viewport via CSS too; requesting fullscreen on top lets the
+  // user use their actual screen real estate (no browser chrome).
+  const overlayRef = useRef<HTMLDivElement | null>(null);
   // Catch-up mode. When set, the active channel plays from this past
   // timestamp instead of the live edge. Cleared when the user clicks
   // "Return to live" or picks a different channel from the rail.
@@ -193,6 +225,42 @@ export default function LivePage() {
     // initialCached is captured once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Mirror the watching state to the browser's Fullscreen API so that
+  // "⛶ Fullscreen" actually fills the user's display (no tabs, no
+  // dock, no menu bar) instead of just covering the viewport. We have
+  // to do this in a useEffect rather than the click handler because
+  // the overlay isn't in the DOM until React renders it — modern
+  // browsers still grant the request because the user-activation
+  // token from the click survives a tick or two of microtask work.
+  useEffect(() => {
+    const el = overlayRef.current;
+    if (watching && el) {
+      if (currentFullscreenElement() !== el) {
+        requestFullscreen(el).catch(() => { /* user / policy denial */ });
+      }
+    } else if (!watching && currentFullscreenElement()) {
+      exitFullscreen().catch(() => { /* already exiting */ });
+    }
+  }, [watching]);
+
+  // The browser's Esc-to-leave-fullscreen path bypasses React, so we
+  // listen for the change event and bring our own state back in
+  // sync. Without this, pressing Esc once would shrink the player
+  // out of fullscreen but leave watching=true, and the next click
+  // would jam — we'd be requesting fullscreen again from a stale
+  // overlay state.
+  useEffect(() => {
+    function onFsChange() {
+      if (!currentFullscreenElement() && watching) setWatching(false);
+    }
+    document.addEventListener('fullscreenchange',       onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange',       onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange);
+    };
+  }, [watching]);
 
   // The 5-second auto-hide window is re-armed on every activity tick
   // (mouse move, click, key press inside the player overlay) so the
@@ -450,6 +518,7 @@ export default function LivePage() {
 
         {watching && (
           <div
+            ref={overlayRef}
             className="live-player-overlay"
             onMouseMove={wakeInfoBar}
             onClick={wakeInfoBar}
