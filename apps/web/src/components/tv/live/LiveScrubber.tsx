@@ -213,12 +213,12 @@ export default function LiveScrubber({
         </div>
       )}
 
-      {/* Bottom mini-timeline. Hidden while the InfoBar is showing
-          (it would otherwise sit on top of the programme description
-          — see screenshot regression report). In live mode the
-          marker sits flush on the right edge; in catch-up it
-          tracks the pending position. */}
-      {!infoBarVisible && (
+      {/* Bottom mini-timeline. Only visible while the user is
+          actively scrubbing (same lifetime as the flash overlay) and
+          when the catch-up offset is large enough to be worth
+          showing — otherwise the persistent pink line sits across
+          the video for no reason. */}
+      {overlay && !infoBarVisible && (
       <div className="live-scrubber-bar" aria-hidden>
         <div className="live-scrubber-bar-track">
           <div className="live-scrubber-bar-fill" style={{ width: `${pct}%` }} />
