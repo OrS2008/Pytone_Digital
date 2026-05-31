@@ -29,6 +29,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useT } from '@/lib/i18n';
 
+interface Flash {
+  /** Big number in the centre of the dial. "LIVE" when at the edge. */
+  value: string;
+  /** Smaller unit label under the value. Empty for LIVE. */
+  unit:  string;
+  /** Which direction the user pressed last (-1 = back, 1 = forward). */
+  dir:   -1 | 1;
+}
+
 interface Props {
   /** 0 = live, otherwise unix-ms of the catch-up start. */
   catchupMs: number;

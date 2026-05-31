@@ -88,14 +88,26 @@ export function getUserSourceUrl(): { url: string; title: string } | null {
   } catch { return null; }
 }
 
-// A URL is "real" (i.e. worth attempting to fetch) when it's http(s) and
-// not the masked placeholder template that ships with the Sources page.
+// A URL is "real" (i.e. worth attempting to fetch) when it's http(s),
+// OR a local: handle pointing at an uploaded file's localStorage entry.
+// Local uploads bypass /api/m3u entirely (the file is already on the
+// client), so we recognise the local: prefix here too.
 function isRealLiveSourceUrl(sub: string): boolean {
   if (!sub) return false;
+  if (/^local:[a-z0-9-]+$/i.test(sub)) return true;
   if (!/^https?:\/\//i.test(sub)) return false;
   if (/provider\.example/i.test(sub)) return false;
   if (/•/.test(sub)) return false; // masked-credential placeholder
   return true;
+}
+
+// Storage key for an uploaded M3U file's raw text. We split file
+// uploads off from sessionStorage (which we use for the parsed
+// channels) and into localStorage so an uploaded playlist survives
+// browser restarts — the user didn't fetch it from anywhere, so
+// dropping it on reload would mean re-uploading the same file.
+export function localM3UKey(id: string): string {
+  return userKey('m3u.local.' + id);
 }
 
 // Outcome of a load attempt. UIs that just want channels can call
@@ -111,23 +123,45 @@ export interface LoadResult {
 const INFLIGHT: Map<string, Promise<LoadResult>> = new Map();
 
 async function fetchAndParse(url: string): Promise<LoadResult> {
-  let r: Response;
-  try {
-    r = await fetch('/api/m3u?url=' + encodeURIComponent(url));
-  } catch (e) {
-    return { channels: [], error: `Network error reaching /api/m3u: ${(e as Error).message}` };
+  let text: string;
+
+  // local: handles point at a file the user uploaded — already on the
+  // client, no proxy round-trip needed.
+  if (url.startsWith('local:')) {
+    const id = url.slice('local:'.length);
+    try {
+      text = typeof window !== 'undefined'
+        ? (localStorage.getItem(localM3UKey(id)) ?? '')
+        : '';
+    } catch {
+      text = '';
+    }
+    if (!text) {
+      return {
+        channels: [],
+        error: 'The uploaded playlist isn\'t in browser storage any more. Re-upload the file.',
+      };
+    }
+  } else {
+    let r: Response;
+    try {
+      r = await fetch('/api/m3u?url=' + encodeURIComponent(url));
+    } catch (e) {
+      return { channels: [], error: `Network error reaching /api/m3u: ${(e as Error).message}` };
+    }
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      const trimmed = body.trim().slice(0, 200);
+      return { channels: [], error: `Playlist proxy returned ${r.status}${trimmed ? ` — ${trimmed}` : ''}` };
+    }
+    text = await r.text();
   }
-  if (!r.ok) {
-    const body = await r.text().catch(() => '');
-    const trimmed = body.trim().slice(0, 200);
-    return { channels: [], error: `Playlist proxy returned ${r.status}${trimmed ? ` — ${trimmed}` : ''}` };
-  }
-  const text = await r.text();
+
   const channels = parseM3U(text);
   if (channels.length === 0) {
     return {
       channels: [],
-      error: 'Playlist downloaded but contained no channels. The provider may have returned an empty or non-standard M3U.',
+      error: 'Playlist contained no channels. The file may be empty or use a non-standard format.',
     };
   }
   const entry: CacheEntry = { url, fetchedAt: Date.now(), channels };

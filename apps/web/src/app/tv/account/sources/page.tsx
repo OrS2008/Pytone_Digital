@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import Shell from '../Shell';
 import ActionButton from '@/components/ui/ActionButton';
 import usePersisted from '@/lib/usePersisted';
-import { fetchAndCache, getUserSourceUrl, invalidateCache } from '@/lib/channelCache';
+import { fetchAndCache, getUserSourceUrl, invalidateCache, localM3UKey } from '@/lib/channelCache';
 
 type Tab = 'live' | 'epg' | 'vod';
 type AddTab = 'm3u' | 'xtream' | 'stalker' | 'upload';
@@ -71,12 +71,19 @@ export default function Sources() {
   }
 
   async function addLive() {
-    if (!url.startsWith('http')) return flash('M3U URL must start with http:// or https://');
+    const isLocal = url.startsWith('local:');
+    if (!isLocal && !url.startsWith('http')) {
+      return flash('M3U URL must start with http:// or https:// — or upload a file from the Upload tab.');
+    }
     let friendly: string;
-    try {
-      friendly = name.trim() || new URL(url).hostname;
-    } catch {
-      return flash('That doesn\'t look like a valid URL — check for typos.');
+    if (isLocal) {
+      friendly = name.trim() || 'Uploaded playlist';
+    } else {
+      try {
+        friendly = name.trim() || new URL(url).hostname;
+      } catch {
+        return flash('That doesn\'t look like a valid URL — check for typos.');
+      }
     }
     const id = 'live-' + Date.now();
     const submittedUrl = url;
@@ -124,9 +131,10 @@ export default function Sources() {
   }
   async function refreshLive(id: string) {
     const s = live.find((x) => x.id === id);
-    if (!s || !s.sub.startsWith('http')) return;
+    if (!s) return;
+    if (!s.sub.startsWith('http') && !s.sub.startsWith('local:')) return;
     setLive((prev: Source[]) => prev.map((x) => x.id === id ? { ...x, stat: 'refreshing…' } : x));
-    flash('Refreshing channels…');
+    flash(s.sub.startsWith('local:') ? 'Re-parsing file…' : 'Refreshing channels…');
     const result = await fetchAndCache(s.sub);
     if (result.error) {
       setLive((prev: Source[]) => prev.map((x) => x.id === id ? { ...x, stat: `error: ${result.error}` } : x));
@@ -139,15 +147,25 @@ export default function Sources() {
   }
 
   async function testUrl() {
-    if (!url.startsWith('http')) { flash('URL must start with http:// or https://'); return; }
-    flash('Testing URL…');
+    if (!url.startsWith('http') && !url.startsWith('local:')) {
+      flash('URL must start with http:// or https:// — or upload a file from the Upload tab.');
+      return;
+    }
+    flash(url.startsWith('local:') ? 'Parsing file…' : 'Testing URL…');
     const result = await fetchAndCache(url);
     if (result.error) flash(`Failed: ${result.error.slice(0, 140)}`);
     else               flash(`Reachable — ${result.channels.length} channels detected.`);
   }
 
   const removeFrom = (list: Source[], setList: (s: Source[]) => void) => (id: string) => {
+    const removed = list.find((s) => s.id === id);
     setList(list.filter((s) => s.id !== id));
+    // If it was an uploaded file, drop the cached text too so we don't
+    // leak ~MB into localStorage on every remove + re-upload cycle.
+    if (removed?.sub.startsWith('local:')) {
+      try { localStorage.removeItem(localM3UKey(removed.sub.slice('local:'.length))); }
+      catch { /* ignore */ }
+    }
     // The user removed a live source — drop any cached channels that
     // might have come from it so the next page load doesn't serve
     // stale data.
@@ -158,6 +176,10 @@ export default function Sources() {
   async function editLive(id: string) {
     const s = live.find((x) => x.id === id);
     if (!s) return;
+    if (s.sub.startsWith('local:')) {
+      flash('To change an uploaded playlist, remove this entry and upload the new file.');
+      return;
+    }
     const nextUrl = typeof window !== 'undefined' ? window.prompt('New M3U URL', s.sub) : null;
     if (!nextUrl) return;
     if (!nextUrl.startsWith('http')) { flash('URL must start with http:// or https://'); return; }
@@ -231,7 +253,9 @@ export default function Sources() {
               <div className="ac-source-icon">{s.kind}</div>
               <div className="ac-source-meta">
                 <div className="ac-source-title">{s.title}</div>
-                <div className="ac-source-url">{s.sub}</div>
+                <div className="ac-source-url">
+                  {s.sub.startsWith('local:') ? '📁 Uploaded file (stored in browser)' : s.sub}
+                </div>
               </div>
               <div className="ac-source-stats"><div>{s.stat}</div></div>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -265,15 +289,45 @@ export default function Sources() {
               <div className="ac-field">
                 <label className="ac-field-label">{addTab === 'upload' ? 'Upload file' : 'M3U URL'}</label>
                 {addTab === 'upload'
-                  ? <input className="ac-input" type="file" accept=".m3u,.m3u8" onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) { setUrl(`file://${f.name}`); setName(name || f.name.replace(/\.m3u8?$/i, '')); }
-                    }} />
+                  ? <input
+                      className="ac-input"
+                      type="file"
+                      accept=".m3u,.m3u8,.txt,text/plain"
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        // 25 MB ceiling: localStorage's per-origin quota is
+                        // usually 5–10 MB on mobile and 10 MB on desktop, but
+                        // M3U is plain text so it compresses well — we trust
+                        // the user knows their playlist size and surface a
+                        // friendly error if setItem throws QuotaExceededError.
+                        if (f.size > 25 * 1024 * 1024) {
+                          flash('File too large (max 25 MB). Try a smaller playlist.');
+                          return;
+                        }
+                        const text = await f.text();
+                        if (!/#EXTM3U|#EXTINF/i.test(text)) {
+                          flash('That doesn\'t look like an M3U file — it should start with #EXTM3U.');
+                          return;
+                        }
+                        const localId = `up-${Date.now().toString(36)}`;
+                        try {
+                          localStorage.setItem(localM3UKey(localId), text);
+                        } catch {
+                          flash('Couldn\'t store the playlist locally (browser storage is full).');
+                          return;
+                        }
+                        setUrl(`local:${localId}`);
+                        if (!name.trim()) setName(f.name.replace(/\.(m3u8?|txt)$/i, ''));
+                        flash(`File loaded (${(f.size / 1024).toFixed(0)} KB) — click "Add & ingest" to use it.`);
+                      }}
+                    />
                   : <input className="ac-input" placeholder="https://your-provider.tv/get.php?username=...&password=..." value={url} onChange={(e) => setUrl(e.target.value)} />
                 }
                 <div className="ac-field-help">
-                  We fetch this URL on a schedule (every 6 hours by default) and never share it. Credentials in
-                  the URL are encrypted at rest with your account key.
+                  {addTab === 'upload'
+                    ? 'The file stays in your browser. No upload to a server. Re-upload after clearing browser storage.'
+                    : 'We fetch this URL on a schedule (every 6 hours by default) and never share it. Credentials in the URL are encrypted at rest with your account key.'}
                 </div>
               </div>
               <div className="ac-source-add-grid">

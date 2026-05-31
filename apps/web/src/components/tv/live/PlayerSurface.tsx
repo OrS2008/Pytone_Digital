@@ -188,9 +188,23 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     const v = videoRef.current;
     if (!v) return;
     v.muted = false;
-    v.volume = 1;
+    if (v.volume === 0) v.volume = 1;
     setMuted(false);
     v.play().catch(() => {/* ignore */});
+  }
+
+  // Tap the surface to either (1) unmute the first time, or (2)
+  // toggle play / pause. We used to rely on the browser's built-in
+  // <video controls> for this, but those native controls captured
+  // every click + every arrow key — breaking both the unmute prompt
+  // and the timeshift scrubber. With controls removed we do the
+  // play/pause + unmute in JS.
+  function onSurfaceClick() {
+    const v = videoRef.current;
+    if (!v) return;
+    if (muted) { unmute(); return; }
+    if (v.paused) { v.play().catch(() => {/* ignore */}); }
+    else          { v.pause(); }
   }
 
   async function togglePip() {
@@ -220,7 +234,7 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
   }
 
   return (
-    <div className="player-surface" onClick={muted ? unmute : undefined}>
+    <div className="player-surface" onClick={onSurfaceClick}>
       {channel?.streamUrl ? (
         <>
           <video
@@ -228,8 +242,13 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
             autoPlay={autoPlay}
             playsInline
             muted={muted}
-            controls
-            style={{ width: '100%', height: '100%', background: '#000', objectFit: 'contain' }}
+            // No `controls` attribute: native controls swallow every
+            // click (breaks tap-to-unmute) and every arrow key
+            // (breaks the timeshift scrubber). Volume / pause /
+            // fullscreen are handled by InfoBar and the surface
+            // click handler instead.
+            tabIndex={-1}
+            style={{ width: '100%', height: '100%', background: '#000', objectFit: 'contain', pointerEvents: 'none' }}
             onPlaying={() => setPlaying(true)}
             onWaiting={() => setPlaying(false)}
             onVolumeChange={(e) => setMuted((e.currentTarget as HTMLVideoElement).muted)}

@@ -289,9 +289,10 @@ export default function LivePage() {
       if ((e.key === 'Escape' || e.key === 'GoBack') && watching) {
         setWatching(false);
       }
-      if (e.key === 'ArrowUp' && watching) {
-        setWatching(false);
-      }
+      // ArrowUp used to exit watching mode, but that fought the
+      // scrubber: a remote user pressing ↑ to nudge volume was
+      // bouncing back to the channel list. Esc / Back is the
+      // explicit way out now.
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
