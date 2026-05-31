@@ -159,7 +159,7 @@ export function TvRow({
   return (
     <div
       ref={stripRef}
-      className="tv-row-strip"
+      className="tv-row-strip-anim"
       tabIndex={-1}
       onMouseEnter={() => ctx.setCurrentZone(zoneId)}
       role="listbox"

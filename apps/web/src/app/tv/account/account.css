@@ -384,6 +384,23 @@
   color: var(--ns-text-faint);
   margin: -16px 0 24px;
 }
+.ac-plan-strikethrough {
+  text-decoration: line-through;
+  color: var(--ns-text-dim, #5A6070);
+}
+/* Per-card "save N%" pill next to the price. Different colour from the
+   toggle's "save N%" so customers don't think they're the same chip. */
+.ac-plan-save {
+  align-self: center;
+  margin-left: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  border-radius: 999px;
+  background: rgba(125, 249, 198, 0.18);
+  color: #7DF9C6;
+}
 
 /* Devices ------------------------------------------------------------- */
 .ac-device {

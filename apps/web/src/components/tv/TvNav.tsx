@@ -8,8 +8,8 @@ import { getSessionEmail } from '@/lib/session';
 import { useT } from '@/lib/i18n';
 
 const ITEMS: { key: string; href: string }[] = [
-  { key: 'nav.live',     href: '/tv/live' },
   { key: 'nav.home',     href: '/tv' },
+  { key: 'nav.live',     href: '/tv/live' },
   { key: 'nav.sports',   href: '/tv/sports' },
   { key: 'nav.movies',   href: '/tv/vod' },
   { key: 'nav.catchup',  href: '/tv/catchup' },

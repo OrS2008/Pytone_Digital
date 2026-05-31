@@ -31,11 +31,12 @@ export default function Shell({ active, children }: { active: string; children: 
   return (
     <main className="ac">
       <header className="ac-topbar">
-        <Link href="/tv/live" className="ac-wm" style={{ textDecoration: 'none' }}>NOVA STREAM</Link>
+        <Link href="/tv" className="ac-wm" style={{ textDecoration: 'none' }}>NOVA STREAM</Link>
         <nav className="ac-nav-links">
+          <Link href="/tv" className="ac-link">Home</Link>
           <Link href="/tv/live" className="ac-link">Live</Link>
-          <Link href="/tv/vod" className="ac-link">Movies</Link>
           <Link href="/tv/sports" className="ac-link">Sports</Link>
+          <Link href="/tv/vod" className="ac-link">Movies</Link>
           <Link href="/tv/catchup" className="ac-link">Catch-up</Link>
           <Link href="/tv/account" className="ac-link ac-link-active">Account</Link>
         </nav>

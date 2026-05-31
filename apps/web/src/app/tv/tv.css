@@ -93,10 +93,39 @@
   font-size: 28px;
   margin-bottom: 16px;
 }
+/* Default: native horizontal scroll. Used by SmartHomeRow and
+   ContinueWatchingRow on the home / vod / sports pages — the user
+   drags or wheel-scrolls to reach the rest of the tiles.
+   TvFocus's TvRow (the keyboard / remote-driven variant) overrides
+   this back to overflow:hidden via .tv-row-strip-anim because it
+   moves tiles with translateX(). */
 .tv-row-strip {
   display: flex;
   gap: 16px;
-  overflow: hidden; /* we move the strip with transform, not native scroll */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  scroll-padding-left: 64px;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px; /* room for the scroll-snap landing edge */
+}
+.tv-row-strip::-webkit-scrollbar { height: 6px; }
+.tv-row-strip::-webkit-scrollbar-track { background: transparent; }
+.tv-row-strip::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+.tv-row-strip::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+.tv-row-strip > * { scroll-snap-align: start; }
+/* TV / remote-control variant — keyboard nav slides the strip with a
+   CSS transform, so we need overflow:hidden to keep off-screen tiles
+   from being mouse-clickable past the safe area. */
+.tv-row-strip-anim {
+  display: flex;
+  gap: 16px;
+  overflow: hidden;
   will-change: transform;
   transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }

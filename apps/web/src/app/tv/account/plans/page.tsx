@@ -22,7 +22,7 @@ interface PlanPricing {
 }
 const PRICES: Record<PlanId, PlanPricing> = {
   single: { monthly: 1, yearly: 10 },
-  multi:  { monthly: 3, yearly: 30 },
+  multi:  { monthly: 3, yearly: 20 },
 };
 
 // Yearly = 12 × monthly minus the discount. Computed once and shown as
@@ -155,7 +155,7 @@ export default function Plans() {
           onClick={() => setCycle('yearly')}
         >
           Yearly
-          {savings > 0 && <span className="cycle-toggle-save">Save {savings}%</span>}
+          {savings > 0 && <span className="cycle-toggle-save">Save up to {savings}%</span>}
         </button>
       </div>
 
@@ -217,6 +217,8 @@ function PlanCard(props: {
     ? (props.pricing.yearly / 12).toFixed(2)
     : null;
   const ctaCycle = props.cycle === 'monthly' ? '/mo' : '/yr';
+  const discount = props.cycle === 'yearly' ? yearlyDiscountPct(props.pricing) : 0;
+  const fullYear = props.pricing.monthly * 12;
 
   return (
     <div className={`ac-plan ${props.recommended ? 'ac-plan-recommended' : ''}`}>
@@ -229,10 +231,20 @@ function PlanCard(props: {
         <span className="ac-plan-currency">$</span>
         <span className="ac-plan-amount">{amount}</span>
         <span className="ac-plan-cycle">{cycleLabel}</span>
+        {discount > 0 && (
+          <span className="ac-plan-save">−{discount}%</span>
+        )}
       </div>
       {monthlyEquivalent && (
         <div className="ac-plan-equivalent">
           ≈ ${monthlyEquivalent}/month, billed yearly
+          {discount > 0 && (
+            <>
+              {' · '}
+              <span className="ac-plan-strikethrough">${fullYear}</span>{' '}
+              <span style={{ color: 'var(--ns-ok, #7DF9C6)' }}>save ${fullYear - props.pricing.yearly}</span>
+            </>
+          )}
         </div>
       )}
 
