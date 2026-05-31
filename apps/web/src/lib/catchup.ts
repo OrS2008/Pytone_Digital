@@ -79,32 +79,41 @@ function expandTemplate(template: string, req: CatchupRequest): string {
 }
 
 // Xtream Codes (the most common IPTV backend) uses a predictable URL
-// shape: live  → http://host:port/live/USER/PASS/STREAM_ID.m3u8
-//        catch → http://host:port/streaming/timeshift.php
-//                  ?username=USER&password=PASS&stream=STREAM_ID
-//                  &start=YYYY-MM-DD:HH-MM&duration=MIN
-// If the stream URL matches that shape we can build a working
+// shape:
+//
+//   live  → http://host:port/live/USER/PASS/STREAM_ID.m3u8
+//   catch → http://host:port/timeshift/USER/PASS/DURATION_MIN/YYYY-MM-DD:HH-MM/STREAM_ID.<ext>
+//
+// This is the URL format every modern Xtream fork (XUI.one, XCMS, etc.)
+// serves and what apps like Cloddy / Tivimate / IPTV Smarters use. The
+// legacy /streaming/timeshift.php?... endpoint we used to emit only
+// works on very old panels; the new path works on both.
+//
+// If the stream URL matches the live shape we can build a working
 // timeshift URL even without explicit catchup= / catchup-source=
 // attributes — useful for the many providers that ship a barebones
 // M3U but still run a Xtream backend with DVR enabled.
-const XTREAM_LIVE_RE = /^(https?:\/\/[^/]+)\/live\/([^/]+)\/([^/]+)\/(\d+)(?:\.[a-z0-9]+)?(?:\?.*)?$/i;
+const XTREAM_LIVE_RE = /^(https?:\/\/[^/]+)\/live\/([^/]+)\/([^/]+)\/([^/.?]+)(?:\.[a-z0-9]+)?(?:\?.*)?$/i;
 
 function inferXtreamCatchup(req: CatchupRequest): string | null {
   const m = XTREAM_LIVE_RE.exec(req.channel.streamUrl);
   if (!m) return null;
   const [, base, user, pass, sid] = m;
   const d = new Date(req.startMs);
-  const Y = d.getUTCFullYear();
+  const Y  = d.getUTCFullYear();
   const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
   const da = String(d.getUTCDate()).padStart(2, '0');
   const H  = String(d.getUTCHours()).padStart(2, '0');
   const M  = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${base}/streaming/timeshift.php`
-    + `?username=${encodeURIComponent(user)}`
-    + `&password=${encodeURIComponent(pass)}`
-    + `&stream=${sid}`
-    + `&start=${Y}-${mo}-${da}:${H}-${M}`
-    + `&duration=${req.durationMin}`;
+  // Preserve the live URL's extension so .m3u8 channels stay HLS-served
+  // and .ts channels stay raw — the same extension worked for live, so
+  // it'll usually work for timeshift on the same panel.
+  const extMatch = /\.([a-z0-9]+)(?:\?|$)/i.exec(req.channel.streamUrl);
+  const ext = extMatch ? extMatch[1].toLowerCase() : 'm3u8';
+  return `${base}/timeshift/${encodeURIComponent(user)}/${encodeURIComponent(pass)}`
+    + `/${req.durationMin}`
+    + `/${Y}-${mo}-${da}:${H}-${M}`
+    + `/${sid}.${ext}`;
 }
 
 export function buildCatchupUrl(req: CatchupRequest): CatchupResult {
@@ -115,33 +124,34 @@ export function buildCatchupUrl(req: CatchupRequest): CatchupResult {
     return { url: expandTemplate(ch.catchupSource, req) };
   }
 
-  if (!ch.catchupKind) {
-    // Last-resort: if the stream URL is recognisably a Xtream URL,
-    // try the timeshift endpoint. It either works (provider has DVR)
-    // or returns 404 (handled like any other unplayable stream).
-    const xt = inferXtreamCatchup(req);
-    if (xt) return { url: xt };
-    return {
-      url: null,
-      reason:
-        "This channel's playlist doesn't declare a catch-up archive. " +
-        "Ask your provider for a playlist with catchup / catchup-source " +
-        "attributes, or use a different provider that supports DVR.",
-    };
-  }
-
-  // No source template but a catchup kind is set. Fall back to the
-  // shift/append heuristics commonly emitted by Stalker / Xtream:
-  //
-  //   append: paste a ?utc=...&lutc=... query onto the live URL.
-  //   shift : same idea but with t and tend params.
-  //
-  // These are best-effort — providers that need a different shape
-  // should be using catchup-source above.
+  // For "default" / "xc" / unset catchup kind on a Xtream-shaped URL,
+  // the modern /timeshift/USER/PASS/DUR/DATE/ID URL is what every IPTV
+  // app on the market uses (Cloddy, Tivimate, IPTV Smarters, OTT
+  // Navigator, etc.). We try it before the append-query heuristic
+  // because the heuristic is far less likely to be the actual
+  // implementation of "default" on a modern Xtream panel.
   const kind = (ch.catchupKind || '').toLowerCase();
   const live = ch.streamUrl;
   const utc    = Math.floor(req.startMs / 1000);
   const utcend = Math.floor((req.startMs + req.durationMin * 60_000) / 1000);
+
+  if (!kind || kind === 'default' || kind === 'xc') {
+    const xt = inferXtreamCatchup(req);
+    if (xt) return { url: xt };
+    if (!kind) {
+      return {
+        url: null,
+        reason:
+          "This channel's playlist doesn't declare a catch-up archive and the live URL isn't a recognisable Xtream pattern. " +
+          "Ask your provider for a playlist with catchup / catchup-source attributes.",
+      };
+    }
+    // kind = 'default' / 'xc' on a non-Xtream URL — fall through to the
+    // append heuristic below.
+  }
+
+  // append / shift / flussonic heuristics — best-effort fallbacks when
+  // the playlist names a kind but doesn't ship a catchup-source template.
   if (kind === 'append' || kind === 'xc' || kind === 'default') {
     const sep = live.includes('?') ? '&' : '?';
     return { url: `${live}${sep}utc=${utc}&lutc=${Math.floor(Date.now() / 1000)}` };
