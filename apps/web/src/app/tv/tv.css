@@ -107,17 +107,11 @@
   scroll-snap-type: x proximity;
   scroll-padding-left: 64px;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: 4px; /* room for the scroll-snap landing edge */
+  /* Hide native scrollbar — arrows and edge-fade are the only chrome. */
+  scrollbar-width: none;             /* Firefox */
+  -ms-overflow-style: none;          /* IE / legacy Edge */
 }
-.tv-row-strip::-webkit-scrollbar { height: 6px; }
-.tv-row-strip::-webkit-scrollbar-track { background: transparent; }
-.tv-row-strip::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 3px;
-}
-.tv-row-strip::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
-}
+.tv-row-strip::-webkit-scrollbar { display: none; }  /* Chrome / Safari / new Edge */
 .tv-row-strip > * { scroll-snap-align: start; }
 /* TV / remote-control variant — keyboard nav slides the strip with a
    CSS transform, so we need overflow:hidden to keep off-screen tiles

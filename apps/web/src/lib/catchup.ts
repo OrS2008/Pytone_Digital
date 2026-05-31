@@ -79,37 +79,52 @@ function expandTemplate(template: string, req: CatchupRequest): string {
 }
 
 // Xtream Codes (the most common IPTV backend) uses a predictable URL
-// shape:
+// shape. There are two common variants in the wild:
 //
-//   live  → http://host:port/live/USER/PASS/STREAM_ID.m3u8
-//   catch → http://host:port/timeshift/USER/PASS/DURATION_MIN/YYYY-MM-DD:HH-MM/STREAM_ID.<ext>
+//   /live/USER/PASS/SID(.ext)    — modern XUI.one / XCMS
+//   /USER/PASS/SID(.ext)         — older panels, still very common
 //
-// This is the URL format every modern Xtream fork (XUI.one, XCMS, etc.)
-// serves and what apps like Cloddy / Tivimate / IPTV Smarters use. The
-// legacy /streaming/timeshift.php?... endpoint we used to emit only
-// works on very old panels; the new path works on both.
+// Both resolve to live HLS / MPEG-TS. For catchup the URL is:
 //
-// If the stream URL matches the live shape we can build a working
-// timeshift URL even without explicit catchup= / catchup-source=
-// attributes — useful for the many providers that ship a barebones
-// M3U but still run a Xtream backend with DVR enabled.
-const XTREAM_LIVE_RE = /^(https?:\/\/[^/]+)\/live\/([^/]+)\/([^/]+)\/([^/.?]+)(?:\.[a-z0-9]+)?(?:\?.*)?$/i;
+//   /timeshift/USER/PASS/DURATION_MIN/YYYY-MM-DD:HH-MM/SID.<ext>
+//
+// This is what Cloddy / Tivimate / IPTV Smarters / OTT Navigator use.
+// The legacy /streaming/timeshift.php?... endpoint only works on very
+// old panels.
+//
+// We use SERVER LOCAL TIME (browser local time, which usually matches
+// the panel's region for residential users). UTC was wrong: Xtream
+// panels interpret the date in the path as their own local time, so a
+// browser in Israel asking for "18:00 local" must say :18-00, not the
+// UTC equivalent :16-00.
+const XTREAM_LIVE_RE_WITH_LIVE = /^(https?:\/\/[^/]+)\/live\/([^/]+)\/([^/]+)\/([^/.?]+)(?:\.[a-z0-9]+)?(?:\?.*)?$/i;
+const XTREAM_LIVE_RE_NO_LIVE   = /^(https?:\/\/[^/]+)\/([^/]+)\/([^/]+)\/([^/.?]+)(?:\.[a-z0-9]+)?(?:\?.*)?$/i;
 
 function inferXtreamCatchup(req: CatchupRequest): string | null {
-  const m = XTREAM_LIVE_RE.exec(req.channel.streamUrl);
+  const url = req.channel.streamUrl;
+  // SID must look like a numeric Xtream stream id — that's what
+  // distinguishes Xtream URLs from arbitrary HLS endpoints. Without
+  // this check we'd misfire on plain CDN URLs that happen to have
+  // three path segments.
+  let m = XTREAM_LIVE_RE_WITH_LIVE.exec(url);
+  if (!m) {
+    const noLive = XTREAM_LIVE_RE_NO_LIVE.exec(url);
+    if (noLive && /^\d+$/.test(noLive[4])) m = noLive;
+  }
   if (!m) return null;
+
   const [, base, user, pass, sid] = m;
   const d = new Date(req.startMs);
-  const Y  = d.getUTCFullYear();
-  const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const da = String(d.getUTCDate()).padStart(2, '0');
-  const H  = String(d.getUTCHours()).padStart(2, '0');
-  const M  = String(d.getUTCMinutes()).padStart(2, '0');
-  // Preserve the live URL's extension so .m3u8 channels stay HLS-served
-  // and .ts channels stay raw — the same extension worked for live, so
-  // it'll usually work for timeshift on the same panel.
-  const extMatch = /\.([a-z0-9]+)(?:\?|$)/i.exec(req.channel.streamUrl);
-  const ext = extMatch ? extMatch[1].toLowerCase() : 'm3u8';
+  const Y  = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const da = String(d.getDate()).padStart(2, '0');
+  const H  = String(d.getHours()).padStart(2, '0');
+  const M  = String(d.getMinutes()).padStart(2, '0');
+  // .ts is the most universally supported timeshift output across
+  // every Xtream fork — .m3u8 only works on some panels. If the live
+  // URL was MPEG-TS we keep .ts, otherwise we still prefer .ts here
+  // because m3u8 timeshift is the exception rather than the rule.
+  const ext = 'ts';
   return `${base}/timeshift/${encodeURIComponent(user)}/${encodeURIComponent(pass)}`
     + `/${req.durationMin}`
     + `/${Y}-${mo}-${da}:${H}-${M}`
