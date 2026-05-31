@@ -71,6 +71,12 @@ const he: Record<string, string> = {
   'live.moreInfo':       'עוד מידע',
   'live.comingUp':       'בהמשך',
   'live.tapToUnmute':    'הקש לבטל השתקה',
+  'live.scrubber.label':      'בקרת שידור מושהה',
+  'live.scrubber.live':       'שידור חי',
+  'live.scrubber.returnLive': 'חזרה לשידור חי',
+  'live.scrubber.back':       'אחורה {n} דקות',
+  'live.scrubber.forward':    'קדימה {n} דקות',
+  'live.scrubber.offset':     '{n} דק׳ אחרי השידור',
 
   'pref.spoilerProtection': 'הסתרת ספוילרים',
   'pref.prefetch':       'טעינה מוקדמת של הערוץ הבא',

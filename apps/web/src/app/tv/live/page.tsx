@@ -22,6 +22,7 @@ import ChannelRail from '@/components/tv/live/ChannelRail';
 import PlayerSurface from '@/components/tv/live/PlayerSurface';
 import InfoBar from '@/components/tv/live/InfoBar';
 import NumberZap from '@/components/tv/live/NumberZap';
+import LiveScrubber from '@/components/tv/live/LiveScrubber';
 import type { Channel } from '@/components/tv/live/types';
 import { userKey } from '@/lib/session';
 import { recordWatch } from '@/lib/watchHistory';
@@ -117,17 +118,23 @@ export default function LivePage() {
     return { ...active, streamUrl: built.url };
   }, [active, catchupMs]);
 
-  // Sync the catch-up error message whenever active / catchupMs change.
+  // Sync the catch-up error message based on whether buildCatchupUrl
+  // actually produced a URL. The old check (catchupKind/catchupSource
+  // attributes only) was wrong now that we infer catch-up from the
+  // Xtream URL pattern even without explicit attributes — the message
+  // would show "no catch-up support" while we were silently playing
+  // the catchup URL anyway.
   useEffect(() => {
     if (!active || !catchupMs) { setCatchupError(null); return; }
-    if (!active.catchupKind && !active.catchupSource) {
-      setCatchupError(
-        "This channel's playlist doesn't include catch-up support — playing live instead.",
-      );
+    if (playable && playable.streamUrl !== active.streamUrl) {
+      setCatchupError(null);          // we built a real catchup URL
     } else {
-      setCatchupError(null);
+      setCatchupError(
+        "This channel doesn't expose a catch-up archive we can read. " +
+        "Ask your provider for a playlist with catchup-source attributes.",
+      );
     }
-  }, [active, catchupMs]);
+  }, [active, catchupMs, playable]);
 
   useEffect(() => {
     let cancelled = false;
@@ -454,6 +461,15 @@ export default function LivePage() {
                 error={catchupError}
                 onReturnLive={() => setCatchupMs(0)}
                 fullscreen
+              />
+            )}
+            {active && !catchupError && (
+              <LiveScrubber
+                catchupMs={catchupMs}
+                maxRewindDays={active.catchupDays ?? 7}
+                onSeek={(ms) => setCatchupMs(ms)}
+                onReturnLive={() => setCatchupMs(0)}
+                visible={infoVisible}
               />
             )}
             <button

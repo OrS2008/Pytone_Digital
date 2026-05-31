@@ -713,6 +713,104 @@
 }
 .live-close:hover { background: rgba(0, 0, 0, 0.85); }
 
+/* --- Live scrubber pill --------------------------------------------- */
+/* Sits above the bottom info bar in watching mode, fades with the
+   same visibility window so the player chrome stays uncluttered. */
+.live-scrubber {
+  position: absolute;
+  left: 50%;
+  bottom: 120px;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  pointer-events: auto;
+}
+.live-scrubber-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px;
+  background: rgba(6, 7, 10, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+.live-scrubber-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #E9EBF1;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  transition: background 120ms ease, transform 120ms ease;
+}
+.live-scrubber-chip:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  transform: translateY(-1px);
+}
+.live-scrubber-chip:active:not(:disabled) { transform: translateY(0); }
+.live-scrubber-chip:disabled {
+  opacity: 0.32;
+  cursor: not-allowed;
+}
+.live-scrubber-chip > span:first-child { opacity: 0.7; font-size: 14px; }
+.live-scrubber-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 12px; font-weight: 800;
+  letter-spacing: 1px;
+}
+.live-scrubber-status-live {
+  background: rgba(255, 59, 110, 0.18);
+  color: #FF6B7B;
+  border: 1px solid rgba(255, 59, 110, 0.35);
+}
+.live-scrubber-live-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 18px;
+  background: linear-gradient(135deg, #FF3B6E, #6C50FF);
+  color: #fff;
+  border: 0;
+  border-radius: 999px;
+  font-size: 13px; font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(255, 59, 110, 0.45);
+}
+.live-scrubber-live-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+.live-scrubber-dot {
+  width: 8px; height: 8px;
+  border-radius: 999px;
+  background: #FF3B6E;
+  box-shadow: 0 0 0 4px rgba(255, 59, 110, 0.18);
+  animation: live-pulse 1.6s ease-out infinite;
+}
+@keyframes live-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(255, 59, 110, 0.18); }
+  50%      { box-shadow: 0 0 0 8px rgba(255, 59, 110, 0.05); }
+}
+.live-scrubber-live-btn .live-scrubber-dot { background: #fff; box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.25); }
+.live-scrubber-offset {
+  font-size: 12px; color: #B7BEC9;
+  padding: 4px 12px;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+html[dir="rtl"] .live-scrubber-chip > span:first-child,
+html[dir="rtl"] .live-scrubber-chip > span:last-child { /* keep glyph orientation */ }
+@media (max-width: 900px) {
+  .live-scrubber { bottom: 96px; }
+  .live-scrubber-row { gap: 4px; padding: 6px; }
+  .live-scrubber-chip { padding: 6px 10px; font-size: 12px; }
+  .live-scrubber-live-btn { padding: 7px 14px; font-size: 12px; }
+}
+
 /* --- Unmute prompt -------------------------------------------------- */
 .player-unmute {
   position: absolute;

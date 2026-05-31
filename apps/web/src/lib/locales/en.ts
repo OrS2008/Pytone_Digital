@@ -71,6 +71,12 @@ const en: Record<string, string> = {
   'live.moreInfo':       'More info',
   'live.comingUp':       'Coming up',
   'live.tapToUnmute':    'Tap to unmute',
+  'live.scrubber.label':      'Timeshift controls',
+  'live.scrubber.live':       'LIVE',
+  'live.scrubber.returnLive': 'Back to live',
+  'live.scrubber.back':       'Jump back {n} min',
+  'live.scrubber.forward':    'Jump forward {n} min',
+  'live.scrubber.offset':     '{n} min behind live',
 
   'pref.spoilerProtection': 'Spoiler protection',
   'pref.prefetch':       'Pre-warm the next channel',
