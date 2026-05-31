@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getHistory, type WatchEntry } from '@/lib/watchHistory';
 import { useT } from '@/lib/i18n';
+import ScrollableRow from './ScrollableRow';
 
 // Real "Continue Watching" row, fed from the tenant's localStorage
 // history. Renders nothing if the user has never watched anything —
@@ -18,20 +19,17 @@ export default function ContinueWatchingRow() {
   if (items.length === 0) return null;
 
   return (
-    <div className="tv-row tv-row-cw">
-      <h2>{t('home.continue')}</h2>
-      <div className="tv-row-strip">
-        {items.map((e) => (
-          <Link key={e.channelId} href={`/tv/live?ch=${encodeURIComponent(String(e.number))}`} className="tv-tile tv-tile-cw">
-            {e.logoUrl
-              // eslint-disable-next-line @next/next/no-img-element
-              ? <img src={e.logoUrl} alt="" />
-              : <div className="tv-tile-num">{e.number}</div>}
-            <div className="tv-tile-gradient" />
-            <div className="tv-tile-caption">{e.name}</div>
-          </Link>
-        ))}
-      </div>
-    </div>
+    <ScrollableRow rowClassName="tv-row tv-row-cw" title={t('home.continue')}>
+      {items.map((e) => (
+        <Link key={e.channelId} href={`/tv/live?ch=${encodeURIComponent(String(e.number))}`} className="tv-tile tv-tile-cw">
+          {e.logoUrl
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={e.logoUrl} alt="" />
+            : <div className="tv-tile-num">{e.number}</div>}
+          <div className="tv-tile-gradient" />
+          <div className="tv-tile-caption">{e.name}</div>
+        </Link>
+      ))}
+    </ScrollableRow>
   );
 }

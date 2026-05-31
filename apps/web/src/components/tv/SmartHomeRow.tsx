@@ -19,6 +19,7 @@ import { useEffect, useState } from 'react';
 import type { M3UChannel } from '@/lib/m3u';
 import { getCachedChannels, loadChannels } from '@/lib/channelCache';
 import LivePreviewTile from './LivePreviewTile';
+import ScrollableRow from './ScrollableRow';
 
 interface Props {
   title:    string;
@@ -114,13 +115,10 @@ export default function SmartHomeRow({ title, pick, limit = 12 }: Props) {
   if (items.length === 0) return null;          // category has no matches in this playlist
 
   return (
-    <div className="tv-row">
-      <h2>{title}</h2>
-      <div className="tv-row-strip">
-        {items.map((c) => (
-          <LivePreviewTile key={c.id + '-' + c.number} channel={c} />
-        ))}
-      </div>
-    </div>
+    <ScrollableRow rowClassName="tv-row" title={title}>
+      {items.map((c) => (
+        <LivePreviewTile key={c.id + '-' + c.number} channel={c} />
+      ))}
+    </ScrollableRow>
   );
 }

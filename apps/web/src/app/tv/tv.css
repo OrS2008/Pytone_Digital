@@ -130,6 +130,129 @@
   transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ScrollableRow — the strip plus its overlaid left/right arrow buttons. */
+.tv-scroll-row {
+  position: relative;
+}
+.tv-scroll-row > h2 {
+  font-size: 28px;
+  margin-bottom: 16px;
+  padding: 0 64px;
+}
+.tv-scroll-row-track {
+  position: relative;
+}
+/* The .tv-row-strip inside still does the scrolling — we just paint
+   the arrow chrome on top of it. */
+.tv-scroll-row .tv-row-strip {
+  scroll-behavior: smooth;
+}
+
+/* Round, gradient-backed arrow buttons. Sit vertically centred over
+   the tile strip with a soft fade-from-edge so off-screen tiles peek
+   behind the button without being fully covered. */
+.tv-scroll-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%) scale(0.9);
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, rgba(255, 59, 110, 0.95), rgba(108, 80, 255, 0.95));
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  font-size: 32px;
+  line-height: 1;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 5;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 200ms ease;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.5),
+    0 2px 6px rgba(255, 59, 110, 0.4);
+  /* Sit slightly inset from the safe-area gutter (64px) so the icon
+     never overlaps a tile that's right at the edge. */
+  outline: none;
+}
+.tv-scroll-arrow-left  { left: 18px; }
+.tv-scroll-arrow-right { right: 18px; }
+.tv-scroll-arrow.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-50%) scale(1);
+}
+.tv-scroll-arrow:hover {
+  transform: translateY(-50%) scale(1.08);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.55),
+    0 4px 14px rgba(255, 59, 110, 0.6);
+}
+.tv-scroll-arrow:active {
+  transform: translateY(-50%) scale(0.96);
+}
+.tv-scroll-arrow:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+.tv-scroll-arrow > span {
+  /* Optical centring — the › glyph has uneven side bearings. */
+  display: inline-block;
+  margin-top: -3px;
+}
+.tv-scroll-arrow-left > span  { margin-right: 3px; }
+.tv-scroll-arrow-right > span { margin-left:  3px; }
+
+/* Soft fade overlay so tiles seem to "scroll under" the arrows rather
+   than be jarringly clipped at the row edge. Only painted when the
+   matching arrow is visible. */
+.tv-scroll-row-track::before,
+.tv-scroll-row-track::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 96px;
+  pointer-events: none;
+  z-index: 4;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.tv-scroll-row-track::before {
+  left: 0;
+  background: linear-gradient(to right, #06070A 8%, rgba(6, 7, 10, 0));
+}
+.tv-scroll-row-track::after {
+  right: 0;
+  background: linear-gradient(to left,  #06070A 8%, rgba(6, 7, 10, 0));
+}
+.tv-scroll-row:hover .tv-scroll-arrow-left.visible  ~ .tv-row-strip { /* keep cascading */ }
+/* We can't easily target "edge gradient" only-when-arrow-visible from
+   here without :has(), so we tie the gradient opacity to row hover —
+   on a TV/remote the gradient stays hidden which is fine. */
+.tv-scroll-row:hover .tv-scroll-row-track::before,
+.tv-scroll-row:focus-within .tv-scroll-row-track::before { opacity: 1; }
+.tv-scroll-row:hover .tv-scroll-row-track::after,
+.tv-scroll-row:focus-within .tv-scroll-row-track::after  { opacity: 1; }
+
+/* RTL: swap arrow positions visually so "next" still points in the
+   direction of travel. */
+html[dir="rtl"] .tv-scroll-arrow-left  { left: auto; right: 18px; }
+html[dir="rtl"] .tv-scroll-arrow-right { right: auto; left: 18px; }
+html[dir="rtl"] .tv-scroll-arrow-left  > span { margin-left:  3px; margin-right: 0; transform: scaleX(-1); }
+html[dir="rtl"] .tv-scroll-arrow-right > span { margin-right: 3px; margin-left:  0; transform: scaleX(-1); }
+
+@media (max-width: 720px) {
+  .tv-scroll-arrow { width: 44px; height: 44px; font-size: 26px; }
+  .tv-scroll-arrow-left  { left: 8px; }
+  .tv-scroll-arrow-right { right: 8px; }
+  .tv-scroll-row > h2 { padding: 0 16px; font-size: 18px; }
+}
+
 .tv-hero {
   height: 70vh;
   min-height: 540px;
