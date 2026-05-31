@@ -470,6 +470,7 @@ export default function LivePage() {
                 onSeek={(ms) => setCatchupMs(ms)}
                 onReturnLive={() => setCatchupMs(0)}
                 active={watching}
+                infoBarVisible={infoVisible}
               />
             )}
             <button

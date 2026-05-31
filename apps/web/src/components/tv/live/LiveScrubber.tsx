@@ -38,6 +38,13 @@ interface Props {
   onReturnLive:  () => void;
   /** True while the fullscreen player overlay is active. */
   active?: boolean;
+  /**
+   * True while the bottom InfoBar is on screen. We hide the
+   * scrubber's bottom timeline in that case so it doesn't sit on
+   * top of the programme description — the floating "−30 s" flash
+   * still appears because it lives well above any chrome.
+   */
+  infoBarVisible?: boolean;
 }
 
 const BASE_STEP_MS   = 10_000;      // first press is 10 s
@@ -53,6 +60,7 @@ export default function LiveScrubber({
   onSeek,
   onReturnLive,
   active = true,
+  infoBarVisible = false,
 }: Props) {
   const { t } = useT();
   // pendingMs is the staged target timestamp — the player hasn't been
@@ -196,10 +204,12 @@ export default function LiveScrubber({
         </div>
       )}
 
-      {/* Bottom mini-timeline. Always present so the user has a
-          visible cue that ← / → will seek. In live mode the marker
-          sits flush on the right edge; in catch-up it tracks the
-          pending position. */}
+      {/* Bottom mini-timeline. Hidden while the InfoBar is showing
+          (it would otherwise sit on top of the programme description
+          — see screenshot regression report). In live mode the
+          marker sits flush on the right edge; in catch-up it
+          tracks the pending position. */}
+      {!infoBarVisible && (
       <div className="live-scrubber-bar" aria-hidden>
         <div className="live-scrubber-bar-track">
           <div className="live-scrubber-bar-fill" style={{ width: `${pct}%` }} />
@@ -217,6 +227,7 @@ export default function LiveScrubber({
           )}
         </div>
       </div>
+      )}
     </>
   );
 }
