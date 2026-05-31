@@ -180,7 +180,7 @@ export default function LivePage() {
         setEpgState('loading');
         const idx = await loadEpgIndex();
         if (cancelled) return;
-        if (idx && idx.size > 0) {
+        if (idx && idx.byId.size > 0) {
           setChannels((cur) => hydrateChannels(cur, idx));
           setEpgState('ready');
         } else {
@@ -469,7 +469,7 @@ export default function LivePage() {
                 maxRewindDays={active.catchupDays ?? 7}
                 onSeek={(ms) => setCatchupMs(ms)}
                 onReturnLive={() => setCatchupMs(0)}
-                visible={infoVisible}
+                active={watching}
               />
             )}
             <button

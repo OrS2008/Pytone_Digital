@@ -30,7 +30,7 @@ import Link from 'next/link';
 import TvNav from '@/components/tv/TvNav';
 import { TvFocusProvider } from '@/components/tv/TvFocus';
 import { getCachedChannels, loadChannels } from '@/lib/channelCache';
-import { loadEpgIndex, getUserEpgUrl } from '@/lib/epgCache';
+import { loadEpgIndex, getUserEpgUrl, programmesFor, type EpgIndex } from '@/lib/epgCache';
 import type { EpgProgramme } from '@/lib/epg';
 import { userKey } from '@/lib/session';
 import type { M3UChannel } from '@/lib/m3u';
@@ -71,7 +71,7 @@ export default function CatchupPage() {
   const [channels, setChannels] = useState<M3UChannel[]>(
     (typeof window !== 'undefined' ? getCachedChannels() : null) ?? [],
   );
-  const [epgIndex, setEpgIndex] = useState<Map<string, EpgProgramme[]> | null>(null);
+  const [epgIndex, setEpgIndex] = useState<EpgIndex | null>(null);
   const [epgState, setEpgState] = useState<'idle' | 'loading' | 'ready' | 'none'>(
     typeof window !== 'undefined' && getUserEpgUrl() ? 'idle' : 'none',
   );
@@ -89,8 +89,8 @@ export default function CatchupPage() {
         setEpgState('loading');
         const idx = await loadEpgIndex();
         if (cancelled) return;
-        if (idx && idx.size > 0) { setEpgIndex(idx); setEpgState('ready'); }
-        else                     { setEpgState('none'); }
+        if (idx && idx.byId.size > 0) { setEpgIndex(idx); setEpgState('ready'); }
+        else                          { setEpgState('none'); }
       }
     })();
     try {
@@ -299,7 +299,7 @@ export default function CatchupPage() {
 
 interface DetailProps {
   channel: M3UChannel;
-  epgIndex: Map<string, EpgProgramme[]> | null;
+  epgIndex: EpgIndex | null;
   epgState: 'idle' | 'loading' | 'ready' | 'none';
   onBack: () => void;
 }
@@ -322,12 +322,14 @@ function ChannelDetail({ channel, epgIndex, epgState, onBack }: DetailProps) {
   }, [today]);
 
   // Pull this channel's full programme list out of the EPG index.
-  // We match by tvg-id, falling back to the channel's id (some
-  // playlists store the tvg-id under id directly).
+  // programmesFor walks tvg-id → channel.id → normalised display name
+  // → normalised name without quality tags, so channels whose
+  // tvg-id doesn't line up with the XMLTV file still find their
+  // programmes by name (e.g. "National Geographic HD" → "natgeo.il").
   const allProgs: EpgProgramme[] = useMemo(() => {
     if (!epgIndex) return [];
-    return epgIndex.get(channel.tvgId || channel.id) ?? [];
-  }, [epgIndex, channel.id, channel.tvgId]);
+    return programmesFor(epgIndex, channel);
+  }, [epgIndex, channel]);
 
   // Filter to just the programmes that aired during the selected day,
   // and only those that have already started (catch-up != upcoming).

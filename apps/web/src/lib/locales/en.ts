@@ -74,9 +74,7 @@ const en: Record<string, string> = {
   'live.scrubber.label':      'Timeshift controls',
   'live.scrubber.live':       'LIVE',
   'live.scrubber.returnLive': 'Back to live',
-  'live.scrubber.back':       'Jump back {n} min',
-  'live.scrubber.forward':    'Jump forward {n} min',
-  'live.scrubber.offset':     '{n} min behind live',
+  'live.scrubber.hint':       '← / → to scrub · hold to fast-rewind',
 
   'pref.spoilerProtection': 'Spoiler protection',
   'pref.prefetch':       'Pre-warm the next channel',

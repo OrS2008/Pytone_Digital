@@ -122,14 +122,19 @@ export default function InfoBar(p: Props) {
     return () => v.removeEventListener('volumechange', sync);
   }, [p.channel?.streamUrl]);
 
-  // Tab/Left/Right move focus across the three action buttons when the bar
-  // is open. We deliberately consume those keys only when visible so the
-  // channel rail handles arrow keys when the bar is hidden.
+  // Tab moves focus across the action buttons when the bar is open.
+  // We used to bind Left / Right too, but the player overlay claims
+  // arrow keys for the timeshift scrubber — sharing them confused
+  // users who pressed ← expecting to rewind and got button focus
+  // instead. Esc dismisses the bar. Enter triggers the focused button.
   useEffect(() => {
     if (!p.visible) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'ArrowRight') { setFocused((i) => Math.min(i + 1, BTN_COUNT - 1)); e.preventDefault(); }
-      if (e.key === 'ArrowLeft')  { setFocused((i) => Math.max(i - 1, 0));             e.preventDefault(); }
+      if (e.key === 'Tab') {
+        const dir = e.shiftKey ? -1 : 1;
+        setFocused((i) => (i + dir + BTN_COUNT) % BTN_COUNT);
+        e.preventDefault();
+      }
       if (e.key === 'Escape' || e.key === 'GoBack') { p.onDismiss(); }
       if (e.key === 'Enter') {
         if (focused === 0) doReturnLive();

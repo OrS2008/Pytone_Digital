@@ -25,6 +25,8 @@ const PROG_OPEN = /<programme\b([^>]*)>/g;
 const TITLE_RE  = /<title[^>]*>([\s\S]*?)<\/title>/;
 const DESC_RE   = /<desc[^>]*>([\s\S]*?)<\/desc>/;
 const ATTR_RE   = /(\w[\w-]*)="([^"]*)"/g;
+const CHAN_OPEN = /<channel\b([^>]*)>/g;
+const DISPLAY_NAME_RE = /<display-name[^>]*>([\s\S]*?)<\/display-name>/g;
 
 // XMLTV stamp -> ms. Example: "20260526210000 +0300"
 function parseXmltvDate(s: string): number {
@@ -127,6 +129,75 @@ export function indexProgrammes(xml: string): Map<string, EpgProgramme[]> {
   }
   for (const arr of out.values()) {
     arr.sort((a, b) => a.start - b.start);
+  }
+  return out;
+}
+
+// Normalise channel names for fuzzy matching: lowercase + drop every
+// non-letter / non-digit character. This collapses "National Geographic
+// HD", "national-geographic.hd", "National_Geographic_HD" → the same
+// token so M3U names can find their XMLTV display-name counterparts
+// regardless of punctuation.
+export function normaliseChannelName(name: string): string {
+  return name.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+}
+
+// Strip the trailing quality / country / language hints that often
+// appear in M3U channel names but not in XMLTV display names (or
+// vice-versa). "nationalgeographichd" → "nationalgeographic".
+const QUALITY_TAIL = /(hd|fhd|uhd|sd|4k|hevc|h265|h264|hdr|dolby|atmos|ch\d+|backup|alt\d?|tr|en|us|uk|il|isr)+$/;
+export function stripQualityTags(name: string): string {
+  return name.replace(QUALITY_TAIL, '') || name;
+}
+
+// Walk every <channel id="..."><display-name>...</display-name></channel>
+// block and yield one (id, displayNames[]) per channel. XMLTV files
+// usually include a header section like this; aggregators like
+// iptv-org always do. When a file ships without it the returned map
+// is empty and we just rely on tvg-id matching.
+export function* iterChannels(xml: string): Generator<{ id: string; displayNames: string[] }> {
+  CHAN_OPEN.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = CHAN_OPEN.exec(xml)) !== null) {
+    const openAttrs = m[1];
+    const openEnd   = CHAN_OPEN.lastIndex;
+    const closeIdx  = xml.indexOf('</channel>', openEnd);
+    if (closeIdx < 0) break;
+    const inner = xml.slice(openEnd, closeIdx);
+    let id = '';
+    ATTR_RE.lastIndex = 0;
+    let am: RegExpExecArray | null;
+    while ((am = ATTR_RE.exec(openAttrs)) !== null) {
+      if (am[1].toLowerCase() === 'id') { id = am[2]; break; }
+    }
+    if (!id) { CHAN_OPEN.lastIndex = closeIdx + 10; continue; }
+
+    const names: string[] = [];
+    DISPLAY_NAME_RE.lastIndex = 0;
+    let dm: RegExpExecArray | null;
+    while ((dm = DISPLAY_NAME_RE.exec(inner)) !== null) {
+      const txt = decodeEntities(unwrapCdata(dm[1])).trim();
+      if (txt) names.push(txt);
+    }
+    yield { id, displayNames: names };
+    CHAN_OPEN.lastIndex = closeIdx + 10;
+  }
+}
+
+// Build a normalised-display-name → channel-id map so M3U channels
+// can find their EPG programmes when the tvg-id doesn't match but
+// the human-visible name does. We also store the stripped-quality
+// variant so "National Geographic HD" finds "National Geographic".
+export function indexChannelNames(xml: string): Map<string, string> {
+  const out: Map<string, string> = new Map();
+  for (const ch of iterChannels(xml)) {
+    for (const dn of ch.displayNames) {
+      const norm = normaliseChannelName(dn);
+      if (!norm) continue;
+      if (!out.has(norm)) out.set(norm, ch.id);
+      const stripped = stripQualityTags(norm);
+      if (stripped !== norm && !out.has(stripped)) out.set(stripped, ch.id);
+    }
   }
   return out;
 }

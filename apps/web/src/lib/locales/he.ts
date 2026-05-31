@@ -74,9 +74,7 @@ const he: Record<string, string> = {
   'live.scrubber.label':      'בקרת שידור מושהה',
   'live.scrubber.live':       'שידור חי',
   'live.scrubber.returnLive': 'חזרה לשידור חי',
-  'live.scrubber.back':       'אחורה {n} דקות',
-  'live.scrubber.forward':    'קדימה {n} דקות',
-  'live.scrubber.offset':     '{n} דק׳ אחרי השידור',
+  'live.scrubber.hint':       '← / → לגלילה · החזק להאצה',
 
   'pref.spoilerProtection': 'הסתרת ספוילרים',
   'pref.prefetch':       'טעינה מוקדמת של הערוץ הבא',
