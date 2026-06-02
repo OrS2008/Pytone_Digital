@@ -96,6 +96,18 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     let retries = 0;
     let candidateIdx = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    // Stall-timeout for the current candidate. The most insidious
+    // catch-up failure mode is a Flussonic / Wowza panel that
+    // responds to the archive URL with a manifest that PARSES fine
+    // (so hls.js fires no error) but whose segments either don't
+    // exist or never load. The player sits on "Tuning…" forever
+    // because no fatal error ever arrives. The stall timer arms when
+    // we attach to the manifest and fires if the video never reaches
+    // `playing` before the timeout — at which point we advance to
+    // the next candidate (or surface the user-facing error when
+    // there is no next candidate).
+    let stallTimer: ReturnType<typeof setTimeout> | null = null;
+    const STALL_MS = 8_000;
     const canNative = video.canPlayType('application/vnd.apple.mpegurl') !== '';
 
     function isHlsUrl(u: string) { return /\.m3u8(\?|$)/i.test(u); }
@@ -103,6 +115,16 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     function destroyHls() {
       if (hls) { try { hls.destroy(); } catch { /* ignore */ } hls = null; }
     }
+
+    function clearStall() {
+      if (stallTimer) { clearTimeout(stallTimer); stallTimer = null; }
+    }
+    // Fires once per attached candidate. We register it as a regular
+    // DOM listener instead of relying on the <video onPlaying> prop
+    // so the effect closure can manage it directly and so cleanup
+    // is deterministic when we switch candidates.
+    function onVideoPlaying() { clearStall(); }
+    video.addEventListener('playing', onVideoPlaying);
 
     async function tryCandidate(idx: number) {
       if (cancelled) return;
@@ -113,9 +135,21 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
       candidateIdx = idx;
       retries = 0;
       destroyHls();
+      clearStall();
       const upstream  = candidates[idx];
       const proxiedUrl = proxiedStreamUrl(upstream);
       onCandidateChange?.({ idx, total: candidates.length, url: upstream });
+
+      // Arm the stall timer for THIS candidate. If `playing` doesn't
+      // fire before STALL_MS expires we treat the URL as failed even
+      // when no error event was emitted. Particularly important for
+      // catch-up because some panels return a 200 OK on the archive
+      // path with an empty / dead manifest.
+      stallTimer = setTimeout(() => {
+        if (cancelled) return;
+        stallTimer = null;
+        tryCandidate(candidateIdx + 1);
+      }, STALL_MS);
 
       // Honour the requested initial mute state. Fullscreen renders
       // pass startUnmuted=true so the click that opened fullscreen
@@ -200,6 +234,8 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     return () => {
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
+      clearStall();
+      video.removeEventListener('playing', onVideoPlaying);
       destroyHls();
       video.removeAttribute('src');
       video.load();
