@@ -113,6 +113,65 @@ function expandTemplate(template: string, req: CatchupRequest): string {
 
 interface XtreamParts { base: string; user: string; pass: string; sid: string; }
 
+interface FlussonicParts { base: string; stream: string; playlist: string; }
+
+// Flussonic / Wowza / nginx-rtmp servers use a stream-name path
+// rather than the Xtream USER/PASS/SID triplet:
+//   /STREAM/video.m3u8
+//   /STREAM/index.m3u8
+//   /s/TOKEN/STREAM/video.m3u8         (signed-URL gateway)
+//   /TOKEN/STREAM/index.m3u8           (alt signed-URL shape)
+// We detect this by the trailing playlist name (video.m3u8 /
+// index.m3u8 / mono.m3u8) and rebuild the timeshift URL with the
+// archive path: /STREAM/index-{utc_start}-{duration_sec}.m3u8.
+function parseFlussonicLiveUrl(streamUrl: string): FlussonicParts | null {
+  let url: URL;
+  try { url = new URL(streamUrl); }
+  catch { return null; }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+  const parts = url.pathname.split('/').filter(Boolean);
+  if (parts.length < 2) return null;
+  const last = parts[parts.length - 1].toLowerCase();
+  // Flussonic always names the live playlist video.m3u8 / index.m3u8
+  // / mono.m3u8 / playlist.m3u8. If the last segment doesn't end
+  // in .m3u8 / .ts this isn't a Flussonic URL.
+  if (!/\.m3u8$/.test(last) && !/\.ts$/.test(last)) return null;
+  const playlistName = last; // keep original case
+  const stream = parts[parts.length - 2];
+  // Stream segment must not look like an Xtream numeric SID — those
+  // belong to parseXtreamLiveUrl. Flussonic stream names are
+  // usually slugs like "discovery-hd-il" or "channel-name-hd".
+  if (/^[0-9]+$/.test(stream)) return null;
+  const prefixParts = parts.slice(0, parts.length - 2);
+  const prefix = prefixParts.length > 0 ? '/' + prefixParts.join('/') : '';
+  return {
+    base:     `${url.protocol}//${url.host}${prefix}`,
+    stream,
+    playlist: playlistName,
+  };
+}
+
+function buildFlussonicCandidates(req: CatchupRequest, p: FlussonicParts): string[] {
+  const utcStart = Math.floor(req.startMs / 1_000);
+  const utcEnd   = Math.floor((req.startMs + req.durationMin * 60_000) / 1_000);
+  const durSec   = req.durationMin * 60;
+  const utcNow   = Math.floor(Date.now() / 1_000);
+  return [
+    // 1. Flussonic DVR archive (default index-START-DURATION shape)
+    `${p.base}/${p.stream}/index-${utcStart}-${durSec}.m3u8`,
+    // 2. Same shape but using the stream's actual playlist name
+    `${p.base}/${p.stream}/${p.playlist.replace(/\.m3u8$/i, '')}-${utcStart}-${durSec}.m3u8`,
+    // 3. Append-mode on the existing playlist (from/to query)
+    `${p.base}/${p.stream}/${p.playlist}?from=${utcStart}&to=${utcEnd}`,
+    // 4. Append-mode with t/tend (some Flussonic deployments)
+    `${p.base}/${p.stream}/${p.playlist}?t=${utcStart}&tend=${utcEnd}`,
+    // 5. Append-mode with utc/lutc (Xtream-style query rewrite)
+    `${p.base}/${p.stream}/${p.playlist}?utc=${utcStart}&lutc=${utcNow}`,
+    // 6. Absolute timeshift segment (single segment from a moment)
+    `${p.base}/${p.stream}/timeshift_abs-${utcStart}.m3u8`,
+  ];
+}
+
 function parseXtreamLiveUrl(streamUrl: string): XtreamParts | null {
   let url: URL;
   try { url = new URL(streamUrl); }
@@ -179,45 +238,47 @@ function buildXtreamCandidates(req: CatchupRequest, p: XtreamParts): string[] {
   ];
 }
 
+// Collect every URL we know how to spell timeshift on, in
+// best-guess order. The player walks the list and stops on the
+// first one that loads — so even when the M3U's catchup-source
+// template misses the panel's actual convention, one of the
+// inferred URLs usually does the right thing.
+function collectAllCandidates(req: CatchupRequest): string[] {
+  const ch = req.channel;
+  const candidates: string[] = [];
+  const push = (u: string) => { if (u && !candidates.includes(u)) candidates.push(u); };
+
+  // 1. The M3U's own catchup-source template, if it provided one.
+  //    This is the provider's official answer; if it works we
+  //    stop here. If it doesn't, the inferred URLs below take over.
+  if (ch.catchupSource) push(expandTemplate(ch.catchupSource, req));
+
+  // 2. Xtream candidates for /USER/PASS/SID-shaped live URLs.
+  const xt = parseXtreamLiveUrl(ch.streamUrl);
+  if (xt) for (const u of buildXtreamCandidates(req, xt)) push(u);
+
+  // 3. Flussonic / Wowza candidates for /STREAM/video.m3u8 shapes.
+  const fl = parseFlussonicLiveUrl(ch.streamUrl);
+  if (fl) for (const u of buildFlussonicCandidates(req, fl)) push(u);
+
+  return candidates;
+}
+
 export function buildCatchupUrl(req: CatchupRequest): CatchupResult {
   const ch = req.channel;
-
-  // "default" with an explicit catchup-source: just expand the template.
-  if (ch.catchupSource) {
-    return { url: expandTemplate(ch.catchupSource, req) };
-  }
-
-  // For "default" / "xc" / unset catchup kind on a Xtream-shaped URL,
-  // the modern /timeshift/USER/PASS/DUR/DATE/ID URL is what every IPTV
-  // app on the market uses (Cloddy, Tivimate, IPTV Smarters, OTT
-  // Navigator, etc.). We try it before the append-query heuristic
-  // because the heuristic is far less likely to be the actual
-  // implementation of "default" on a modern Xtream panel.
   const kind = (ch.catchupKind || '').toLowerCase();
   const live = ch.streamUrl;
   const utc    = Math.floor(req.startMs / 1000);
   const utcend = Math.floor((req.startMs + req.durationMin * 60_000) / 1000);
 
-  if (!kind || kind === 'default' || kind === 'xc') {
-    const parts = parseXtreamLiveUrl(ch.streamUrl);
-    if (parts) {
-      const all = buildXtreamCandidates(req, parts);
-      return { url: all[0], fallbacks: all.slice(1) };
-    }
-    if (!kind) {
-      return {
-        url: null,
-        reason:
-          "This channel's playlist doesn't declare a catch-up archive and the live URL isn't a recognisable Xtream pattern. " +
-          "Ask your provider for a playlist with catchup / catchup-source attributes.",
-      };
-    }
-    // kind = 'default' / 'xc' on a non-Xtream URL — fall through to the
-    // append heuristic below.
+  const all = collectAllCandidates(req);
+  if (all.length > 0) {
+    return { url: all[0], fallbacks: all.slice(1) };
   }
 
   // append / shift / flussonic heuristics — best-effort fallbacks when
-  // the playlist names a kind but doesn't ship a catchup-source template.
+  // the playlist names a kind but doesn't ship a catchup-source template
+  // and the URL didn't match any known panel shape.
   if (kind === 'append' || kind === 'xc' || kind === 'default') {
     const sep = live.includes('?') ? '&' : '?';
     return { url: `${live}${sep}utc=${utc}&lutc=${Math.floor(Date.now() / 1000)}` };
@@ -225,6 +286,15 @@ export function buildCatchupUrl(req: CatchupRequest): CatchupResult {
   if (kind === 'shift' || kind === 'flussonic') {
     const sep = live.includes('?') ? '&' : '?';
     return { url: `${live}${sep}t=${utc}&tend=${utcend}` };
+  }
+
+  if (!kind) {
+    return {
+      url: null,
+      reason:
+        "This channel's playlist doesn't declare a catch-up archive and the live URL isn't a recognisable Xtream / Flussonic pattern. " +
+        "Ask your provider for a playlist with catchup / catchup-source attributes.",
+    };
   }
 
   return {
