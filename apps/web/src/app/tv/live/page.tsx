@@ -77,17 +77,18 @@ export default function LivePage() {
     return getCachedChannels();
   })();
   const initialDeep = (() => {
-    if (typeof window === 'undefined') return { idx: 0, watch: false, startMs: 0 };
+    if (typeof window === 'undefined') return { idx: 0, watch: false, startMs: 0, durMin: 0 };
     const params = new URLSearchParams(window.location.search);
     const want = params.get('ch');
     const startMs = Number(params.get('start')) || 0;
+    const durMin  = Number(params.get('dur'))   || 0;
     // ?preview=1 means "tune this channel but stay in the small
     // preview" — Search uses this so a click on a result doesn't
     // hijack the user into fullscreen.
     const preview = params.get('preview') === '1';
-    if (!want || !initialCached) return { idx: 0, watch: false, startMs };
+    if (!want || !initialCached) return { idx: 0, watch: false, startMs, durMin };
     const idx = initialCached.findIndex((c) => String(c.number) === want);
-    return idx >= 0 ? { idx, watch: !preview, startMs } : { idx: 0, watch: false, startMs };
+    return idx >= 0 ? { idx, watch: !preview, startMs, durMin } : { idx: 0, watch: false, startMs, durMin };
   })();
 
   const [channels, setChannels] = useState<Channel[]>(initialCached ?? []);
@@ -110,6 +111,12 @@ export default function LivePage() {
   // timestamp instead of the live edge. Cleared when the user clicks
   // "Return to live" or picks a different channel from the rail.
   const [catchupMs, setCatchupMs] = useState<number>(initialDeep.startMs);
+  // Duration hint passed in the deeplink (?dur=X minutes). The live
+  // page can't know past-programme durations from active.now (which
+  // only covers the current live programme), so the catchup page bakes
+  // the real EPG duration into the URL. Used as the Flussonic segment
+  // length when the programme lookup below doesn't match.
+  const [catchupDurMin] = useState(initialDeep.durMin);
   const [catchupError, setCatchupError] = useState<string | null>(null);
   const [load, setLoad] = useState<LoadState>(
     initialCached
@@ -139,9 +146,12 @@ export default function LivePage() {
       : active.next1 && active.next1.start.getTime() <= catchupMs && active.next1.stop.getTime() > catchupMs
       ? active.next1
       : undefined;
+    // For past programmes active.now never matches, so fall back to the
+    // duration baked into the deeplink URL (?dur=). Default 60 min is
+    // the last resort for scrubber seeks where no URL hint is available.
     const durationMin = programme
       ? Math.max(1, Math.round((programme.stop.getTime() - programme.start.getTime()) / 60_000))
-      : 60;
+      : (catchupDurMin > 0 ? catchupDurMin : 60);
     const built = buildCatchupUrl({
       channel: {
         id: active.id, number: active.number, name: active.name,
@@ -159,7 +169,7 @@ export default function LivePage() {
       return active; // fall through to live edge; banner explains why
     }
     return { ...active, streamUrl: built.url, streamUrlAlts: built.fallbacks };
-  }, [active, catchupMs]);
+  }, [active, catchupMs, catchupDurMin]);
 
   // Sync the catch-up error message based on whether buildCatchupUrl
   // actually produced a URL. The old check (catchupKind/catchupSource

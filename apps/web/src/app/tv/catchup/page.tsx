@@ -433,7 +433,7 @@ function ChannelDetail({ channel, epgIndex, epgState, onBack }: DetailProps) {
               {dayProgs.map((p) => (
                 <Link
                   key={`${p.channelId}-${p.start}`}
-                  href={`/tv/live?ch=${encodeURIComponent(String(channel.number))}&start=${p.start}`}
+                  href={`/tv/live?ch=${encodeURIComponent(String(channel.number))}&start=${p.start}&dur=${Math.round((p.stop - p.start) / 60_000)}&preview=1`}
                   style={progRowStyle}
                 >
                   <div style={progTimeStyle}>
