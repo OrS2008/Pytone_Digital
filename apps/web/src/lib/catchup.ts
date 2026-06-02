@@ -153,14 +153,14 @@ function parseFlussonicLiveUrl(streamUrl: string): FlussonicParts | null {
 
 function buildFlussonicCandidates(req: CatchupRequest, p: FlussonicParts): string[] {
   const utcStart = Math.floor(req.startMs / 1_000);
-  const utcEnd   = Math.floor((req.startMs + req.durationMin * 60_000) / 1_000);
   const durSec   = req.durationMin * 60;
-  // Only include URLs that use DVR-specific filenames so that a server
-  // WITHOUT DVR returns 404 (→ hls.js fatal → advance to next candidate)
-  // rather than silently serving the live stream. URLs that reuse the
-  // live playlist name (video.m3u8?from=…) may succeed on the live
-  // endpoint and trick the player into showing live content instead of
-  // the archive.
+  // Every URL we return MUST use a DVR-specific path that doesn't
+  // exist on the live endpoint, so a server without DVR returns a
+  // hard 404. URLs that reuse the live playlist name with query
+  // parameters (video.m3u8?from=…) are unsafe: many Flussonic builds
+  // silently ignore unknown params and serve the live manifest,
+  // which the player then plays as if it were the archive. That's
+  // the exact bug "catchup tunes the right channel but plays live".
   return [
     // 1. Flussonic DVR archive — standard index-START-DURATION shape
     `${p.base}/${p.stream}/index-${utcStart}-${durSec}.m3u8`,
@@ -168,11 +168,9 @@ function buildFlussonicCandidates(req: CatchupRequest, p: FlussonicParts): strin
     `${p.base}/${p.stream}/${p.playlist.replace(/\.m3u8$/i, '')}-${utcStart}-${durSec}.m3u8`,
     // 3. Absolute single-segment timeshift (some Flussonic builds)
     `${p.base}/${p.stream}/timeshift_abs-${utcStart}.m3u8`,
-    // 4. DVR range via from/to — Flussonic returns 404 when DVR is
-    //    disabled on this stream, so this is safe to include.
-    `${p.base}/${p.stream}/${p.playlist}?from=${utcStart}&to=${utcEnd}`,
-    // 5. DVR range via t/tend (alternate Flussonic parameter style)
-    `${p.base}/${p.stream}/${p.playlist}?t=${utcStart}&tend=${utcEnd}`,
+    // 4. Archive variant with explicit "archive-" prefix — used by
+    //    some nginx-based Flussonic forks
+    `${p.base}/${p.stream}/archive-${utcStart}-${durSec}.m3u8`,
   ];
 }
 
@@ -247,23 +245,38 @@ function buildXtreamCandidates(req: CatchupRequest, p: XtreamParts): string[] {
 // first one that loads — so even when the M3U's catchup-source
 // template misses the panel's actual convention, one of the
 // inferred URLs usually does the right thing.
+//
+// Order matters: structured archive paths (Flussonic
+// /STREAM/index-START-DUR.m3u8, Xtream /timeshift/…/SID.m3u8)
+// CANNOT silently serve the live stream — wrong path → hard 404.
+// The M3U's catchup-source template, by contrast, is often a copy
+// of the live URL with `?utc=X&lutc=Y` slapped on — Flussonic
+// ignores unknown query params and happily serves live, and the
+// player thinks the catchup URL worked. We put structured paths
+// first so the wrong-shape template only gets tried as a last
+// resort, after every panel-aware path has 404'd.
 function collectAllCandidates(req: CatchupRequest): string[] {
   const ch = req.channel;
   const candidates: string[] = [];
   const push = (u: string) => { if (u && !candidates.includes(u)) candidates.push(u); };
 
-  // 1. The M3U's own catchup-source template, if it provided one.
-  //    This is the provider's official answer; if it works we
-  //    stop here. If it doesn't, the inferred URLs below take over.
-  if (ch.catchupSource) push(expandTemplate(ch.catchupSource, req));
-
-  // 2. Xtream candidates for /USER/PASS/SID-shaped live URLs.
+  // 1. Xtream candidates for /USER/PASS/SID-shaped live URLs —
+  //    timeshift lives under /timeshift/, distinct path from live.
   const xt = parseXtreamLiveUrl(ch.streamUrl);
   if (xt) for (const u of buildXtreamCandidates(req, xt)) push(u);
 
-  // 3. Flussonic / Wowza candidates for /STREAM/video.m3u8 shapes.
+  // 2. Flussonic / Wowza candidates for /STREAM/video.m3u8 shapes.
+  //    Path-based DVR filenames — 404 on a non-DVR server, never
+  //    masquerade as live.
   const fl = parseFlussonicLiveUrl(ch.streamUrl);
   if (fl) for (const u of buildFlussonicCandidates(req, fl)) push(u);
+
+  // 3. The M3U's own catchup-source template, if it provided one.
+  //    Last because many providers ship a template that reuses the
+  //    live URL with query params — backends like Flussonic ignore
+  //    unknown params and silently serve live. Only reached when
+  //    the structured candidates above have all failed.
+  if (ch.catchupSource) push(expandTemplate(ch.catchupSource, req));
 
   return candidates;
 }

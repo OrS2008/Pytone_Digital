@@ -147,6 +147,24 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
           h.on(Hls.Events.ERROR, (...args: unknown[]) => {
             const data = args[1] as { fatal?: boolean; details?: string; type?: string } | undefined;
             if (!data?.fatal) return;
+            // Manifest didn't load (typically a 4xx from the upstream)
+            // or parsed empty. Retrying the SAME URL won't change
+            // anything — advance straight to the next candidate
+            // when there is one. Without this short-circuit the
+            // catch-up fallback chain wastes ~9 s per URL on a 404
+            // before moving on, and the user sits on a black tile
+            // for ~30–40 s before the next format gets tried.
+            const isPermanent =
+              data.details === 'manifestLoadError' ||
+              data.details === 'manifestLoadTimeOut' ||
+              data.details === 'manifestParsingError' ||
+              data.details === 'manifestIncompatibleVersionsError' ||
+              data.details === 'levelEmptyError';
+            const hasMoreCandidates = candidateIdx + 1 < candidates.length;
+            if (isPermanent && hasMoreCandidates) {
+              tryCandidate(candidateIdx + 1);
+              return;
+            }
             if (retries < RECONNECT_DELAYS_MS.length) {
               const delay = RECONNECT_DELAYS_MS[retries++];
               retryTimer = setTimeout(() => {
