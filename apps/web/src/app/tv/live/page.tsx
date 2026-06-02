@@ -99,6 +99,13 @@ export default function LivePage() {
   // the viewport via CSS too; requesting fullscreen on top lets the
   // user use their actual screen real estate (no browser chrome).
   const overlayRef = useRef<HTMLDivElement | null>(null);
+  // Which candidate timeshift URL the player is currently attached to.
+  // Surfaces in the catch-up diagnostic panel so users can copy the
+  // exact URL into a browser when their panel doesn't honour the
+  // first format we tried.
+  const [activeCatchupUrl, setActiveCatchupUrl] = useState<
+    { idx: number; total: number; url: string } | null
+  >(null);
   // Catch-up mode. When set, the active channel plays from this past
   // timestamp instead of the live edge. Cleared when the user clicks
   // "Return to live" or picks a different channel from the rail.
@@ -454,7 +461,11 @@ export default function LivePage() {
             <div className="live-preview">
               <div className="live-preview-player">
                 {playable ? (
-                  <PlayerSurface channel={playable} autoPlay />
+                  <PlayerSurface
+                    channel={playable}
+                    autoPlay
+                    onCandidateChange={(info) => setActiveCatchupUrl(info)}
+                  />
                 ) : (
                   <div className="live-preview-empty">
                     <div style={{ fontSize: 32 }}>📺</div>
@@ -466,6 +477,7 @@ export default function LivePage() {
                     startMs={catchupMs}
                     error={catchupError}
                     onReturnLive={() => setCatchupMs(0)}
+                    diagnostic={activeCatchupUrl}
                   />
                 )}
               </div>
@@ -537,13 +549,19 @@ export default function LivePage() {
             onClick={wakeInfoBar}
             onKeyDown={wakeInfoBar}
           >
-            <PlayerSurface channel={playable} autoPlay startUnmuted />
+            <PlayerSurface
+              channel={playable}
+              autoPlay
+              startUnmuted
+              onCandidateChange={(info) => setActiveCatchupUrl(info)}
+            />
             {catchupMs > 0 && (
               <CatchupBanner
                 startMs={catchupMs}
                 error={catchupError}
                 onReturnLive={() => setCatchupMs(0)}
                 fullscreen
+                diagnostic={activeCatchupUrl}
               />
             )}
             {active && !catchupError && (
@@ -598,11 +616,13 @@ function CatchupBanner({
   error,
   onReturnLive,
   fullscreen,
+  diagnostic,
 }: {
   startMs: number;
   error: string | null;
   onReturnLive: () => void;
   fullscreen?: boolean;
+  diagnostic?: { idx: number; total: number; url: string } | null;
 }) {
   const when = new Date(startMs);
   const label =
@@ -685,39 +705,90 @@ function CatchupBanner({
   }
 
   return (
-    <div
-      role="status"
-      style={{
-        position: 'absolute',
-        top: fullscreen ? 16 : 10,
-        left:  fullscreen ? '50%' : 10,
-        right: fullscreen ? 'auto' : 10,
-        transform: fullscreen ? 'translateX(-50%)' : undefined,
-        zIndex: 4,
-        display: 'flex', alignItems: 'center', gap: 12,
-        padding: '8px 14px',
-        background: 'rgba(0, 0, 0, 0.65)',
-        border: '1px solid rgba(255,255,255,0.15)',
-        borderRadius: 999,
-        color: '#fff',
-        fontSize: 13,
-        backdropFilter: 'blur(8px)',
-      }}
-    >
-      <span style={{ fontWeight: 700 }}>⏪</span>
-      <span style={{ maxWidth: 480, lineHeight: 1.35 }}>Replaying from {label}</span>
-      <button
-        onClick={onReturnLive}
+    <>
+      <div
+        role="status"
         style={{
-          background: '#FF3B6E', color: '#fff',
-          border: 0, borderRadius: 999,
-          padding: '6px 14px', fontWeight: 700, fontSize: 12,
-          cursor: 'pointer',
+          position: 'absolute',
+          top: fullscreen ? 16 : 10,
+          left:  fullscreen ? '50%' : 10,
+          right: fullscreen ? 'auto' : 10,
+          transform: fullscreen ? 'translateX(-50%)' : undefined,
+          zIndex: 4,
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '8px 14px',
+          background: 'rgba(0, 0, 0, 0.65)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          borderRadius: 999,
+          color: '#fff',
+          fontSize: 13,
+          backdropFilter: 'blur(8px)',
         }}
       >
-        ▶ Return to live
-      </button>
-    </div>
+        <span style={{ fontWeight: 700 }}>⏪</span>
+        <span style={{ maxWidth: 480, lineHeight: 1.35 }}>Replaying from {label}</span>
+        <button
+          onClick={onReturnLive}
+          style={{
+            background: '#FF3B6E', color: '#fff',
+            border: 0, borderRadius: 999,
+            padding: '6px 14px', fontWeight: 700, fontSize: 12,
+            cursor: 'pointer',
+          }}
+        >
+          ▶ Return to live
+        </button>
+      </div>
+      {/* Diagnostic panel: shows the exact timeshift URL the player is
+          currently attached to. Lets users copy + paste the URL into
+          a browser to verify what their panel responds with — the
+          fastest path to understanding "why does this jump to live?"
+          when the URL format isn't right for their provider. */}
+      {diagnostic && (
+        <div
+          style={{
+            position: 'absolute',
+            top: fullscreen ? 72 : 60,
+            left:  fullscreen ? '50%' : 10,
+            right: fullscreen ? 'auto' : 10,
+            transform: fullscreen ? 'translateX(-50%)' : undefined,
+            maxWidth: fullscreen ? 720 : 'unset',
+            zIndex: 4,
+            padding: '8px 12px',
+            background: 'rgba(0, 0, 0, 0.7)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 10,
+            color: '#E9EBF1',
+            fontSize: 11,
+            lineHeight: 1.4,
+            backdropFilter: 'blur(8px)',
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <span style={{
+              padding: '2px 6px', borderRadius: 4,
+              background: 'rgba(255, 59, 110, 0.2)', color: '#FF6B7B',
+              fontWeight: 700, fontSize: 10, letterSpacing: 0.5,
+            }}>
+              Format {diagnostic.idx + 1} of {diagnostic.total}
+            </span>
+            <button
+              type="button"
+              onClick={() => { navigator.clipboard?.writeText(diagnostic.url).catch(() => {}); }}
+              style={{
+                padding: '2px 8px', borderRadius: 4,
+                background: 'rgba(255,255,255,0.08)', color: '#E9EBF1',
+                border: '1px solid rgba(255,255,255,0.12)',
+                fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >Copy URL</button>
+          </div>
+          <div style={{ wordBreak: 'break-all', color: '#B7BEC9' }}>{diagnostic.url}</div>
+        </div>
+      )}
+    </>
   );
 }
 

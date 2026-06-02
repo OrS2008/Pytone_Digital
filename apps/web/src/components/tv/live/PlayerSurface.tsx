@@ -31,6 +31,13 @@ interface Props {
    * gesture and would otherwise be blocked.
    */
   startUnmuted?: boolean;
+  /**
+   * Callback fired whenever we switch which candidate URL the player
+   * is currently attached to. Used by the catch-up diagnostic panel
+   * so the user can see "trying 3 of 6 — /timeshift/..." and copy
+   * the URL into a browser to verify the panel's response.
+   */
+  onCandidateChange?: (info: { idx: number; total: number; url: string }) => void;
 }
 
 interface HlsInstance {
@@ -57,7 +64,7 @@ declare global {
 
 const RECONNECT_DELAYS_MS = [800, 2400, 6000]; // 3 retries, expanding backoff.
 
-export default function PlayerSurface({ channel, autoPlay = true, startUnmuted = false }: Props) {
+export default function PlayerSurface({ channel, autoPlay = true, startUnmuted = false, onCandidateChange }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -108,6 +115,7 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
       destroyHls();
       const upstream  = candidates[idx];
       const proxiedUrl = proxiedStreamUrl(upstream);
+      onCandidateChange?.({ idx, total: candidates.length, url: upstream });
 
       // Honour the requested initial mute state. Fullscreen renders
       // pass startUnmuted=true so the click that opened fullscreen
