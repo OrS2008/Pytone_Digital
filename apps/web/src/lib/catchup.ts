@@ -34,6 +34,14 @@ export interface CatchupRequest {
 export interface CatchupResult {
   /** Final URL to play. null when the channel can't catch-up. */
   url: string | null;
+  /**
+   * Alternative URL formats to try if the primary fails. Xtream
+   * panels differ in how they spell timeshift; rather than guess
+   * which one this provider supports, we hand the player a small
+   * list and let it iterate on fatal load errors. Ordered most-
+   * likely → least-likely.
+   */
+  fallbacks?: string[];
   /** Human-friendly reason when url is null. */
   reason?: string;
 }
@@ -103,44 +111,72 @@ function expandTemplate(template: string, req: CatchupRequest): string {
 // browser in Israel asking for "18:00 local" must say :18-00, not
 // the UTC equivalent :16-00.
 
-function inferXtreamCatchup(req: CatchupRequest): string | null {
+interface XtreamParts { base: string; user: string; pass: string; sid: string; }
+
+function parseXtreamLiveUrl(streamUrl: string): XtreamParts | null {
   let url: URL;
-  try { url = new URL(req.channel.streamUrl); }
+  try { url = new URL(streamUrl); }
   catch { return null; }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
-
   const parts = url.pathname.split('/').filter(Boolean);
   if (parts.length < 3) return null;
-
   const last = parts[parts.length - 1];
   // Xtream stream IDs are always numeric, with optional .m3u8 / .ts
   // extension. This is what distinguishes a real Xtream URL from a
   // random CDN URL that happens to have three path segments.
   const sidMatch = /^([0-9]+)(?:\.[a-z0-9]+)?$/i.exec(last);
   if (!sidMatch) return null;
-  const sid  = sidMatch[1];
-  const pass = parts[parts.length - 2];
-  const user = parts[parts.length - 3];
+  return {
+    base: `${url.protocol}//${url.host}`,
+    user: parts[parts.length - 3],
+    pass: parts[parts.length - 2],
+    sid:  sidMatch[1],
+  };
+}
 
-  const base = `${url.protocol}//${url.host}`;
+// Build every URL format a real-world Xtream panel might serve
+// timeshift on. Different forks of the panel software answer to
+// different shapes; rather than guess we hand the player a small
+// ordered list and let it advance on a fatal load error.
+function buildXtreamCandidates(req: CatchupRequest, p: XtreamParts): string[] {
   const d = new Date(req.startMs);
   const Y  = d.getFullYear();
   const mo = String(d.getMonth() + 1).padStart(2, '0');
   const da = String(d.getDate()).padStart(2, '0');
   const H  = String(d.getHours()).padStart(2, '0');
   const M  = String(d.getMinutes()).padStart(2, '0');
-  // Always .m3u8 for browser playback. .ts is what desktop / mobile
-  // IPTV apps (Cloddy, TiViMate) use because they bundle a native
-  // MPEG-TS demuxer, but <video> in every browser can only play
-  // .m3u8 (via hls.js) — raw MPEG-TS sets video.src and fires no
-  // events, which is exactly the "auto-jumps to live" symptom users
-  // reported. Panels that serve .m3u8 live almost always serve
-  // .m3u8 timeshift; the few that don't aren't browser-playable
-  // anyway, so .m3u8 is the right default everywhere.
-  return `${base}/timeshift/${encodeURIComponent(user)}/${encodeURIComponent(pass)}`
-    + `/${req.durationMin}`
-    + `/${Y}-${mo}-${da}:${H}-${M}`
-    + `/${sid}.m3u8`;
+  const utcStart = Math.floor(req.startMs / 1_000);
+  const utcEnd   = Math.floor((req.startMs + req.durationMin * 60_000) / 1_000);
+  const utcNow   = Math.floor(Date.now() / 1_000);
+  const u = encodeURIComponent(p.user);
+  const pw = encodeURIComponent(p.pass);
+
+  // .m3u8 first because every modern Xtream fork that supports
+  // timeshift also serves it as HLS, and <video> can only play HLS
+  // via hls.js. Raw MPEG-TS (.ts) works in Cloddy / TiViMate but
+  // browsers ignore video.src=*.ts entirely.
+  return [
+    // 1. Modern XCMS / XUI.one HLS timeshift (colon between date and time)
+    `${p.base}/timeshift/${u}/${pw}/${req.durationMin}/${Y}-${mo}-${da}:${H}-${M}/${p.sid}.m3u8`,
+
+    // 2. Same shape, dash-only separator (older XUI.one builds)
+    `${p.base}/timeshift/${u}/${pw}/${req.durationMin}/${Y}-${mo}-${da}-${H}-${M}/${p.sid}.m3u8`,
+
+    // 3. Append-mode on the live URL — many Xtream panels honour
+    //    ?utc=START&lutc=NOW to rewind the live HLS endpoint
+    `${p.base}/live/${u}/${pw}/${p.sid}.m3u8?utc=${utcStart}&lutc=${utcNow}`,
+
+    // 4. Same as #3 without /live/ prefix (older panels)
+    `${p.base}/${u}/${pw}/${p.sid}.m3u8?utc=${utcStart}&lutc=${utcNow}`,
+
+    // 5. Flussonic / Wowza style — start / end seconds via query
+    `${p.base}/live/${u}/${pw}/${p.sid}.m3u8?from=${utcStart}&to=${utcEnd}`,
+
+    // 6. Legacy timeshift.php (only ancient panels still serve this,
+    //    but it's harmless to leave at the end)
+    `${p.base}/streaming/timeshift.php?username=${u}&password=${pw}`
+      + `&stream=${p.sid}&start=${Y}-${mo}-${da}:${H}-${M}&duration=${req.durationMin}`,
+  ];
 }
 
 export function buildCatchupUrl(req: CatchupRequest): CatchupResult {
@@ -163,8 +199,11 @@ export function buildCatchupUrl(req: CatchupRequest): CatchupResult {
   const utcend = Math.floor((req.startMs + req.durationMin * 60_000) / 1000);
 
   if (!kind || kind === 'default' || kind === 'xc') {
-    const xt = inferXtreamCatchup(req);
-    if (xt) return { url: xt };
+    const parts = parseXtreamLiveUrl(ch.streamUrl);
+    if (parts) {
+      const all = buildXtreamCandidates(req, parts);
+      return { url: all[0], fallbacks: all.slice(1) };
+    }
     if (!kind) {
       return {
         url: null,

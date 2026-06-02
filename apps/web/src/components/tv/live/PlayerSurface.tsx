@@ -67,40 +67,59 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
 
   // Stream lifecycle: attach hls.js / native HLS to the <video>,
   // wire the AI-failover hooks, clean up on channel change.
+  //
+  // Catch-up gives us a list of candidate URLs (different Xtream
+  // panels spell timeshift differently — see lib/catchup). We try
+  // them in order: a fatal hls.js error after the per-URL retries
+  // are exhausted advances to the next candidate. Once we find one
+  // that loads, we stay on it. Live channels just have a single
+  // URL so the candidate loop runs exactly once.
+  const altsKey = (channel?.streamUrlAlts ?? []).join('|');
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !channel?.streamUrl) { setErr(null); setPlaying(false); return; }
+    const vid = videoRef.current;
+    if (!vid || !channel?.streamUrl) { setErr(null); setPlaying(false); return; }
     setErr(null); setPlaying(false);
+    // Capture a non-null reference so TypeScript doesn't keep
+    // re-narrowing inside async closures below.
+    const video: HTMLVideoElement = vid;
 
+    const candidates = [channel.streamUrl, ...(channel.streamUrlAlts ?? [])];
     let hls: HlsInstance | null = null;
     let cancelled = false;
     let retries = 0;
+    let candidateIdx = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
-
-    // Route the stream through /api/stream so HLS manifest +
-    // segments aren't blocked by the provider's CORS policy. The
-    // proxy rewrites the manifest so once we load through it, every
-    // segment fetch hls.js makes also stays on the same origin.
-    const proxiedUrl = proxiedStreamUrl(channel.streamUrl);
-    const isHls = /\.m3u8(\?|$)/i.test(channel.streamUrl);
     const canNative = video.canPlayType('application/vnd.apple.mpegurl') !== '';
 
-    async function attach() {
-      if (!video) return;
+    function isHlsUrl(u: string) { return /\.m3u8(\?|$)/i.test(u); }
+
+    function destroyHls() {
+      if (hls) { try { hls.destroy(); } catch { /* ignore */ } hls = null; }
+    }
+
+    async function tryCandidate(idx: number) {
+      if (cancelled) return;
+      if (idx >= candidates.length) {
+        setErr('Stream error: every catch-up URL format failed on this provider.');
+        return;
+      }
+      candidateIdx = idx;
+      retries = 0;
+      destroyHls();
+      const upstream  = candidates[idx];
+      const proxiedUrl = proxiedStreamUrl(upstream);
+
       // Honour the requested initial mute state. Fullscreen renders
       // pass startUnmuted=true so the click that opened fullscreen
       // (a user gesture) satisfies the autoplay-with-sound policy.
       video.muted = !startUnmuted;
-      // Restore the user's saved volume level (slider position from
-      // a previous session). The OS / device volume is layered on
-      // top by the browser, so the actual loudness is whatever the
-      // user has the device set to.
       try {
         const saved = localStorage.getItem('player.volume');
         const v = saved !== null ? Number(saved) : NaN;
         if (isFinite(v) && v >= 0 && v <= 1) video.volume = v;
       } catch { /* ignore */ }
-      if (isHls && !canNative) {
+
+      if (isHlsUrl(upstream) && !canNative) {
         try {
           const mod = (await import('hls.js')) as unknown as { default: unknown };
           if (cancelled) return;
@@ -112,8 +131,6 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
           const h = new Hls({
             enableWorker: true,
             lowLatencyMode: true,
-            // More aggressive buffer windows reduce the chance of a
-            // transient network blip becoming a fatal error.
             maxBufferLength: 30,
             maxMaxBufferLength: 60,
             backBufferLength: 30,
@@ -125,14 +142,18 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
             if (retries < RECONNECT_DELAYS_MS.length) {
               const delay = RECONNECT_DELAYS_MS[retries++];
               retryTimer = setTimeout(() => {
-                if (cancelled) return;
-                if (data.type === Hls.ErrorTypes.NETWORK_ERROR) h.startLoad();
-                else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) h.recoverMediaError();
-                else h.startLoad();
+                if (cancelled || !hls) return;
+                if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
+                else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+                else hls.startLoad();
               }, delay);
               return;
             }
-            setErr(`Stream error: ${data.details ?? 'fatal'}`);
+            // Out of retries on this URL — advance to the next
+            // candidate (different Xtream timeshift format). When
+            // we run out of candidates the next-tier handler in
+            // tryCandidate surfaces the user-facing error.
+            tryCandidate(candidateIdx + 1);
           });
           h.on(Hls.Events.MANIFEST_PARSED, () => {
             if (autoPlay) video.play().catch(() => {/* gesture-required */});
@@ -147,16 +168,17 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
         if (autoPlay) video.play().catch(() => {/* gesture-required */});
       }
     }
-    attach();
+
+    tryCandidate(0);
 
     return () => {
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
-      if (hls) hls.destroy();
+      destroyHls();
       video.removeAttribute('src');
       video.load();
     };
-  }, [channel?.streamUrl, autoPlay]);
+  }, [channel?.streamUrl, altsKey, autoPlay]);
 
   // Load the Chromecast Sender library so we can offer a Cast button.
   // Silent if the script can't load (network policy, ad blocker, etc.).

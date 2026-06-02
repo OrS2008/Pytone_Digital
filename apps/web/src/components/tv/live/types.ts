@@ -21,6 +21,13 @@ export interface Channel {
   logoUrl: string;
   category: string;
   streamUrl?: string;
+  /**
+   * Backup URLs for the player to try if the primary streamUrl
+   * fails to load. Currently used for catch-up: Xtream panels
+   * differ in how they spell timeshift, so the catchup builder
+   * hands the player an ordered list of candidate URLs.
+   */
+  streamUrlAlts?: string[];
   now?: Programme;
   next1?: Programme;
   next2?: Programme;

@@ -151,7 +151,7 @@ export default function LivePage() {
     if (!built.url) {
       return active; // fall through to live edge; banner explains why
     }
-    return { ...active, streamUrl: built.url };
+    return { ...active, streamUrl: built.url, streamUrlAlts: built.fallbacks };
   }, [active, catchupMs]);
 
   // Sync the catch-up error message based on whether buildCatchupUrl
