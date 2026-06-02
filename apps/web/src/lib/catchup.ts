@@ -154,13 +154,25 @@ function parseFlussonicLiveUrl(streamUrl: string): FlussonicParts | null {
 function buildFlussonicCandidates(req: CatchupRequest, p: FlussonicParts): string[] {
   const utcStart = Math.floor(req.startMs / 1_000);
   const durSec   = req.durationMin * 60;
+  const utcNow   = Math.floor(Date.now() / 1_000);
+
+  // Some Flussonic deployments serve the live stream behind a signed
+  // /s/<token>/ prefix but expose the DVR archive at the un-signed
+  // path. Strip the leading "/s/<token>" segment (if any) to produce
+  // an alternate base for those installations.
+  const unsignedBase = p.base.replace(/\/s\/[^/]+(?=$|\/)/, '');
+
   // Every URL we return MUST use a DVR-specific path that doesn't
   // exist on the live endpoint, so a server without DVR returns a
-  // hard 404. URLs that reuse the live playlist name with query
-  // parameters (video.m3u8?from=…) are unsafe: many Flussonic builds
-  // silently ignore unknown params and serve the live manifest,
-  // which the player then plays as if it were the archive. That's
-  // the exact bug "catchup tunes the right channel but plays live".
+  // hard 404 — except for the very last "Cloddy/Stalker" fallback,
+  // which reuses the live playlist with ?utc=&lutc=. That format is
+  // the convention every other consumer IPTV app uses when the M3U
+  // doesn't declare a catchup-source; we keep it as a last resort
+  // because some Flussonic builds honour it correctly and some
+  // silently serve the live manifest (false success). If the path-
+  // based archive URLs all stall first, falling back to it is the
+  // only chance the user has of seeing the archive when the
+  // provider uses this convention.
   return [
     // 1. Flussonic DVR archive — standard index-START-DURATION shape
     `${p.base}/${p.stream}/index-${utcStart}-${durSec}.m3u8`,
@@ -168,9 +180,21 @@ function buildFlussonicCandidates(req: CatchupRequest, p: FlussonicParts): strin
     `${p.base}/${p.stream}/${p.playlist.replace(/\.m3u8$/i, '')}-${utcStart}-${durSec}.m3u8`,
     // 3. Absolute single-segment timeshift (some Flussonic builds)
     `${p.base}/${p.stream}/timeshift_abs-${utcStart}.m3u8`,
-    // 4. Archive variant with explicit "archive-" prefix — used by
-    //    some nginx-based Flussonic forks
+    // 4. "archive-" prefix variant — official Flussonic Media Server
+    //    URL since v4+
     `${p.base}/${p.stream}/archive-${utcStart}-${durSec}.m3u8`,
+    // 5. Same as #1 / #4 but without the signed /s/<token>/ prefix,
+    //    for panels where archive is served from the un-signed path.
+    //    Skipped (deduped by collectAllCandidates) when there was no
+    //    signed prefix to strip.
+    `${unsignedBase}/${p.stream}/index-${utcStart}-${durSec}.m3u8`,
+    `${unsignedBase}/${p.stream}/archive-${utcStart}-${durSec}.m3u8`,
+    // 6. Cloddy / Stalker convention — utc/lutc on the live URL.
+    //    Last because it's the only candidate that CAN succeed on
+    //    the live endpoint, so a panel that ignores the params will
+    //    silently play live instead of the archive. We accept the
+    //    trade-off only after every DVR-specific path has stalled.
+    `${p.base}/${p.stream}/${p.playlist}?utc=${utcStart}&lutc=${utcNow}`,
   ];
 }
 

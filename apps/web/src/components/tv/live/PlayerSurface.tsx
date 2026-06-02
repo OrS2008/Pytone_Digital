@@ -107,7 +107,7 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     // the next candidate (or surface the user-facing error when
     // there is no next candidate).
     let stallTimer: ReturnType<typeof setTimeout> | null = null;
-    const STALL_MS = 8_000;
+    const STALL_MS = 5_000;
     const canNative = video.canPlayType('application/vnd.apple.mpegurl') !== '';
 
     function isHlsUrl(u: string) { return /\.m3u8(\?|$)/i.test(u); }
