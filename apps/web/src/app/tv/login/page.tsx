@@ -3,12 +3,15 @@
 // Sign-in screen. Two paths:
 //   * Continue with Google — verified server-side at /api/auth/google,
 //                            then setSessionEmail + redirect to /tv.
-//   * Email + password — currently local-only; becomes a fetch against
-//                        services/auth once that backend is deployed.
+//   * Email + password — POSTs to /api/auth/login. On success the
+//                        server sets an HTTP-only session cookie and
+//                        we pull the user's settings down to seed
+//                        this device's localStorage.
 
 import Link from 'next/link';
 import { useState } from 'react';
 import { setSessionEmail, setActivated } from '@/lib/session';
+import { syncDown } from '@/lib/serverSync';
 import GoogleSection from '@/components/auth/GoogleSection';
 import '../account/account.css';
 
@@ -18,18 +21,45 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!email.includes('@')) return setError('Please enter a valid email.');
-    if (password.length < 10)  return setError('Password must be at least 10 characters.');
+    if (!email.includes('@'))   return setError('Please enter a valid email.');
+    if (password.length < 8)    return setError('Password must be at least 8 characters.');
     setBusy(true);
-    setSessionEmail(email);
-    setActivated(true);
-    // Hard navigation rather than router.push so the new
-    // session-keyed components on /tv re-read localStorage from
-    // scratch instead of relying on cached client state.
-    window.setTimeout(() => { window.location.href = '/tv'; }, 200);
+    try {
+      const r = await fetch('/api/auth/login', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      if (r.status === 401) {
+        setError('Wrong email or password.');
+        setBusy(false);
+        return;
+      }
+      if (r.status === 503) {
+        setError('Server storage is not configured yet. Ask the admin to bind the NOVA_KV namespace.');
+        setBusy(false);
+        return;
+      }
+      if (!r.ok) {
+        setError(`Sign-in failed (${r.status}).`);
+        setBusy(false);
+        return;
+      }
+      setSessionEmail(email);
+      setActivated(true);
+      // Pull settings into this device's localStorage BEFORE we hand
+      // the user off to /tv, so the very first paint already has
+      // their M3U + EPG configured.
+      await syncDown();
+      window.location.href = '/tv';
+    } catch (err) {
+      setError(`Sign-in failed: ${(err as Error).message}`);
+      setBusy(false);
+    }
   }
 
   function handleGoogle(user: { email: string; name?: string | null; picture?: string | null }) {
@@ -71,7 +101,7 @@ export default function Login() {
             <input
               className="ac-input"
               type="password"
-              placeholder="At least 10 characters"
+              placeholder="At least 8 characters"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />

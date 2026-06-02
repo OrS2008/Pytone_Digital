@@ -75,6 +75,11 @@ export function getSessionPicture(): string | null { if (typeof window === 'unde
 // alive (the keys are namespaced so signing back in restores everything
 // without crossing tenants). Then we reload so every mounted component
 // sees the new identity from scratch.
+//
+// The server session cookie has to be cleared too — calling
+// /api/auth/logout asks the edge to invalidate the KV session record
+// AND emit a Set-Cookie that empties ns_session in the browser. The
+// fetch is fire-and-forget; even on failure we still navigate away.
 export function signOut() {
   try {
     localStorage.removeItem(KEY_EMAIL);
@@ -84,7 +89,10 @@ export function signOut() {
     // The trial clock is per-account, not per-session — leave it so a
     // re-login doesn't reset the 7-day window.
   } catch { /* ignore */ }
-  if (typeof window !== 'undefined') window.location.href = '/tv/login';
+  if (typeof window === 'undefined') return;
+  fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+    .catch(() => { /* ignore — we still want to navigate */ })
+    .finally(() => { window.location.href = '/tv/login'; });
 }
 
 // Stable, short, opaque tenant id derived from the email so the

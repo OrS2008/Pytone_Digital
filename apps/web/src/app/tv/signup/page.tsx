@@ -19,12 +19,7 @@ export default function Signup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [accepted, setAccepted] = useState(true);
-  const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
-  // When Mailtrap returns 422 (sender domain not verified) we still want
-  // the user to be able to proceed — we surface a friendly notice and
-  // keep the manual "open my account" button visible.
-  const [deliveryWarning, setDeliveryWarning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function handleGoogle(user: { email: string; name?: string | null; picture?: string | null }) {
@@ -41,74 +36,46 @@ export default function Signup() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setDeliveryWarning(null);
     if (!email.includes('@')) return setError('Please enter a valid email.');
-    if (password.length < 10)  return setError('Password must be at least 10 characters.');
+    if (password.length < 8)   return setError('Password must be at least 8 characters.');
     if (!accepted)             return setError('You need to accept the Terms and Privacy policy.');
-    setSessionEmail(email);
-    // Pending activation until the user clicks the link in the email
-    // (handled by /tv/activate). The account section is gated on this.
-    setActivated(false);
     setSending(true);
     try {
-      const resp = await fetch('/api/email/activate', {
+      const r = await fetch('/api/auth/signup', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      if (r.status === 409) {
+        setError('That email is already registered. Try signing in instead.');
+        setSending(false);
+        return;
+      }
+      if (r.status === 503) {
+        setError('Server storage is not configured yet. Ask the admin to bind the NOVA_KV namespace.');
+        setSending(false);
+        return;
+      }
+      if (!r.ok) {
+        setError(`Sign-up failed (${r.status}).`);
+        setSending(false);
+        return;
+      }
+      setSessionEmail(email);
+      setActivated(true);
+      // Fire-and-forget activation email; account is usable immediately.
+      fetch('/api/email/activate', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ email }),
-      });
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({} as { error?: string }));
-        setDeliveryWarning(data.error || 'We could not send the activation email. You can still open your account manually below.');
-      }
-    } catch {
-      setDeliveryWarning('We could not reach the email service. You can still open your account manually below.');
+      }).catch(() => { /* delivery is best-effort */ });
+      window.location.href = '/tv';
+      return;
+    } catch (err) {
+      setError(`Sign-up failed: ${(err as Error).message}`);
     }
     setSending(false);
-    setSent(true);
-  }
-
-  if (sent) {
-    return (
-      <main className="ac-auth">
-        <div className="ac-auth-card">
-          <div className="ac-auth-wm">NOVA STREAM</div>
-          <h1 className="ac-auth-title">Check your inbox</h1>
-          <p className="ac-auth-sub">
-            We sent a confirmation link to <b>{email}</b>. Click it to verify your address
-            and your 7-day free trial begins.
-          </p>
-          {deliveryWarning && (
-            <div style={{
-              fontSize: 13, padding: '10px 12px', marginTop: 12,
-              borderRadius: 8,
-              background: 'rgba(255, 196, 80, 0.12)',
-              color: 'var(--ns-text)',
-              border: '1px solid rgba(255, 196, 80, 0.3)',
-            }}>{deliveryWarning}</div>
-          )}
-          <Link
-            href="/tv/activate"
-            className="ac-btn ac-btn-primary"
-            style={{ width: '100%', justifyContent: 'center', padding: '14px', marginTop: 16 }}
-          >
-            I clicked the link · open my account
-          </Link>
-          <p style={{ fontSize: 13, color: 'var(--ns-text-faint)', marginTop: 16 }}>
-            Didn&apos;t get it? Check spam, or{' '}
-            <button
-              className="ac-auth-link"
-              style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
-              onClick={() => { setSent(false); setDeliveryWarning(null); }}
-            >
-              use a different email
-            </button>.
-          </p>
-          <div className="ac-auth-bottom">
-            Already activated? <Link href="/tv/login" className="ac-auth-link">Sign in</Link>
-          </div>
-        </div>
-      </main>
-    );
   }
 
   return (
@@ -140,7 +107,7 @@ export default function Signup() {
             <input
               className="ac-input"
               type="password"
-              placeholder="At least 10 characters"
+              placeholder="At least 8 characters"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />

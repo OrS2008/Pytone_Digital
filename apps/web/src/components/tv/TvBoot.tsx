@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { syncDown } from '@/lib/serverSync';
 
 /*
  * Client-only boot shim mounted by the TV layout.
@@ -40,6 +41,12 @@ export default function TvBoot() {
         document.body.setAttribute('data-theme', saved);
       }
     } catch { /* localStorage may be locked */ }
+
+    // Pull settings down from the server. If the user is logged in
+    // (session cookie present), their M3U / EPG / preferences populate
+    // this device's localStorage before any page starts reading from
+    // it. Anonymous sessions get a 401 and we silently no-op.
+    syncDown().catch(() => { /* offline / 5xx — local data still works */ });
 
     if (!isTv) return;
 
