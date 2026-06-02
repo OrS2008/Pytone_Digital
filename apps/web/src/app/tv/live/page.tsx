@@ -116,7 +116,7 @@ export default function LivePage() {
   // only covers the current live programme), so the catchup page bakes
   // the real EPG duration into the URL. Used as the Flussonic segment
   // length when the programme lookup below doesn't match.
-  const [catchupDurMin] = useState(initialDeep.durMin);
+  const [catchupDurMin, setCatchupDurMin] = useState(initialDeep.durMin);
   const [catchupError, setCatchupError] = useState<string | null>(null);
   const [load, setLoad] = useState<LoadState>(
     initialCached
@@ -129,6 +129,20 @@ export default function LivePage() {
   const [epgState, setEpgState] = useState<'idle' | 'loading' | 'ready' | 'none'>(
     typeof window !== 'undefined' && getUserEpgUrl() ? 'idle' : 'none',
   );
+
+  // In Next.js App Router the component is server-rendered with
+  // window=undefined, so initialDeep.startMs/durMin are 0. The
+  // useState initialiser inherits that server value on hydration.
+  // This effect corrects catchupMs/catchupDurMin on the client as
+  // soon as the first paint finishes — before the user sees anything.
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const ms  = Number(p.get('start')) || 0;
+    const dur = Number(p.get('dur'))   || 0;
+    if (ms  > 0) setCatchupMs(ms);
+    if (dur > 0) setCatchupDurMin(dur);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const active = channels[activeIdx];
 
@@ -223,12 +237,18 @@ export default function LivePage() {
       // "play this now" affordance (Continue Watching, catch-up
       // programme card, recordings).
       const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-      const want = params?.get('ch') ?? null;
-      const preview = params?.get('preview') === '1';
+      const want        = params?.get('ch') ?? null;
+      const preview     = params?.get('preview') === '1';
+      const startMsUrl  = Number(params?.get('start')) || 0;
+      const durMinUrl   = Number(params?.get('dur'))   || 0;
       if (want) {
         const idx = result.channels.findIndex((c) => String(c.number) === want);
         if (idx >= 0) {
           setActiveIdx(idx);
+          // Belt-and-suspenders: also set catchupMs/durMin here in case
+          // the useEffect above ran before hydration completed (SSR path).
+          if (startMsUrl > 0) setCatchupMs(startMsUrl);
+          if (durMinUrl  > 0) setCatchupDurMin(durMinUrl);
           if (!preview) setWatching(true);
         }
       }

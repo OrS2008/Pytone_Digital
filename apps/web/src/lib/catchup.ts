@@ -155,20 +155,24 @@ function buildFlussonicCandidates(req: CatchupRequest, p: FlussonicParts): strin
   const utcStart = Math.floor(req.startMs / 1_000);
   const utcEnd   = Math.floor((req.startMs + req.durationMin * 60_000) / 1_000);
   const durSec   = req.durationMin * 60;
-  const utcNow   = Math.floor(Date.now() / 1_000);
+  // Only include URLs that use DVR-specific filenames so that a server
+  // WITHOUT DVR returns 404 (→ hls.js fatal → advance to next candidate)
+  // rather than silently serving the live stream. URLs that reuse the
+  // live playlist name (video.m3u8?from=…) may succeed on the live
+  // endpoint and trick the player into showing live content instead of
+  // the archive.
   return [
-    // 1. Flussonic DVR archive (default index-START-DURATION shape)
+    // 1. Flussonic DVR archive — standard index-START-DURATION shape
     `${p.base}/${p.stream}/index-${utcStart}-${durSec}.m3u8`,
-    // 2. Same shape but using the stream's actual playlist name
+    // 2. Same shape with the stream's own playlist basename
     `${p.base}/${p.stream}/${p.playlist.replace(/\.m3u8$/i, '')}-${utcStart}-${durSec}.m3u8`,
-    // 3. Append-mode on the existing playlist (from/to query)
-    `${p.base}/${p.stream}/${p.playlist}?from=${utcStart}&to=${utcEnd}`,
-    // 4. Append-mode with t/tend (some Flussonic deployments)
-    `${p.base}/${p.stream}/${p.playlist}?t=${utcStart}&tend=${utcEnd}`,
-    // 5. Append-mode with utc/lutc (Xtream-style query rewrite)
-    `${p.base}/${p.stream}/${p.playlist}?utc=${utcStart}&lutc=${utcNow}`,
-    // 6. Absolute timeshift segment (single segment from a moment)
+    // 3. Absolute single-segment timeshift (some Flussonic builds)
     `${p.base}/${p.stream}/timeshift_abs-${utcStart}.m3u8`,
+    // 4. DVR range via from/to — Flussonic returns 404 when DVR is
+    //    disabled on this stream, so this is safe to include.
+    `${p.base}/${p.stream}/${p.playlist}?from=${utcStart}&to=${utcEnd}`,
+    // 5. DVR range via t/tend (alternate Flussonic parameter style)
+    `${p.base}/${p.stream}/${p.playlist}?t=${utcStart}&tend=${utcEnd}`,
   ];
 }
 
