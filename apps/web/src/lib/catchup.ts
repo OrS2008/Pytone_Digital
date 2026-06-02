@@ -154,7 +154,9 @@ function parseFlussonicLiveUrl(streamUrl: string): FlussonicParts | null {
 function buildFlussonicCandidates(req: CatchupRequest, p: FlussonicParts): string[] {
   const utcStart = Math.floor(req.startMs / 1_000);
   const durSec   = req.durationMin * 60;
+  const utcEnd   = utcStart + durSec;
   const utcNow   = Math.floor(Date.now() / 1_000);
+  const offset   = Math.max(0, utcNow - utcStart);
 
   // Some Flussonic deployments serve the live stream behind a signed
   // /s/<token>/ prefix but expose the DVR archive at the un-signed
@@ -183,13 +185,22 @@ function buildFlussonicCandidates(req: CatchupRequest, p: FlussonicParts): strin
     // 4. "archive-" prefix variant — official Flussonic Media Server
     //    URL since v4+
     `${p.base}/${p.stream}/archive-${utcStart}-${durSec}.m3u8`,
-    // 5. Same as #1 / #4 but without the signed /s/<token>/ prefix,
+    // 5. Relative-offset timeshift — what IPTV apps default to when
+    //    the M3U declares catchup="flussonic" without a source
+    //    template. Offset is seconds back from now.
+    `${p.base}/${p.stream}/timeshift_rel-${offset}.m3u8`,
+    // 6. Archive endpoint with from/to query params. Distinct
+    //    filename from the live playlist (archive.m3u8 vs
+    //    video.m3u8 / index.m3u8) so it 404s cleanly when the
+    //    endpoint isn't configured rather than serving live.
+    `${p.base}/${p.stream}/archive.m3u8?from=${utcStart}&to=${utcEnd}`,
+    // 7. Same as #1 / #4 but without the signed /s/<token>/ prefix,
     //    for panels where archive is served from the un-signed path.
     //    Skipped (deduped by collectAllCandidates) when there was no
     //    signed prefix to strip.
     `${unsignedBase}/${p.stream}/index-${utcStart}-${durSec}.m3u8`,
     `${unsignedBase}/${p.stream}/archive-${utcStart}-${durSec}.m3u8`,
-    // 6. Cloddy / Stalker convention — utc/lutc on the live URL.
+    // 8. Cloddy / Stalker convention — utc/lutc on the live URL.
     //    Last because it's the only candidate that CAN succeed on
     //    the live endpoint, so a panel that ignores the params will
     //    silently play live instead of the archive. We accept the
