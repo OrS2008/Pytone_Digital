@@ -17,17 +17,21 @@ MAILTRAP_API_URL   = "https://send.api.mailtrap.io/api/send"
 MAILTRAP_FROM_EMAIL = "noreply@novastream.tv"
 MAILTRAP_FROM_NAME  = "Nova Stream"
 
-# Single KV namespace for everything user-scoped: accounts, sessions,
-# settings blobs, watch history. Keys are prefixed (user: / session: /
-# settings: / history:) so one namespace serves all roles and the
-# Cloudflare dashboard only needs one binding configured.
+# NOVA_KV binding — accounts, sessions, settings blobs, watch history.
+# Keys are prefixed (user: / session: / settings: / history:) so one
+# namespace serves all roles.
 #
-# The id="" placeholder below is what `wrangler dev` uses locally.
-# On Cloudflare Pages this binding is wired through the dashboard:
-#   Settings → Functions → KV namespace bindings → Variable name
-#   NOVA_KV → KV namespace = (the one you created)
-# Without the binding the auth + settings API routes return 503 with
-# a clear message so it's obvious the namespace isn't set up.
-[[kv_namespaces]]
-binding = "NOVA_KV"
-id = ""
+# On Cloudflare PAGES the binding is wired through the dashboard:
+#   Settings → Functions → KV namespace bindings →
+#     Variable name = NOVA_KV
+#     KV namespace  = (the one you created in Workers & Pages → KV)
+#
+# We intentionally do NOT declare [[kv_namespaces]] here because
+# Cloudflare's deploy validator rejects bindings with an empty `id =
+# ""`, which fails the entire build. The dashboard-configured binding
+# above is what production reads; wrangler dev users can override via
+# .dev.vars / a local wrangler.toml.
+#
+# Without the binding the auth + settings + privacy API routes return
+# 503 with a clear "bind NOVA_KV" message so the missing config is
+# obvious in the UI.
