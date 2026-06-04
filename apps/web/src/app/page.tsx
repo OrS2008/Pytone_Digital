@@ -1,7 +1,23 @@
-import { redirect } from 'next/navigation';
+// Root route. Visitors who are not signed in see the public welcome /
+// landing page so newcomers understand what Nova Stream is before
+// hitting the player. Signed-in visitors bounce straight to /tv so
+// returning users skip the marketing screen.
+//
+// The check is on the ns_session cookie, NOT on its KV validity — that
+// would add a round-trip to every cold page load. The /tv shell does a
+// real /api/auth/me check and bounces back to /tv/login if the cookie
+// is stale.
 
-// The bare domain redirects to the TV experience — that's the canonical
-// entry for every device class (TV, mobile, desktop browser).
-export default function Root() {
-  redirect('/tv');
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import WelcomeLanding from './welcome/WelcomeLanding';
+
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+
+export default async function Root() {
+  const jar = await cookies();
+  const session = jar.get('ns_session');
+  if (session?.value) redirect('/tv');
+  return <WelcomeLanding />;
 }
