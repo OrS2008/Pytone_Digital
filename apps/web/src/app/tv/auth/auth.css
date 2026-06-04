@@ -1,0 +1,196 @@
+/* Auth pages (login / signup / forgot-password / activate).
+ *
+ * Standalone palette — does not inherit the user-pickable /tv theme.
+ * Goal: when the visitor jumps from the public welcome page into
+ * signup, the design language feels like a continuation (same dark
+ * canvas, same gradient style, same button shape, same fonts) but
+ * the accent shifts to teal/emerald to signal "action / fresh start".
+ *
+ * Class prefix is `ah-` (auth host) so styles can never collide with
+ * the `.ac-*` account-shell classes which are still used inside /tv.
+ */
+
+.ah-root {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 900px 500px at 78% 18%, rgba(45, 212, 191, 0.18), transparent 60%),
+    radial-gradient(ellipse 700px 400px at 22% 82%, rgba(16, 185, 129, 0.14), transparent 65%),
+    #04060B;
+  color: #E7ECF3;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 32px 20px;
+}
+
+/* Brand strip back to home --------------------------------------------- */
+.ah-topback {
+  position: absolute; top: 20px; left: 24px;
+  color: #99A3B5;
+  text-decoration: none;
+  font-size: 12px; letter-spacing: 4px; font-weight: 700;
+  text-transform: uppercase;
+  padding: 8px 12px; border-radius: 999px;
+  transition: color 120ms ease, background 120ms ease;
+}
+.ah-topback:hover { color: #fff; background: rgba(255,255,255,0.05); }
+
+/* Card ----------------------------------------------------------------- */
+.ah-card {
+  width: 100%; max-width: 460px;
+  background: rgba(14, 18, 24, 0.92);
+  border: 1px solid rgba(45, 212, 191, 0.18);
+  border-radius: 20px;
+  padding: 44px 38px;
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+  backdrop-filter: blur(8px);
+}
+.ah-wm {
+  text-align: center;
+  font-weight: 800; font-size: 13px;
+  letter-spacing: 6px;
+  color: #2DD4BF;
+  margin-bottom: 22px;
+}
+.ah-title {
+  margin: 0 0 8px;
+  font-size: 28px; font-weight: 800; letter-spacing: -0.6px;
+  background: linear-gradient(180deg, #fff 0%, #B5F3E1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.ah-sub {
+  margin: 0 0 28px;
+  color: #99A3B5;
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+/* Form fields --------------------------------------------------------- */
+.ah-field { margin-bottom: 16px; }
+.ah-label {
+  display: block;
+  font-size: 11.5px; font-weight: 700;
+  color: #99A3B5;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  margin-bottom: 7px;
+}
+.ah-input {
+  width: 100%;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 13px 14px;
+  background: #06080D;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  color: #E7ECF3;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.ah-input::placeholder { color: #4F5868; }
+.ah-input:focus {
+  outline: none;
+  border-color: #2DD4BF;
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.18);
+}
+.ah-field-help {
+  font-size: 12px;
+  color: #5E6878;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+.ah-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 7px;
+}
+.ah-row .ah-label { margin-bottom: 0; }
+
+/* Checkbox row -------------------------------------------------------- */
+.ah-check {
+  display: flex; gap: 11px; align-items: flex-start;
+  padding: 14px 0 4px;
+  font-size: 12.5px; color: #99A3B5; line-height: 1.55;
+}
+.ah-check input[type="checkbox"] {
+  margin-top: 2px;
+  width: 16px; height: 16px;
+  accent-color: #2DD4BF;
+  cursor: pointer;
+}
+
+/* Errors -------------------------------------------------------------- */
+.ah-err {
+  background: rgba(255, 90, 95, 0.10);
+  border: 1px solid rgba(255, 90, 95, 0.35);
+  color: #FFB0B3;
+  padding: 10px 13px;
+  border-radius: 10px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+/* Buttons ------------------------------------------------------------- */
+.ah-btn {
+  width: 100%;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 14px 18px;
+  background: linear-gradient(180deg, #34E5C2, #2DD4BF);
+  color: #04060B;
+  border: 0;
+  border-radius: 12px;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 14.5px;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  box-shadow: 0 10px 32px rgba(45, 212, 191, 0.40);
+  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+.ah-btn:hover:not(:disabled)  { transform: translateY(-1px); box-shadow: 0 14px 40px rgba(45, 212, 191, 0.55); }
+.ah-btn:disabled              { opacity: 0.6; cursor: default; }
+
+/* Links --------------------------------------------------------------- */
+.ah-link {
+  color: #2DD4BF;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 120ms ease;
+}
+.ah-link:hover { color: #67E8D2; text-decoration: underline; }
+.ah-bottom {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 13.5px;
+  color: #99A3B5;
+}
+
+/* Divider for the "or sign in with email" line ------------------------
+   .ac-auth-divider is the class GoogleSection hardcodes; we restyle
+   it here so the third-party component picks up the teal palette
+   automatically. */
+.ah-divider,
+.ah-root .ac-auth-divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 22px 0 18px;
+  color: #5E6878;
+  font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+  font-weight: 700;
+}
+.ah-divider::before, .ah-divider::after,
+.ah-root .ac-auth-divider::before, .ah-root .ac-auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+}
+.ah-root .ac-auth-divider span { padding: 0 4px; }
+
+/* Mobile -------------------------------------------------------------- */
+@media (max-width: 520px) {
+  .ah-card     { padding: 34px 26px; }
+  .ah-title    { font-size: 24px; }
+  .ah-topback  { left: 12px; top: 12px; }
+}

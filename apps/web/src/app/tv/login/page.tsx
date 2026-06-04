@@ -13,7 +13,7 @@ import { useState } from 'react';
 import { setSessionEmail, setActivated } from '@/lib/session';
 import { syncDown } from '@/lib/serverSync';
 import GoogleSection from '@/components/auth/GoogleSection';
-import '../account/account.css';
+import '../auth/auth.css';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -51,9 +51,6 @@ export default function Login() {
       }
       setSessionEmail(email);
       setActivated(true);
-      // Pull settings into this device's localStorage BEFORE we hand
-      // the user off to /tv, so the very first paint already has
-      // their M3U + EPG configured.
       await syncDown();
       window.location.href = '/tv';
     } catch (err) {
@@ -74,32 +71,34 @@ export default function Login() {
   }
 
   return (
-    <main className="ac-auth">
-      <div className="ac-auth-card">
-        <div className="ac-auth-wm">NOVA STREAM</div>
-        <h1 className="ac-auth-title">Welcome back</h1>
-        <p className="ac-auth-sub">Sign in to keep watching where you left off.</p>
+    <main className="ah-root">
+      <Link href="/" className="ah-topback">← Home</Link>
+
+      <div className="ah-card">
+        <div className="ah-wm">NOVA STREAM</div>
+        <h1 className="ah-title">Welcome back</h1>
+        <p className="ah-sub">Sign in to keep watching where you left off.</p>
 
         <GoogleSection onSuccess={handleGoogle} onError={setError} />
 
         <form onSubmit={submit}>
-          <div className="ac-field">
-            <label className="ac-field-label">Email</label>
+          <div className="ah-field">
+            <label className="ah-label">Email</label>
             <input
-              className="ac-input"
+              className="ah-input"
               type="email"
               placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
-          <div className="ac-field">
-            <label className="ac-field-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Password</span>
-              <Link href="/tv/forgot-password" className="ac-auth-link" style={{ fontSize: 12 }}>Forgot?</Link>
-            </label>
+          <div className="ah-field">
+            <div className="ah-row">
+              <label className="ah-label">Password</label>
+              <Link href="/tv/forgot-password" className="ah-link" style={{ fontSize: 12 }}>Forgot?</Link>
+            </div>
             <input
-              className="ac-input"
+              className="ah-input"
               type="password"
               placeholder="At least 8 characters"
               value={password}
@@ -107,25 +106,15 @@ export default function Login() {
             />
           </div>
 
-          {error && (
-            <div style={{
-              color: 'var(--ns-danger, #FF6B7B)',
-              fontSize: 13, padding: '8px 0',
-            }}>{error}</div>
-          )}
+          {error && <div className="ah-err">{error}</div>}
 
-          <button
-            type="submit"
-            disabled={busy}
-            className="ac-btn ac-btn-primary"
-            style={{ width: '100%', justifyContent: 'center', padding: '16px', opacity: busy ? 0.7 : 1 }}
-          >
+          <button type="submit" disabled={busy} className="ah-btn">
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
 
-        <div className="ac-auth-bottom">
-          New here? <Link href="/tv/signup" className="ac-auth-link">Create an account</Link> · 7 days free
+        <div className="ah-bottom">
+          New here? <Link href="/tv/signup" className="ah-link">Create an account</Link> · 7 days free
         </div>
       </div>
     </main>

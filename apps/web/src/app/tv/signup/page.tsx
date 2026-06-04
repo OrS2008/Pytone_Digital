@@ -1,18 +1,16 @@
 'use client';
 
-// Sign-up screen. Email + password only — the activation link arrives by
-// email, opens /tv/activate, which starts the 7-day trial.
-//
-// The backend isn't deployed in this demo build, so the submit handler
-// validates locally and renders the "we sent you an email" state without
-// a network call. Once auth-service is reachable it becomes
-// fetch('/api/auth/register', { ... }).
+// Sign-up screen. Email + password; account is usable immediately
+// (the optional activation email is fire-and-forget). The 7-day trial
+// starts at the moment of signup — see lib/auth/users.ts createUser
+// which stamps trialStartedAt on the KV record.
+
 import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { setSessionEmail, setActivated } from '@/lib/session';
 import GoogleSection from '@/components/auth/GoogleSection';
-import '../account/account.css';
+import '../auth/auth.css';
 
 export default function Signup() {
   const router = useRouter();
@@ -84,76 +82,69 @@ export default function Signup() {
   }
 
   return (
-    <main className="ac-auth">
-      <div className="ac-auth-card">
-        <div className="ac-auth-wm">NOVA STREAM</div>
-        <h1 className="ac-auth-title">Start watching</h1>
-        <p className="ac-auth-sub">
+    <main className="ah-root">
+      <Link href="/" className="ah-topback">← Home</Link>
+
+      <div className="ah-card">
+        <div className="ah-wm">NOVA STREAM</div>
+        <h1 className="ah-title">Start watching</h1>
+        <p className="ah-sub">
           7 days free. No card needed. One email per account.
         </p>
 
         <GoogleSection onSuccess={handleGoogle} onError={setError} dividerLabel="or sign up with email" />
 
         <form onSubmit={submit}>
-          <div className="ac-field">
-            <label className="ac-field-label">Email</label>
+          <div className="ah-field">
+            <label className="ah-label">Email</label>
             <input
-              className="ac-input"
+              className="ah-input"
               type="email"
               placeholder="you@example.com"
               autoFocus
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
-            <div className="ac-field-help">We'll send an activation link. Your trial starts when you click it.</div>
+            <div className="ah-field-help">
+              We&apos;ll send an activation link. Your trial starts when you click it.
+            </div>
           </div>
-          <div className="ac-field">
-            <label className="ac-field-label">Password</label>
+          <div className="ah-field">
+            <label className="ah-label">Password</label>
             <input
-              className="ac-input"
+              className="ah-input"
               type="password"
               placeholder="At least 8 characters"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-            <div className="ac-field-help">Long passwords beat complex ones. We check against leaked databases.</div>
+            <div className="ah-field-help">
+              Long passwords beat complex ones. We check against leaked databases.
+            </div>
           </div>
 
-          <div style={{
-            fontSize: 12, color: 'var(--ns-text-faint)',
-            padding: '12px 0', display: 'flex', alignItems: 'flex-start', gap: 10,
-          }}>
+          <label className="ah-check">
             <input
               type="checkbox"
               checked={accepted}
               onChange={(e) => setAccepted(e.target.checked)}
-              style={{ marginTop: 4 }}
             />
-            <div>
-              I agree to the <Link href="/legal/terms" className="ac-auth-link">Terms</Link> and the{' '}
-              <Link href="/legal/privacy" className="ac-auth-link">Privacy policy</Link>. You can delete your account at any time from Settings → Account.
-            </div>
-          </div>
+            <span>
+              I agree to the <Link href="/legal/terms" className="ah-link">Terms</Link> and the{' '}
+              <Link href="/legal/privacy" className="ah-link">Privacy policy</Link>. You can
+              delete your account at any time from Settings → Help &amp; legal.
+            </span>
+          </label>
 
-          {error && (
-            <div style={{
-              color: 'var(--ns-danger, #FF6B7B)',
-              fontSize: 13, padding: '8px 0',
-            }}>{error}</div>
-          )}
+          {error && <div className="ah-err">{error}</div>}
 
-          <button
-            type="submit"
-            className="ac-btn ac-btn-primary"
-            disabled={sending}
-            style={{ width: '100%', justifyContent: 'center', padding: '16px', opacity: sending ? 0.7 : 1 }}
-          >
-            {sending ? 'Sending confirmation…' : 'Create account & start trial'}
+          <button type="submit" className="ah-btn" disabled={sending}>
+            {sending ? 'Creating account…' : 'Create account & start trial'}
           </button>
         </form>
 
-        <div className="ac-auth-bottom">
-          Already have an account? <Link href="/tv/login" className="ac-auth-link">Sign in</Link>
+        <div className="ah-bottom">
+          Already have an account? <Link href="/tv/login" className="ah-link">Sign in</Link>
         </div>
       </div>
     </main>
