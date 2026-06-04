@@ -30,6 +30,7 @@ export const SYNCED_KEYS: readonly string[] = [
   'prefs.parental',         // parental-controls config
   'prefs.appearance',       // appearance / subtitle styling
   'prefs.notifications',    // notification toggles
+  'prefs.streamMode',       // 'proxy' (default) or 'direct' — see streamProxy.ts
   'history',                // watch history
   'continueWatching',       // continue-watching shelf entries
   'recordings.scheduled',   // scheduled recordings

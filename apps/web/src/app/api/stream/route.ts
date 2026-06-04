@@ -1,19 +1,26 @@
 // Generic streaming proxy for HLS / IPTV.
 //
-// /api/m3u handled only the top-level playlist file. That was enough to
-// list the user's channels but not to actually play any of them,
-// because every IPTV provider (a) returns the channel's per-stream
-// manifest via a direct URL that hls.js fetches from the browser, and
-// (b) almost never sets Access-Control-Allow-Origin on either the
-// manifest or the .ts segments. Both fetches get CORS-blocked.
+// Two operating modes:
 //
-// This route is the long-running proxy. It accepts ANY upstream URL
-// (manifest, segment, key, init segment, subtitle track) and pipes
-// the body back with permissive CORS to our own origin. When the
-// upstream is itself an HLS manifest, segment / variant URLs inside
-// are rewritten so they too pass through this proxy — otherwise the
-// browser would fall back to fetching segments directly and hit CORS
-// again.
+//   * proxy  (default)  — every URL inside the manifest is rewritten to
+//                         come back through this route. The entire HLS
+//                         stream flows through us. Safe when the upstream
+//                         provider doesn't send CORS headers, but each
+//                         segment costs us bandwidth.
+//
+//   * direct (?mode=direct) — only the manifest itself comes through us
+//                         (so we can add CORS to the manifest response).
+//                         Segment / variant URLs inside are rewritten to
+//                         absolute upstream URLs, so the browser fetches
+//                         them directly from the provider's CDN. Bandwidth
+//                         cost on our side drops by ~99.95%. Requires the
+//                         provider to send `Access-Control-Allow-Origin`
+//                         on segments — most modern IPTV CDNs do.
+//
+// Why even proxy the manifest in direct mode? Because the manifest
+// itself often has no CORS header either, and we still need to rewrite
+// segment URIs to be absolute (relative URIs in the manifest would
+// resolve against our own origin once the browser fetched them).
 //
 // SSRF guards: identical to /api/m3u — private IP / cloud-metadata
 // hostnames refused, dangerous ports blocked, scheme restricted.
@@ -51,19 +58,22 @@ function isAllowedCaller(req: NextRequest): boolean {
   return extra.includes(refHost);
 }
 
-function makeProxyUrl(target: string, req: NextRequest): string {
-  // We build relative URLs ("/api/stream?url=...") so the manifest
-  // works from any origin the browser is on, without leaking the
-  // upstream into the page CSP.
-  return `/api/stream?url=${encodeURIComponent(target)}`;
+type RewriteMode = 'proxy' | 'direct';
+
+function rewriteOne(absUrl: string, mode: RewriteMode): string {
+  // In direct mode we return the upstream URL verbatim so the browser
+  // fetches segments straight from the provider's CDN. In proxy mode
+  // we wrap so the segment also comes back through this route.
+  return mode === 'direct'
+    ? absUrl
+    : `/api/stream?url=${encodeURIComponent(absUrl)}`;
 }
 
-// Rewrite every absolute / relative URL inside an HLS manifest to
-// point at this proxy. Operates on text content only; if the body
-// isn't an M3U we pass it through untouched. Relative URLs are
-// resolved against the manifest's own absolute URL first, then
-// wrapped.
-function rewriteManifest(text: string, manifestUrl: string, req: NextRequest): string {
+// Rewrite every absolute / relative URL inside an HLS manifest.
+// Operates on text content only; if the body isn't an M3U we pass it
+// through untouched. Relative URLs are resolved against the manifest's
+// own absolute URL first.
+function rewriteManifest(text: string, manifestUrl: string, mode: RewriteMode): string {
   const base = new URL(manifestUrl);
   const out: string[] = [];
   for (const rawLine of text.split(/\r?\n/)) {
@@ -77,7 +87,7 @@ function rewriteManifest(text: string, manifestUrl: string, req: NextRequest): s
       const uriMatched = line.replace(/URI="([^"]+)"/g, (_m, uri: string) => {
         try {
           const abs = new URL(uri, base).toString();
-          return `URI="${makeProxyUrl(abs, req)}"`;
+          return `URI="${rewriteOne(abs, mode)}"`;
         } catch { return _m; }
       });
       out.push(uriMatched);
@@ -85,10 +95,10 @@ function rewriteManifest(text: string, manifestUrl: string, req: NextRequest): s
     }
 
     // Non-tag, non-blank lines are segment / variant URLs. Resolve
-    // against the manifest's URL, then wrap with the proxy.
+    // against the manifest's URL.
     try {
       const abs = new URL(trimmed, base).toString();
-      out.push(makeProxyUrl(abs, req));
+      out.push(rewriteOne(abs, mode));
     } catch {
       out.push(line);
     }
@@ -148,8 +158,9 @@ export async function GET(req: NextRequest) {
   };
 
   if (looksLikeManifest && upstream.body) {
+    const mode: RewriteMode = req.nextUrl.searchParams.get('mode') === 'direct' ? 'direct' : 'proxy';
     const text = await upstream.text();
-    const rewritten = rewriteManifest(text, u.toString(), req);
+    const rewritten = rewriteManifest(text, u.toString(), mode);
     return new Response(rewritten, {
       status: 200,
       headers: {

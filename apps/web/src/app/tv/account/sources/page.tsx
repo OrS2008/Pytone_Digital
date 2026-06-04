@@ -42,6 +42,9 @@ export default function Sources() {
   const [live,     setLive]     = usePersisted('sources.live', INITIAL_LIVE);
   const [epg,      setEpg]      = usePersisted('sources.epg',  INITIAL_EPG);
   const [vod,      setVod]      = usePersisted('sources.vod',  INITIAL_VOD);
+  // Streaming mode (proxy vs direct). See lib/streamProxy.ts. Stored
+  // per-user so the choice syncs across devices.
+  const [streamMode, setStreamMode] = usePersisted<'proxy' | 'direct'>('prefs.streamMode', 'proxy');
   const [epgUrl,   setEpgUrl]   = useState('');
   const [vodHost,  setVodHost]  = useState('');
   const [vodUser,  setVodUser]  = useState('');
@@ -246,6 +249,7 @@ export default function Sources() {
 
       {tab === 'live' && (
         <div className="ac-card">
+          <StreamModeToggle mode={streamMode} setMode={setStreamMode} />
           <div className="ac-card-title">Active live-TV sources · {live.length}</div>
 
           {live.map((s) => (
@@ -424,6 +428,52 @@ export default function Sources() {
         </div>
       )}
     </Shell>
+  );
+}
+
+// Streaming-mode toggle. The user picks whether segments should flow
+// through /api/stream (the proxy, default) or come direct from the
+// provider's CDN. Direct mode is dramatically cheaper for us at scale
+// but only works when the provider sends CORS headers on segments —
+// most modern IPTV CDNs do, older / smaller ones don't.
+function StreamModeToggle({
+  mode,
+  setMode,
+}: {
+  mode: 'proxy' | 'direct';
+  setMode: (m: 'proxy' | 'direct') => void;
+}) {
+  const isDirect = mode === 'direct';
+  return (
+    <div
+      style={{
+        padding: '14px 16px',
+        marginBottom: 18,
+        borderRadius: 12,
+        background: isDirect ? 'rgba(125,249,198,0.08)' : 'rgba(255,255,255,0.03)',
+        border: `1px solid ${isDirect ? 'rgba(125,249,198,0.25)' : 'var(--ns-border)'}`,
+        display: 'flex', gap: 14, alignItems: 'flex-start',
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={isDirect}
+        onChange={(e) => setMode(e.target.checked ? 'direct' : 'proxy')}
+        style={{ marginTop: 4, width: 18, height: 18, cursor: 'pointer' }}
+      />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
+          Direct streaming {isDirect ? '· enabled' : '· off'}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--ns-text-faint)', lineHeight: 1.5 }}>
+          When on, video segments are fetched straight from your provider's CDN
+          instead of going through our servers. Faster playback, lower data
+          overhead. Requires your provider to allow cross-origin requests
+          (most modern providers do). If playback breaks for a channel,
+          turn this off and reload.
+        </div>
+      </div>
+    </div>
   );
 }
 
