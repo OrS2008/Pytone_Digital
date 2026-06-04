@@ -3,14 +3,18 @@
 // Trial-expiry full-screen gate.
 //
 // Mounted from the TV layout. On every boot we hit /api/auth/me and
-// read the `access` object the server returns. Three states:
+// read the `access` status the server returns. We render exactly one
+// thing and only one thing:
 //
-//   trial      — show a discrete banner with days left, do not block.
-//   subscribed — render nothing.
-//   expired    — overlay the entire player with a "Subscribe to keep
-//                watching" screen that prevents interaction with /tv.
-//                Settings → Account remains reachable through the
-//                overlay so the user can still subscribe or sign out.
+//   expired — overlay the entire player with a "Subscribe to keep
+//             watching" screen that prevents interaction with /tv.
+//             Settings → Account remains reachable through the
+//             overlay so the user can still subscribe or sign out.
+//
+// trial / subscribed / anon / unknown — render nothing. The
+// "X days left" countdown lives in the .ac-trial-pill in the
+// account top-nav; we don't duplicate it as a floating banner over
+// the player.
 //
 // We poll /api/auth/me again every 6 hours so a trial that expires
 // while the tab is open transitions without a hard reload.
@@ -21,66 +25,37 @@ import { signOut } from '@/lib/session';
 
 type Status = 'unknown' | 'trial' | 'subscribed' | 'expired' | 'anon';
 
-interface Access {
-  status:          'trial' | 'subscribed' | 'expired';
-  trialEndsAt:     number;
-  subscribedUntil: number;
-  daysLeft:        number;
-}
+interface Access { status: 'trial' | 'subscribed' | 'expired' }
 
 const POLL_MS = 6 * 60 * 60 * 1000;
 
-async function fetchAccess(): Promise<{ status: Status; access?: Access }> {
+async function fetchAccess(): Promise<Status> {
   try {
     const r = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
-    if (r.status === 401) return { status: 'anon' };
-    if (!r.ok) return { status: 'unknown' };
+    if (r.status === 401) return 'anon';
+    if (!r.ok) return 'unknown';
     const body = await r.json() as { access?: Access };
-    if (!body.access) return { status: 'unknown' };
-    return { status: body.access.status, access: body.access };
+    return body.access?.status ?? 'unknown';
   } catch {
-    return { status: 'unknown' };
+    return 'unknown';
   }
 }
 
 export default function TrialGate() {
   const [status, setStatus] = useState<Status>('unknown');
-  const [access, setAccess] = useState<Access | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     async function tick() {
-      const r = await fetchAccess();
-      if (cancelled) return;
-      setStatus(r.status);
-      setAccess(r.access ?? null);
+      const next = await fetchAccess();
+      if (!cancelled) setStatus(next);
     }
     tick();
     const t = setInterval(tick, POLL_MS);
     return () => { cancelled = true; clearInterval(t); };
   }, []);
 
-  // Anonymous and unknown states: render nothing. The unauthenticated
-  // user still sees the player chrome — getting them off the page is
-  // the welcome screen's job, not this component's.
-  if (status === 'unknown' || status === 'anon' || status === 'subscribed') return null;
-
-  if (status === 'trial') {
-    const days = access?.daysLeft ?? 0;
-    return (
-      <div className="tg-banner" role="status">
-        <span>
-          {days <= 0
-            ? 'Trial ends today.'
-            : days === 1
-              ? 'Trial ends tomorrow.'
-              : `${days} days left in your free trial.`}
-        </span>
-        <Link href="/tv/account/plans" className="tg-banner-cta">Subscribe</Link>
-      </div>
-    );
-  }
-
+  if (status !== 'expired') return null;
   // status === 'expired' — full-screen blocker.
   return (
     <div className="tg-overlay" role="dialog" aria-modal="true">
