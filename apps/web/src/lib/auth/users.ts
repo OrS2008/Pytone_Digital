@@ -18,6 +18,17 @@ export interface UserRecord {
   passwordHash:  string;       // pbkdf2$... format from auth/password
   createdAt:     number;
   lastLoginAt?:  number;
+  // Trial / subscription enforcement.
+  //   trialStartedAt — stamped at createUser(); the 7-day clock runs
+  //     from this and is the authoritative source for "is the trial
+  //     still active" (the client-side localStorage value used to be
+  //     authoritative but trivially lied about). Defaults to
+  //     createdAt for users that pre-date this field.
+  //   subscribedUntil — non-zero when a paid subscription has been
+  //     verified by the billing webhook. Either of trial or
+  //     subscription being valid grants access.
+  trialStartedAt?:  number;
+  subscribedUntil?: number;
 }
 
 function userKey(email: string): string { return `user:${normaliseEmail(email)}`; }
@@ -33,14 +44,46 @@ export async function findUserByEmail(kv: KVNamespace, email: string): Promise<U
 
 export async function createUser(kv: KVNamespace, email: string, password: string): Promise<UserRecord> {
   const passwordHash = await hashPassword(password);
+  const now = Date.now();
   const record: UserRecord = {
     userId:    randomId(),
     email:     normaliseEmail(email),
     passwordHash,
-    createdAt: Date.now(),
+    createdAt:      now,
+    trialStartedAt: now,
   };
   await kv.put(userKey(email), JSON.stringify(record));
   return record;
+}
+
+// Trial / subscription helpers — single source of truth for "does
+// this user have access right now". The /tv shell calls /api/auth/me
+// which delegates to this; the admin panel uses it for the trialing
+// / paid breakdown.
+export const TRIAL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export interface AccessState {
+  status:           'trial' | 'subscribed' | 'expired';
+  trialEndsAt:      number;
+  subscribedUntil:  number;
+  daysLeft:         number;   // floor; 0 once expired
+}
+
+export function accessState(user: UserRecord, now: number = Date.now()): AccessState {
+  const trialStartedAt = user.trialStartedAt ?? user.createdAt;
+  const trialEndsAt    = trialStartedAt + TRIAL_MS;
+  const subbedUntil    = user.subscribedUntil ?? 0;
+  const trialActive    = now < trialEndsAt;
+  const subActive      = now < subbedUntil;
+
+  let status: AccessState['status'];
+  let endMs: number;
+  if (subActive)        { status = 'subscribed'; endMs = subbedUntil; }
+  else if (trialActive) { status = 'trial';      endMs = trialEndsAt; }
+  else                  { status = 'expired';    endMs = 0; }
+
+  const daysLeft = endMs > now ? Math.floor((endMs - now) / (24 * 60 * 60 * 1000)) : 0;
+  return { status, trialEndsAt, subscribedUntil: subbedUntil, daysLeft };
 }
 
 export async function loginUser(kv: KVNamespace, email: string, password: string): Promise<UserRecord | null> {
