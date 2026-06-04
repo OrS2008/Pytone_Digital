@@ -1,34 +1,37 @@
 // GET /api/admin/diag
 //
-// Read-only diagnostic for the admin login deploy. Tells the operator
-// whether each required env var is present and whether the password
-// hash is in the expected format — and nothing else. Earlier versions
-// echoed iteration count and salt / hash byte lengths, which is enough
-// for an attacker to tune an offline brute-force, so this build trims
-// the response down to booleans.
+// Operator-only diagnostic. Reports whether each Cloudflare binding
+// and environment variable is present, plus build / commit info, so
+// the admin panel's System tab can render a one-screen "is the deploy
+// healthy" view.
+//
+// Locked behind requireAdmin: leaking which env vars are configured
+// helps an attacker prioritise which secret to guess at.
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getKV } from '@/lib/cfEnv';
+import { requireAdmin } from '@/lib/adminGuard';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  const u    = process.env.ADMIN_USERNAME;
-  const hash = process.env.ADMIN_PASSWORD_HASH;
-  const sec  = process.env.ADMIN_SESSION_SECRET;
-
-  // Format check: scheme + 3 colon-separated parts, all hex where expected.
-  const parts = (hash || '').split(':');
-  const hashFormatOk =
-    parts.length === 4 &&
-    parts[0] === 'pbkdf2' &&
-    /^\d+$/.test(parts[1]) &&
-    /^[0-9a-f]+$/i.test(parts[2]) &&
-    /^[0-9a-f]+$/i.test(parts[3]);
+export async function GET(req: NextRequest) {
+  const guard = await requireAdmin(req);
+  if (guard instanceof Response) return guard;
 
   return NextResponse.json({
-    ADMIN_USERNAME:       { set: !!u },
-    ADMIN_PASSWORD_HASH:  { set: !!hash, format_ok: hashFormatOk },
-    ADMIN_SESSION_SECRET: { set: !!sec,  long_enough: !!sec && sec.length >= 32 },
-  });
+    bindings: {
+      NOVA_KV: !!getKV(),
+    },
+    envVars: {
+      ADMIN_USERNAME:       !!process.env.ADMIN_USERNAME,
+      ADMIN_PASSWORD_HASH:  !!process.env.ADMIN_PASSWORD_HASH,
+      ADMIN_SESSION_SECRET: !!process.env.ADMIN_SESSION_SECRET && process.env.ADMIN_SESSION_SECRET.length >= 32,
+      MAILTRAP_API_URL:     !!process.env.MAILTRAP_API_URL,
+    },
+    app: {
+      version: '1.0.0',
+      commit:  process.env.CF_PAGES_COMMIT_SHA ?? null,
+    },
+  }, { headers: { 'cache-control': 'no-store' } });
 }
