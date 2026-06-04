@@ -21,17 +21,14 @@ MAILTRAP_FROM_NAME  = "Nova Stream"
 # Keys are prefixed (user: / session: / settings: / history:) so one
 # namespace serves all roles.
 #
-# On Cloudflare PAGES the binding is wired through the dashboard:
-#   Settings → Functions → KV namespace bindings →
-#     Variable name = NOVA_KV
-#     KV namespace  = (the one you created in Workers & Pages → KV)
+# Cloudflare Pages reads bindings from this file as the source of truth
+# when wrangler.toml is present (the dashboard's "+ Add" button on the
+# Bindings page is disabled in that mode). To rotate to a new
+# namespace, replace the id below and redeploy.
 #
-# We intentionally do NOT declare [[kv_namespaces]] here because
-# Cloudflare's deploy validator rejects bindings with an empty `id =
-# ""`, which fails the entire build. The dashboard-configured binding
-# above is what production reads; wrangler dev users can override via
-# .dev.vars / a local wrangler.toml.
-#
-# Without the binding the auth + settings + privacy API routes return
-# 503 with a clear "bind NOVA_KV" message so the missing config is
-# obvious in the UI.
+# Without a valid binding the auth + settings + privacy API routes
+# return 503 with a clear "bind NOVA_KV" message so the missing config
+# is obvious in the UI.
+[[kv_namespaces]]
+binding = "NOVA_KV"
+id = "3ffc4115cca54b799dcb72983b4575a8"
