@@ -1,19 +1,21 @@
-// Password hashing for the auth API. PBKDF2-SHA256, 200 000 iterations,
+// Password hashing for the auth API. PBKDF2-SHA256, 100 000 iterations,
 // 32-byte salt, 32-byte derived key. PBKDF2 is built into Web Crypto so
 // it runs unchanged in the Cloudflare Workers edge runtime; Argon2 would
 // require a WASM bundle we don't want to ship.
 //
-// 200k iterations is the OWASP minimum for SHA-256 PBKDF2 (2023). It
-// takes ~80 ms on a modern CPU, fast enough not to feel slow to users
-// and slow enough to make offline brute force expensive.
+// Why 100k and not OWASP's 600k recommendation? Cloudflare Workers caps
+// PBKDF2 iteration counts at 100 000 — anything higher throws "Pbkdf2
+// failed: iteration counts above 100000 are not supported". 100k still
+// clears NIST SP 800-132's minimum (10 000) by an order of magnitude
+// and matches what most edge platforms allow today. If we move auth
+// off Workers we can raise this without a user migration — verify()
+// reads the iteration count out of the stored hash string.
 //
-// Stored format: `pbkdf2$200000$<base64-salt>$<base64-hash>`.
-// The parameters live in the string so we can rotate them later without
-// migrating existing users — verify reads them out of the stored value.
+// Stored format: `pbkdf2$100000$<base64-salt>$<base64-hash>`.
 
 const ALGORITHM = 'PBKDF2';
 const HASH      = 'SHA-256';
-const ITERATIONS = 200_000;
+const ITERATIONS = 100_000;
 const KEY_LEN   = 32;   // bytes
 const SALT_LEN  = 32;   // bytes
 
