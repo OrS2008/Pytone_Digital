@@ -17,6 +17,13 @@ MAILTRAP_API_URL   = "https://send.api.mailtrap.io/api/send"
 MAILTRAP_FROM_EMAIL = "noreply@novastream.tv"
 MAILTRAP_FROM_NAME  = "Nova Stream"
 
+# Admin panel identity. The password hash + session secret are stored
+# in the Cloudflare Pages dashboard as encrypted Secrets (not here)
+# because wrangler.toml is committed to the repo. Only the public
+# username — which is just an identifier the operator types into the
+# /admin/login form — lives in plaintext.
+ADMIN_USERNAME = "admin@novastream.tv"
+
 # NOVA_KV binding — accounts, sessions, settings blobs, watch history.
 # Keys are prefixed (user: / session: / settings: / history:) so one
 # namespace serves all roles.
