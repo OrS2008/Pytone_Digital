@@ -58,7 +58,12 @@ export default function Signup() {
         return;
       }
       if (!r.ok) {
-        setError(`Sign-up failed (${r.status}).`);
+        let detail = '';
+        try {
+          const body = await r.json() as { detail?: string; error?: string };
+          detail = body.detail || body.error || '';
+        } catch { /* response may not be JSON */ }
+        setError(`Sign-up failed (${r.status})${detail ? `: ${detail}` : '.'}`);
         setSending(false);
         return;
       }
