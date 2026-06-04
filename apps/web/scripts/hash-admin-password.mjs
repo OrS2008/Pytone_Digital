@@ -14,7 +14,10 @@ import { webcrypto } from 'node:crypto';
 import { stdin as input, stdout as output } from 'node:process';
 import { createInterface } from 'node:readline/promises';
 
-const ITERATIONS = 210_000;  // OWASP 2023 recommendation for PBKDF2-SHA256
+// Cloudflare Workers refuses PBKDF2 above 100 000 iterations. Keep
+// this in sync with apps/web/src/lib/auth/password.ts (user-side hash)
+// and apps/web/src/app/api/admin/login/route.ts (admin verify path).
+const ITERATIONS = 100_000;
 const SALT_BYTES = 16;
 const HASH_BYTES = 32;
 
