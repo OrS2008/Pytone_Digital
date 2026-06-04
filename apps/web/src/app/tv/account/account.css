@@ -774,3 +774,116 @@
   margin-top: 18px;
   font-size: 12px; color: var(--ns-text-faint);
 }
+
+/* ── Overview rebuild ─────────────────────────────────────────────────
+   Classes used only by tv/account/page.tsx — the rewritten overview
+   surfaces real /api/auth/me data instead of the old hardcoded
+   placeholders. New status banner variants, a 3-column info grid,
+   a quick-action row, mono helper. */
+
+.ac-banner-loading,
+.ac-banner-ok,
+.ac-banner-info,
+.ac-banner-warn {
+  background:
+    linear-gradient(135deg, var(--ns-accent-soft), transparent 60%),
+    var(--ns-bg-elevated);
+  border: 1px solid var(--ns-border-strong);
+  border-radius: var(--ns-radius-lg);
+  padding: 22px 26px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 24px; align-items: center;
+  margin-bottom: 22px;
+}
+.ac-banner-loading {
+  color: var(--ns-text-faint);
+  display: block;
+  text-align: center;
+  font-size: 14px;
+}
+.ac-banner-ok {
+  background:
+    linear-gradient(135deg, rgba(125,249,198,0.10), transparent 60%),
+    var(--ns-bg-elevated);
+  border-color: rgba(125,249,198,0.30);
+}
+.ac-banner-info {
+  background:
+    linear-gradient(135deg, rgba(94,156,255,0.10), transparent 60%),
+    var(--ns-bg-elevated);
+  border-color: rgba(94,156,255,0.30);
+}
+.ac-banner-warn {
+  background:
+    linear-gradient(135deg, rgba(255,176,32,0.10), transparent 60%),
+    var(--ns-bg-elevated);
+  border-color: rgba(255,176,32,0.30);
+}
+.ac-banner-h {
+  font-size: 19px; font-weight: 700;
+  color: var(--ns-text);
+  letter-spacing: -0.2px;
+}
+.ac-banner-sub {
+  margin-top: 4px;
+  font-size: 13.5px;
+  color: var(--ns-text-muted);
+  line-height: 1.5;
+}
+
+.ac-status-pill {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+.ac-status-ok    { background: rgba(125,249,198,0.14); color: #7DF9C6; }
+.ac-status-trial { background: rgba(94,156,255,0.14);  color: #5E9CFF; }
+.ac-status-warn  { background: rgba(255,176,32,0.14);  color: #FFB020; }
+.ac-status-mut   { background: rgba(139,149,167,0.14); color: var(--ns-text-faint); }
+
+.ac-stat-ok   { color: #7DF9C6; }
+.ac-stat-info { color: #5E9CFF; }
+.ac-stat-warn { color: #FFB020; }
+
+.ac-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.ac-mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12.5px;
+}
+
+.ac-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 8px;
+  padding: 18px 20px;
+  border-radius: var(--ns-radius-lg);
+  background: var(--ns-bg-elevated);
+  border: 1px solid var(--ns-border);
+}
+.ac-quick .ac-card-title { margin: 0 0 8px; }
+
+.ac-trial-pill-warn {
+  background: rgba(255,176,32,0.14) !important;
+  color: #FFB020 !important;
+  border-color: rgba(255,176,32,0.30) !important;
+}
+
+@media (max-width: 720px) {
+  .ac-banner-ok, .ac-banner-info, .ac-banner-warn {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}

@@ -1,23 +1,24 @@
 'use client';
 
-// Renders the right-hand side of the account top-bar: trial pill + avatar.
-// Reads the signed-in email from lib/session so the initials and the
-// dropdown reflect the actual user. Keeps a tiny hover menu with Sign
-// out so the user can leave their tenant without hunting through the
-// settings tree.
+// Right-hand side of the account top-bar: trial / subscription pill +
+// avatar with a hover menu. The pill text is driven by /api/auth/me via
+// the shared useAccess() hook so it reflects the real days remaining
+// rather than the placeholder "Trial · 5 days left" that used to be
+// hardcoded.
 
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { getSessionEmail, signOut } from '@/lib/session';
+import { useAccess } from '@/lib/useAccess';
 
 export default function AccountChip() {
   const [email, setEmail] = useState<string | null>(null);
   const [open, setOpen]   = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
+  const access = useAccess();
 
   useEffect(() => { setEmail(getSessionEmail()); }, []);
 
-  // Close the menu on any click outside.
   useEffect(() => {
     if (!open) return;
     function onDoc(e: MouseEvent) {
@@ -36,9 +37,29 @@ export default function AccountChip() {
   }
 
   const initials = email.split('@')[0].slice(0, 2).toUpperCase();
+
+  // Pill text. Hidden entirely for paid / loading / error so we never
+  // show stale or fictional text — the worst-case is a slightly emptier
+  // top bar, which is fine.
+  let pill: { text: string; tone: 'trial' | 'warn' } | null = null;
+  if (access.status === 'trial') {
+    const d = access.daysLeft ?? 0;
+    const label =
+      d <= 0 ? 'Trial ends today' :
+      d === 1 ? 'Trial · 1 day left' :
+                `Trial · ${d} days left`;
+    pill = { text: label, tone: 'trial' };
+  } else if (access.status === 'expired') {
+    pill = { text: 'Trial expired', tone: 'warn' };
+  }
+
   return (
     <div className="ac-account" ref={ref} style={{ position: 'relative' }}>
-      <span className="ac-trial-pill">Trial · 5 days left</span>
+      {pill && (
+        <span className={`ac-trial-pill ${pill.tone === 'warn' ? 'ac-trial-pill-warn' : ''}`}>
+          {pill.text}
+        </span>
+      )}
       <button
         className="ac-avatar"
         aria-label="Account menu"
