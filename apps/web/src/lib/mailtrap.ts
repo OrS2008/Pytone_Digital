@@ -153,6 +153,51 @@ export function renderActivationEmail(args: {
   return { subject, text, html };
 }
 
+export function renderResetEmail(args: {
+  email:    string;
+  resetUrl: string;
+}): { subject: string; text: string; html: string } {
+  const subject = 'Reset your Nova Stream password';
+  const text = [
+    `A password reset was requested for ${args.email} on Nova Stream.`,
+    ``,
+    `If this was you, click the link below to set a new password. The`,
+    `link is valid for 30 minutes:`,
+    ``,
+    `  ${args.resetUrl}`,
+    ``,
+    `If you didn't request this, you can safely ignore this email —`,
+    `nothing about your account will change.`,
+    ``,
+    `— The Nova Stream team`,
+  ].join('\n');
+  const html = `<!doctype html>
+<html><body style="font-family: -apple-system, Segoe UI, Arial, sans-serif; background: #06070A; color: #E9EBF1; padding: 24px;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 520px; margin: 0 auto;">
+    <tr><td style="padding: 32px 0; text-align: center; color: #FF3B6E; font-weight: 800; letter-spacing: 4px;">NOVA STREAM</td></tr>
+    <tr><td style="background: #11141B; border-radius: 16px; padding: 36px 32px;">
+      <h1 style="margin: 0 0 12px; font-size: 24px; color: #E9EBF1;">Reset your password</h1>
+      <p style="margin: 0 0 24px; color: #B7BEC9; line-height: 1.55;">
+        Someone (hopefully you) asked to reset the password on
+        <strong style="color:#E9EBF1">${escapeHtml(args.email)}</strong>.
+      </p>
+      <p style="margin: 0 0 24px; text-align: center;">
+        <a href="${args.resetUrl}" style="display: inline-block; padding: 14px 28px; background: #FF3B6E; color: #fff; text-decoration: none; border-radius: 10px; font-weight: 700;">Set a new password</a>
+      </p>
+      <p style="margin: 0 0 12px; color: #6F7785; font-size: 12px; line-height: 1.55;">
+        Or copy this link into your browser:<br>
+        <span style="word-break: break-all; color: #B7BEC9;">${escapeHtml(args.resetUrl)}</span>
+      </p>
+      <p style="margin: 0; color: #6F7785; font-size: 12px; line-height: 1.55;">
+        The link expires in 30 minutes. If you didn't request a reset,
+        ignore this email — nothing changes.
+      </p>
+    </td></tr>
+  </table>
+</body></html>`;
+  return { subject, text, html };
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!

@@ -1,36 +1,72 @@
 'use client';
 
+// Forgot-password — step 1 of the email-driven password reset.
+//
+// Posts to /api/auth/forgot-password which generates a 30-minute reset
+// token, stores it in KV, and emails the link via Mailtrap. The page
+// always shows the "Check your inbox" confirmation regardless of
+// whether the email exists in our database, so a curious visitor
+// can't use this form to enumerate registered emails. The server
+// returns the same body shape in both cases.
+
 import { useState } from 'react';
 import Link from 'next/link';
-import '../account/account.css';
+import '../auth/auth.css';
 
 export default function ForgotPassword() {
-  const [sent, setSent] = useState(false);
   const [email, setEmail] = useState('');
+  const [busy, setBusy]   = useState(false);
+  const [sent, setSent]   = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.includes('@')) return;
-    setSent(true);
+    setError(null);
+    if (!email.includes('@')) { setError('Please enter a valid email.'); return; }
+    setBusy(true);
+    try {
+      const r = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (r.status === 503) {
+        setError('Server storage is not configured yet. Ask the admin to bind NOVA_KV.');
+        setBusy(false);
+        return;
+      }
+      if (!r.ok) {
+        setError(`Couldn’t send the reset email (${r.status}). Try again in a minute.`);
+        setBusy(false);
+        return;
+      }
+      setSent(true);
+    } catch (err) {
+      setError(`Network error: ${(err as Error).message}`);
+    } finally { setBusy(false); }
   }
 
   return (
-    <main className="ac-auth">
-      <div className="ac-auth-card">
-        <div className="ac-auth-wm">NOVA STREAM</div>
+    <main className="ah-root">
+      <Link href="/tv/login" className="ah-topback">← Sign in</Link>
+
+      <div className="ah-card">
+        <div className="ah-wm">NOVA STREAM</div>
 
         {!sent ? (
           <>
-            <h1 className="ac-auth-title">Reset your password</h1>
-            <p className="ac-auth-sub">
-              Enter the email on your account. We'll send a link that's valid for 30 minutes.
+            <h1 className="ah-title">Reset your password</h1>
+            <p className="ah-sub">
+              Enter the email on your account. We&apos;ll send a link that&apos;s
+              valid for 30 minutes.
             </p>
 
             <form onSubmit={submit}>
-              <div className="ac-field">
-                <label className="ac-field-label">Email</label>
+              <div className="ah-field">
+                <label className="ah-label">Email</label>
                 <input
-                  className="ac-input"
+                  className="ah-input"
                   type="email"
                   autoFocus
                   placeholder="you@example.com"
@@ -39,25 +75,30 @@ export default function ForgotPassword() {
                 />
               </div>
 
-              <button
-                type="submit"
-                className="ac-btn ac-btn-primary"
-                style={{ width: '100%', justifyContent: 'center', padding: 16 }}
-              >
-                Send reset link
+              {error && <div className="ah-err">{error}</div>}
+
+              <button type="submit" className="ah-btn" disabled={busy}>
+                {busy ? 'Sending…' : 'Send reset link'}
               </button>
             </form>
           </>
         ) : (
           <>
-            <h1 className="ac-auth-title">Check your inbox</h1>
-            <p className="ac-auth-sub">
-              If an account exists for <b>{email}</b>, a reset link has been sent. The
-              link expires in 30 minutes. Check your spam folder if you don't see it.
+            <h1 className="ah-title">Check your inbox</h1>
+            <p className="ah-sub">
+              If an account exists for <b>{email}</b>, a reset link is on its
+              way. The link expires in 30 minutes. Check your spam folder if
+              you don&apos;t see it within a minute or two.
             </p>
             <button
-              className="ac-btn"
-              style={{ width: '100%', justifyContent: 'center', padding: 14, marginTop: 8 }}
+              type="button"
+              className="ah-btn"
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                color: '#E7ECF3',
+                border: '1px solid rgba(255,255,255,0.10)',
+                boxShadow: 'none',
+              }}
               onClick={() => { setSent(false); setEmail(''); }}
             >
               Send another
@@ -65,8 +106,8 @@ export default function ForgotPassword() {
           </>
         )}
 
-        <div className="ac-auth-bottom">
-          Remembered it? <Link href="/tv/login" className="ac-auth-link">Sign in</Link>
+        <div className="ah-bottom">
+          Remembered it? <Link href="/tv/login" className="ah-link">Sign in</Link>
         </div>
       </div>
     </main>
