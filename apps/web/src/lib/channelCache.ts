@@ -172,70 +172,7 @@ async function fetchAndParse(url: string): Promise<LoadResult> {
   const entry: CacheEntry = { url, fetchedAt: Date.now(), channels, inferredEpgUrl };
   MEM.set(memKey(), entry);
   writeSessionCache(entry);
-  // Auto-configure the EPG source from the playlist's url-tvg
-  // attribute. Most users would never know to look for the right
-  // EPG URL otherwise — and the M3U header IS the right URL by
-  // definition (the provider declared it). We do this silently on
-  // every M3U fetch:
-  //   * sources.epg empty → add the url-tvg entry
-  //   * first entry already matches → no-op
-  //   * first entry differs    → replace it
-  // The user can still override manually in Sources → EPG; our
-  // replacement uses a distinct title ("Provider EPG (auto)") so
-  // they can spot it.
-  if (inferredEpgUrl) {
-    try { autoSyncEpgFromM3U(inferredEpgUrl); } catch { /* localStorage locked — ignore */ }
-  }
   return { channels };
-}
-
-interface AutoEpgSource { id: string; kind: string; title: string; sub: string; stat: string }
-
-function autoSyncEpgFromM3U(inferred: string) {
-  if (typeof window === 'undefined') return;
-  const key = userKey('sources.epg');
-  let list: AutoEpgSource[] = [];
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw) {
-      try { list = JSON.parse(raw); } catch { list = []; }
-      if (!Array.isArray(list)) list = [];
-    }
-  } catch { /* locked storage */ }
-
-  // Skip when the auto EPG is already the first entry — avoids
-  // resurrecting the same row on every page reload + rewriting an
-  // unchanged sources.epg, which would trigger an unnecessary
-  // scheduleUp every time.
-  if (list[0]?.sub === inferred) return;
-
-  const entry: AutoEpgSource = {
-    id:    `epg-auto-${Date.now()}`,
-    kind:  'XML',
-    title: 'Provider EPG (auto)',
-    sub:   inferred,
-    stat:  'auto-detected from playlist',
-  };
-  // Put the auto entry first so loadEpgIndex's "first valid URL
-  // wins" pick uses it. Keep any other entries the user added so
-  // they're not lost — they're just no longer the active EPG.
-  list = [entry, ...list.filter((s) => s.sub !== inferred)];
-
-  try { localStorage.setItem(key, JSON.stringify(list)); } catch { /* quota */ }
-  // Tell mounted usePersisted hooks (Sources screen) to re-read so
-  // the UI reflects the new EPG entry without a reload.
-  try { window.dispatchEvent(new Event('ns-settings-synced')); } catch { /* ignore */ }
-  // Push to the server so a fresh sign-in on another device gets
-  // the corrected EPG too. Fire-and-forget — the existing
-  // scheduleUp debounce would also catch it, but settings the
-  // server already has stale data means we want this PUT to win
-  // ASAP.
-  void (async () => {
-    try {
-      const { syncUpNow } = await import('./serverSync');
-      await syncUpNow();
-    } catch { /* offline / unavailable */ }
-  })();
 }
 
 // Returns the EPG URL the user's M3U declared on its #EXTM3U header,
