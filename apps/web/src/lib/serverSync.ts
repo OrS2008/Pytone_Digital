@@ -37,7 +37,8 @@ export const SYNCED_KEYS: readonly string[] = [
   'parental.blocked',       // channel block list
   'history',                // watch history
   'continueWatching',       // continue-watching shelf entries
-  'recordings.scheduled',   // scheduled recordings
+  'recordings',             // scheduled recordings (InfoBar + /tv/catchup write this key)
+  'subs.preset',            // subtitle look-and-feel preset (SubtitleControls)
 ];
 
 const DEBOUNCE_MS = 1_500;

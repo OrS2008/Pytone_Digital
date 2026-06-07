@@ -1,12 +1,24 @@
-// Appearance — the theme picker. Switching writes the choice to
-// localStorage and sets the data-theme attribute on <html> + <body>, which
-// triggers all CSS variables in themes.css to swap. Every screen in the
-// app updates in real time without a reload.
+// Appearance — theme picker + interface language.
+//
+// Switching writes the choice to localStorage and sets the data-theme
+// attribute on <html> + <body>, which triggers all CSS variables in
+// themes.css to swap. Every screen in the app updates in real time
+// without a reload.
+//
+// Cleanup pass:
+//   * Four "Display options" toggles (Match system dark/light, High
+//     contrast, Reduce motion, Bigger text) had no persistKey and no
+//     reader anywhere in the codebase — they were UI ornaments. Gone.
+//   * Sub-copy claimed the theme "syncs to your other devices
+//     automatically". The theme key is intentionally GLOBAL (not
+//     userKey-scoped) because TvBoot reads it during first paint,
+//     before the session is known — so it can't ride the
+//     SYNCED_KEYS rail without re-flashing on every load. Copy now
+//     reflects reality: theme is per-device, language follows you.
 'use client';
 
 import { useEffect, useState } from 'react';
 import Shell from '../Shell';
-import Toggle from '@/components/ui/Toggle';
 import { LOCALES, useT } from '@/lib/i18n';
 
 type ThemeId = 'apex' | 'aurora' | 'mono' | 'cyber' | 'premium';
@@ -41,67 +53,39 @@ export default function Appearance() {
         <div className="ac-panel-eyebrow">Appearance</div>
         <h1 className="ac-panel-title">Pick a theme</h1>
         <p className="ac-panel-sub">
-          Your choice applies across the whole app — Live TV, Movies, DVR and Account —
-          and syncs to your other devices automatically. Tap any tile to apply.
+          The theme is a per-device preference — pick the one that fits the
+          screen you&apos;re looking at. Your interface language, on the
+          other hand, follows your account.
         </p>
       </header>
 
       <div className="ac-themes">
-        {THEMES.map((t) => (
+        {THEMES.map((tile) => (
           <button
-            key={t.id}
-            className={`ac-theme ${active === t.id ? 'ac-theme-selected' : ''}`}
-            onClick={() => pick(t.id)}
+            key={tile.id}
+            className={`ac-theme ${active === tile.id ? 'ac-theme-selected' : ''}`}
+            onClick={() => pick(tile.id)}
             style={{ background: 'transparent', padding: 0, font: 'inherit', color: 'inherit' }}
           >
-            <div className={`ac-theme-preview ${t.preview}`} />
+            <div className={`ac-theme-preview ${tile.preview}`} />
             <div className="ac-theme-meta">
-              <div className="ac-theme-name">{t.name}</div>
-              <div className="ac-theme-tag">{t.tag}</div>
+              <div className="ac-theme-name">{tile.name}</div>
+              <div className="ac-theme-tag">{tile.tag}</div>
             </div>
-            {active === t.id && <div className="ac-theme-check">✓</div>}
+            {active === tile.id && <div className="ac-theme-check">✓</div>}
           </button>
         ))}
       </div>
 
       <div className="ac-card" style={{ marginTop: 28 }}>
-        <div className="ac-card-title">Display options</div>
-        <div className="ac-toggle-row">
-          <div>
-            <div className="ac-toggle-title">Match system dark / light</div>
-            <div className="ac-toggle-desc">Follow your device's appearance setting. Light variants of each theme are coming.</div>
-          </div>
-          <Toggle />
-        </div>
-        <div className="ac-toggle-row">
-          <div>
-            <div className="ac-toggle-title">High contrast</div>
-            <div className="ac-toggle-desc">Boosts text against backgrounds for low-light viewing.</div>
-          </div>
-          <Toggle />
-        </div>
-        <div className="ac-toggle-row">
-          <div>
-            <div className="ac-toggle-title">Reduce motion</div>
-            <div className="ac-toggle-desc">Disables fade and scale animations. Saves on older TVs.</div>
-          </div>
-          <Toggle />
-        </div>
-        <div className="ac-toggle-row">
-          <div>
-            <div className="ac-toggle-title">Bigger text</div>
-            <div className="ac-toggle-desc">Increases body text by 15% — better for far seating.</div>
-          </div>
-          <Toggle />
-        </div>
-      </div>
-
-      <div className="ac-card">
         <div className="ac-card-title">{t('pref.language')}</div>
         <div className="ac-toggle-row">
           <div style={{ minWidth: 240 }}>
             <div className="ac-toggle-title">{t('pref.language')}</div>
-            <div className="ac-toggle-desc">Interface language. Hebrew automatically switches the app to right-to-left.</div>
+            <div className="ac-toggle-desc">
+              Interface language. Hebrew automatically switches the app to
+              right-to-left.
+            </div>
           </div>
           <select
             className="ac-input"
@@ -112,6 +96,19 @@ export default function Appearance() {
             {LOCALES.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
           </select>
         </div>
+      </div>
+
+      <div className="ac-card">
+        <div className="ac-card-title">On the roadmap</div>
+        <p style={{ color: 'var(--ns-text-muted)', fontSize: 13.5, margin: '0 0 8px' }}>
+          Accessibility controls planned for this screen:
+        </p>
+        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, color: 'var(--ns-text-muted)', lineHeight: 1.8 }}>
+          <li>Follow the system dark/light preference</li>
+          <li>High-contrast variants of each theme</li>
+          <li>Reduce-motion (disable fade and scale animations)</li>
+          <li>Bigger text (+15 % body text size for far seating)</li>
+        </ul>
       </div>
     </Shell>
   );
