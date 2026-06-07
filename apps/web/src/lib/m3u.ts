@@ -46,6 +46,32 @@ interface ExtInf {
 
 const ATTR = /([\w-]+)="([^"]*)"/g;
 
+// Many providers ship their EPG URL on the M3U's #EXTM3U header so a
+// player can auto-discover the matching XMLTV instead of asking the
+// user to paste a second URL. The conventional attribute is
+// `url-tvg=` (used by IPTV Smarters / TiViMate / VLC). A few older
+// playlists spell it `x-tvg-url=` or `tvg-url=`; we accept all three
+// and return the first that looks like a fully-qualified http(s) URL.
+//
+// Returns null when no header attribute is present (then the user
+// has to configure an EPG manually).
+export function extractM3UUrlTvg(text: string): string | null {
+  // Header is the first non-empty, non-comment line in the file. We
+  // search the first ~4 KB rather than splitting the whole file
+  // because some providers ship 50 MB M3Us and the header is always
+  // in the first line.
+  const head = text.slice(0, 4096);
+  const m = /^#EXTM3U[^\r\n]*/m.exec(head);
+  if (!m) return null;
+  const attrs = m[0];
+  for (const key of ['url-tvg', 'x-tvg-url', 'tvg-url']) {
+    const re = new RegExp(`${key}="([^"]+)"`, 'i');
+    const v = re.exec(attrs);
+    if (v && /^https?:\/\//i.test(v[1])) return v[1];
+  }
+  return null;
+}
+
 function parseExtInf(line: string): ExtInf | null {
   // `#EXTINF:-1 tvg-id="..." ...,Channel name`
   const comma = line.indexOf(',');
