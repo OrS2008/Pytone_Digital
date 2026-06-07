@@ -1,116 +1,119 @@
-// Mailtrap email-sending helper.
+// Transactional email via Brevo's HTTP "Transactional Email" API.
 //
-// Mailtrap offers two HTTP APIs that share the same auth shape:
-//   - Production "Send"  → https://send.api.mailtrap.io/api/send
-//   - Sandbox / Testing  → https://sandbox.api.mailtrap.io/api/send/<inboxId>
+// Why HTTP and not SMTP: Cloudflare Workers can't open arbitrary TCP
+// connections, so SMTP from the edge is a non-starter. Brevo exposes
+// the same delivery pipeline behind a JSON-over-HTTPS endpoint that
+// works straight from a fetch() inside a Worker.
 //
-// We default to the production Send API. Operators can flip to the
-// sandbox by setting:
-//   MAILTRAP_API_URL = https://sandbox.api.mailtrap.io/api/send/<inboxId>
+// Endpoint: POST https://api.brevo.com/v3/smtp/email
+//   Headers: api-key, content-type: application/json
+//   Body:    { sender:{email,name}, to:[{email,name?}], subject,
+//              htmlContent, textContent, tags? }
+//   Success: 201 { messageId }
+//   Failure: 400 / 401 / 402 / 403 / 404 / 5xx with { code, message }
 //
-// Authentication is a Bearer token. We read it from process.env at request
-// time (NOT at module load) so a Cloudflare secret rotation takes effect
-// without a redeploy. The DEFAULT_TOKEN fallback exists so a fresh clone
-// of the repo runs out of the box — for production you should set the
-// MAILTRAP_API_TOKEN secret via the Cloudflare Pages dashboard instead.
+// Configuration is via env vars only. Nothing here is hard-coded so
+// rotating the key is "set the new value in the Cloudflare dashboard,
+// redeploy isn't even strictly required (process.env is read per
+// request)".
+//
+// Required env vars (all read lazily at request time):
+//   BREVO_API_KEY   — xkeysib-... (mandatory; Secret in Cloudflare)
+//   BREVO_FROM_EMAIL — sender address; MUST be a verified sender in
+//                      the Brevo dashboard or Brevo returns 400.
+//                      Defaults to noreply@novastream.tv.
+//   BREVO_FROM_NAME  — sender display name; defaults to "Nova Stream".
+//
+// If BREVO_API_KEY is missing we throw BrevoNotConfiguredError. Callers
+// either treat that as a 503 (signup activation) or swallow it
+// silently and still return 200 (forgot-password — we don't want to
+// leak whether delivery failed to a curious attacker).
 
-// Default sender. Mailtrap's Send API requires the from-domain to be
-// verified in the account; you'll see a 422 if it isn't. The sandbox
-// API accepts anything.
-const DEFAULT_FROM_EMAIL = 'noreply@novastream.tv';
-const DEFAULT_FROM_NAME  = 'Nova Stream';
-
-// Falls back to a hard-coded token when the env var is missing so a
-// fresh clone still sends real mail. Rotate by setting the secret in
-// Cloudflare's dashboard and deleting this string.
-const DEFAULT_TOKEN = '2b855ef6ce86a1b1ed07d56706b7b925';
-
-const DEFAULT_API_URL = 'https://send.api.mailtrap.io/api/send';
-
-export interface MailtrapMessage {
-  to:       string;
-  subject:  string;
-  text:     string;
-  html:     string;
+export interface EmailMessage {
+  to:        string;
+  subject:   string;
+  text:      string;
+  html:      string;
+  /** Tag(s) attached to the message in Brevo for filtering / metrics. */
   category?: string;
-  /** Per-message overrides. */
+  /** Per-message overrides for the sender (rare). */
   fromEmail?: string;
   fromName?:  string;
 }
 
-export interface MailtrapResult {
-  ok: true;
-  messageIds: string[];
+export interface EmailResult {
+  ok:        true;
+  messageId: string | null;
 }
 
-export class MailtrapError extends Error {
+export class BrevoNotConfiguredError extends Error {
+  constructor() { super('BREVO_API_KEY is not set in the deploy environment.'); }
+}
+
+export class BrevoError extends Error {
   status: number;
   body:   string;
   constructor(status: number, body: string) {
-    super(`Mailtrap returned ${status}: ${body.slice(0, 200)}`);
+    super(`Brevo returned ${status}: ${body.slice(0, 200)}`);
     this.status = status;
     this.body   = body;
   }
 }
 
-function getToken(): string {
-  const env = (typeof process !== 'undefined' && process.env)
-    ? (process.env.MAILTRAP_API_TOKEN || '').trim()
-    : '';
-  return env || DEFAULT_TOKEN;
+const BREVO_URL = 'https://api.brevo.com/v3/smtp/email';
+
+function envOrEmpty(name: string): string {
+  if (typeof process === 'undefined' || !process.env) return '';
+  return (process.env[name] || '').trim();
 }
 
-function getApiUrl(): string {
-  const env = (typeof process !== 'undefined' && process.env)
-    ? (process.env.MAILTRAP_API_URL || '').trim()
-    : '';
-  return env || DEFAULT_API_URL;
+function getApiKey(): string {
+  const key = envOrEmpty('BREVO_API_KEY');
+  if (!key) throw new BrevoNotConfiguredError();
+  return key;
 }
 
-function getFrom(msg: MailtrapMessage): { email: string; name: string } {
-  const envEmail = (typeof process !== 'undefined' && process.env?.MAILTRAP_FROM_EMAIL) || '';
-  const envName  = (typeof process !== 'undefined' && process.env?.MAILTRAP_FROM_NAME)  || '';
+function getFrom(msg: EmailMessage): { email: string; name: string } {
   return {
-    email: msg.fromEmail || envEmail || DEFAULT_FROM_EMAIL,
-    name:  msg.fromName  || envName  || DEFAULT_FROM_NAME,
+    email: msg.fromEmail || envOrEmpty('BREVO_FROM_EMAIL') || 'noreply@novastream.tv',
+    name:  msg.fromName  || envOrEmpty('BREVO_FROM_NAME')  || 'Nova Stream',
   };
 }
 
-export async function sendMail(msg: MailtrapMessage): Promise<MailtrapResult> {
-  const token = getToken();
-  if (!token) throw new MailtrapError(0, 'MAILTRAP_API_TOKEN is not configured');
+export async function sendMail(msg: EmailMessage): Promise<EmailResult> {
+  const apiKey = getApiKey();
+  const sender = getFrom(msg);
 
-  const from = getFrom(msg);
   const body = {
-    from,
-    to:      [{ email: msg.to }],
-    subject: msg.subject,
-    text:    msg.text,
-    html:    msg.html,
-    ...(msg.category ? { category: msg.category } : {}),
+    sender,
+    to:           [{ email: msg.to }],
+    subject:      msg.subject,
+    htmlContent:  msg.html,
+    textContent:  msg.text,
+    ...(msg.category ? { tags: [msg.category] } : {}),
   };
 
-  const resp = await fetch(getApiUrl(), {
+  const resp = await fetch(BREVO_URL, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type':  'application/json',
-      'Accept':        'application/json',
+      'api-key':       apiKey,
+      'content-type':  'application/json',
+      'accept':        'application/json',
     },
     body: JSON.stringify(body),
   });
 
   const text = await resp.text();
   if (!resp.ok) {
-    throw new MailtrapError(resp.status, text);
+    throw new BrevoError(resp.status, text);
   }
-  let parsed: { success?: boolean; message_ids?: string[] } = {};
+  let parsed: { messageId?: string } = {};
   try { parsed = JSON.parse(text); } catch { /* keep empty */ }
-  return { ok: true, messageIds: parsed.message_ids ?? [] };
+  return { ok: true, messageId: parsed.messageId ?? null };
 }
 
-// Activation email content. Kept separate from sendMail so the wording
-// can iterate without touching the transport.
+// Activation email content. Kept here so the wording can iterate
+// without touching the transport.
 export function renderActivationEmail(args: {
   email:         string;
   activationUrl: string;

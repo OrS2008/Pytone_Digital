@@ -1,7 +1,7 @@
 // POST /api/email/activate
 //
 // Sends an activation email for a freshly-signed-up account. Same-origin
-// only — we don't want the rest of the internet using our Mailtrap quota
+// only — we don't want the rest of the internet using our Brevo quota
 // to spam arbitrary inboxes.
 //
 // Body: { email: string }
@@ -12,7 +12,7 @@
 // it can identify, so the link still works end-to-end.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { sendMail, renderActivationEmail, MailtrapError } from '@/lib/mailtrap';
+import { sendMail, renderActivationEmail, BrevoError, BrevoNotConfiguredError } from '@/lib/email';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -65,16 +65,22 @@ export async function POST(req: NextRequest) {
     const result = await sendMail({
       to: email, subject, text, html, category: 'activation',
     });
-    return NextResponse.json({ ok: true, messageIds: result.messageIds });
+    return NextResponse.json({ ok: true, messageId: result.messageId });
   } catch (e) {
-    if (e instanceof MailtrapError) {
+    if (e instanceof BrevoNotConfiguredError) {
+      console.warn('[email/activate] BREVO_API_KEY not set');
+      return NextResponse.json({
+        error: 'Email delivery is not configured. The account is still active — open it manually from /tv/activate.',
+      }, { status: 503 });
+    }
+    if (e instanceof BrevoError) {
       // Log the upstream response on the deploy side; the user-facing
-      // reply stays generic so we don't expose Mailtrap response bodies
-      // (which can mention internal account ids, quota, etc.).
+      // reply stays generic so we don't expose Brevo response bodies.
       console.warn('[email/activate]', e.status, e.body.slice(0, 300));
-      // 422 = sender domain not verified yet, 401/403 = bad token.
-      const userMsg = e.status === 422
-        ? 'Email delivery is not yet configured. The account is still active — open it manually from /tv/activate.'
+      // 400 = unverified sender / bad payload; 401/403 = bad key;
+      // 402 = quota exhausted.
+      const userMsg = e.status === 400
+        ? 'Email delivery rejected the sender address. The account is still active — open it manually from /tv/activate.'
         : 'We could not send the activation email. Please try again or open your account manually.';
       return NextResponse.json({ error: userMsg, status: e.status }, { status: 502 });
     }

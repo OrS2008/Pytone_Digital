@@ -3,7 +3,7 @@
 // Forgot-password — step 1 of the email-driven password reset.
 //
 // Posts to /api/auth/forgot-password which generates a 30-minute reset
-// token, stores it in KV, and emails the link via Mailtrap. The page
+// token, stores it in KV, and emails the link via Brevo. The page
 // always shows the "Check your inbox" confirmation regardless of
 // whether the email exists in our database, so a curious visitor
 // can't use this form to enumerate registered emails. The server

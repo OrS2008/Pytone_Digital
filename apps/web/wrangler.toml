@@ -3,19 +3,19 @@ compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = ".vercel/output/static"
 
-# Mailtrap email sending — used by /api/email/activate to send
-# verification emails on signup. The lib has a hard-coded fallback for
-# fresh clones; in production override these via the Cloudflare Pages
-# dashboard (Settings → Environment variables) so the secret token
-# doesn't live in the repo.
+# Email sending — Brevo's HTTPS transactional API. Only the sender
+# identity lives in plaintext here; the actual BREVO_API_KEY is a
+# Secret added through the Cloudflare Pages dashboard
+# (Settings → Variables and Secrets → "+ Add" → Type = Secret).
 #
-# Required: a verified sender domain. If MAILTRAP_FROM_EMAIL is on an
-# unverified domain Mailtrap returns 422 and the signup flow shows the
-# user a "delivery not configured yet" notice (account still works).
+# The sender domain (the part after @ in BREVO_FROM_EMAIL) must be
+# verified in the Brevo dashboard under "Senders & IP" → "Domains".
+# If it isn't, Brevo returns 400 with "Sender not verified" and the
+# signup flow shows the user a "delivery not configured yet" notice
+# (account still works).
 [vars]
-MAILTRAP_API_URL   = "https://send.api.mailtrap.io/api/send"
-MAILTRAP_FROM_EMAIL = "noreply@novastream.tv"
-MAILTRAP_FROM_NAME  = "Nova Stream"
+BREVO_FROM_EMAIL = "noreply@novastream.tv"
+BREVO_FROM_NAME  = "Nova Stream"
 
 # Admin panel identity. The password hash + session secret are stored
 # in the Cloudflare Pages dashboard as encrypted Secrets (not here)

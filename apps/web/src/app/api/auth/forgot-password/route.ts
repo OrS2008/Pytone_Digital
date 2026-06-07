@@ -12,8 +12,8 @@
 // The reset endpoint (step 2) lives at /api/auth/reset-password and
 // trades the token + a new password for an updated user record.
 //
-// Mail delivery uses the existing Mailtrap integration. If Mailtrap
-// is misconfigured we still return 200 to the user (so the email
+// Mail delivery uses Brevo's HTTP API (lib/email.ts). If Brevo is
+// misconfigured we still return 200 to the user (so the email
 // existence check isn't betrayed) but the deploy log records the
 // upstream error.
 
@@ -21,7 +21,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireKV } from '@/lib/cfEnv';
 import { findUserByEmail, normaliseEmail } from '@/lib/auth/users';
 import { randomId } from '@/lib/auth/password';
-import { sendMail, renderResetEmail, MailtrapError } from '@/lib/mailtrap';
+import { sendMail, renderResetEmail, BrevoError, BrevoNotConfiguredError } from '@/lib/email';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -77,12 +77,15 @@ export async function POST(req: NextRequest) {
   try {
     await sendMail({ to: user.email, subject, text, html, category: 'password-reset' });
   } catch (e) {
-    if (e instanceof MailtrapError) {
+    if (e instanceof BrevoNotConfiguredError) {
+      console.warn('[auth/forgot-password] BREVO_API_KEY not set');
+    } else if (e instanceof BrevoError) {
       console.warn('[auth/forgot-password]', e.status, e.body.slice(0, 300));
     } else {
       console.warn('[auth/forgot-password] unexpected', String(e));
     }
-    // Still return 200 so the caller can't probe for delivery failures.
+    // Still return 200 so the caller can't probe for delivery failures
+    // — see the "Constant-shape response" note above.
   }
 
   return okResponse;
