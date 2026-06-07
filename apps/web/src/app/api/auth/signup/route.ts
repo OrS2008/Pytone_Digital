@@ -39,7 +39,10 @@ export async function POST(req: NextRequest) {
     if (existing) return NextResponse.json({ error: 'email_taken' }, { status: 409 });
 
     const user = await createUser(kv, email, password);
-    const sid  = await createSession(kv, user.userId, user.email);
+    const sid  = await createSession(kv, user.userId, user.email, {
+      userAgent: req.headers.get('user-agent') ?? undefined,
+      ip:        req.headers.get('cf-connecting-ip') ?? req.headers.get('x-forwarded-for') ?? undefined,
+    });
 
     return new NextResponse(JSON.stringify({ ok: true, email: user.email }), {
       status: 201,

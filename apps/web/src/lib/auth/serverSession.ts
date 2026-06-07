@@ -1,10 +1,15 @@
 // Server-side session lookup + cookie helpers.
 //
 // Session model: a random 32-byte token (base64url) lives in an
-// HTTP-only Secure SameSite=Strict cookie. The same token is the key
-// to a KV entry that carries the userId + email + expiry. KV's TTL
-// expires both sides in lockstep so we never have a stale cookie
-// pointing at an evicted session record.
+// HTTP-only Secure SameSite=Strict cookie. Two KV writes per session:
+//
+//   session:<id>                     → JSON SessionRecord  (TTL 30d)
+//   user_sessions:<userId>:<id>      → "1"                  (TTL 30d)
+//
+// The first lookup powers auth (cookie → userId). The second key
+// indexes sessions per user so we can list "which devices are signed
+// in" and revoke them one-by-one. Both keys share the same TTL, so
+// the index never points at a session that no longer exists.
 //
 // Why HTTP-only: JS in the page can never read the token, so XSS
 // can't ship the cookie to an attacker's server. Why SameSite=Strict:
@@ -23,14 +28,39 @@ export interface SessionRecord {
   userId:    string;
   email:     string;
   createdAt: number;
+  // Captured at session-create time for the Devices screen. Optional
+  // because older sessions written before this field was added don't
+  // have it — the UI shows "—" in that case rather than crashing.
+  userAgent?: string;
+  ip?:        string;
 }
 
 function sessionKey(id: string): string { return `session:${id}`; }
+function indexKey(userId: string, id: string): string {
+  return `user_sessions:${userId}:${id}`;
+}
+function indexPrefix(userId: string): string {
+  return `user_sessions:${userId}:`;
+}
 
-export async function createSession(kv: KVNamespace, userId: string, email: string): Promise<string> {
+export async function createSession(
+  kv: KVNamespace,
+  userId: string,
+  email: string,
+  meta?: { userAgent?: string; ip?: string },
+): Promise<string> {
   const id = randomId();
-  const record: SessionRecord = { userId, email, createdAt: Date.now() };
-  await kv.put(sessionKey(id), JSON.stringify(record), { expirationTtl: SESSION_TTL_SEC });
+  const record: SessionRecord = {
+    userId,
+    email,
+    createdAt: Date.now(),
+    userAgent: meta?.userAgent,
+    ip:        meta?.ip,
+  };
+  await Promise.all([
+    kv.put(sessionKey(id), JSON.stringify(record), { expirationTtl: SESSION_TTL_SEC }),
+    kv.put(indexKey(userId, id), '1',              { expirationTtl: SESSION_TTL_SEC }),
+  ]);
   return id;
 }
 
@@ -43,7 +73,31 @@ export async function readSession(kv: KVNamespace, id: string): Promise<SessionR
 
 export async function destroySession(kv: KVNamespace, id: string): Promise<void> {
   if (!id) return;
-  await kv.delete(sessionKey(id));
+  // Read first so we know which userId index entry to clear.
+  const session = await readSession(kv, id);
+  await Promise.allSettled([
+    kv.delete(sessionKey(id)),
+    session ? kv.delete(indexKey(session.userId, id)) : Promise.resolve(),
+  ]);
+}
+
+// List every session id currently active for a user. Paginates
+// internally via KV's list cursor; for "single user with N devices"
+// the result is usually <50 keys so one page is enough.
+export async function listSessionsForUser(kv: KVNamespace, userId: string): Promise<string[]> {
+  if (!kv.list) return [];
+  const ids: string[] = [];
+  let cursor: string | undefined;
+  for (let i = 0; i < 8; i++) {
+    const page = await kv.list({ prefix: indexPrefix(userId), cursor, limit: 1000 });
+    const prefixLen = indexPrefix(userId).length;
+    for (const key of page.keys) {
+      ids.push(key.name.slice(prefixLen));
+    }
+    if (page.list_complete) break;
+    cursor = page.cursor;
+  }
+  return ids;
 }
 
 // Read the session id from the cookie header without going through

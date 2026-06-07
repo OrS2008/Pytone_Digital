@@ -30,7 +30,10 @@ export async function POST(req: NextRequest) {
   const user = await loginUser(kv, email, password);
   if (!user) return NextResponse.json({ error: 'invalid_credentials' }, { status: 401 });
 
-  const sid = await createSession(kv, user.userId, user.email);
+  const sid = await createSession(kv, user.userId, user.email, {
+    userAgent: req.headers.get('user-agent') ?? undefined,
+    ip:        req.headers.get('cf-connecting-ip') ?? req.headers.get('x-forwarded-for') ?? undefined,
+  });
   return new NextResponse(JSON.stringify({ ok: true, email: user.email }), {
     status: 200,
     headers: {
