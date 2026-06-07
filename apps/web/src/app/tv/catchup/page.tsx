@@ -31,6 +31,7 @@ import TvNav from '@/components/tv/TvNav';
 import { TvFocusProvider } from '@/components/tv/TvFocus';
 import { getCachedChannels, getInferredEpgUrl, loadChannels } from '@/lib/channelCache';
 import { loadEpgIndex, getUserEpgUrl, programmesFor, type EpgIndex } from '@/lib/epgCache';
+import { syncUpNow } from '@/lib/serverSync';
 import { maskSourceUrl } from '@/lib/maskUrl';
 import type { EpgProgramme } from '@/lib/epg';
 import { userKey } from '@/lib/session';
@@ -567,7 +568,7 @@ const tileCatStyle: React.CSSProperties = {
 // switch to the playlist-provided EPG. That's the single most
 // common root cause of "0 matched" — user picked a generic EPG
 // from a public list, the IDs don't line up.
-function applySuggestedEpg(suggested: string) {
+async function applySuggestedEpg(suggested: string) {
   if (typeof window === 'undefined') return;
   if (!confirm(
     `Replace your current EPG with the one your playlist references?\n\n${maskSourceUrl(suggested)}\n\nAfter the swap, reload /tv/catchup to see programmes.`,
@@ -589,6 +590,12 @@ function applySuggestedEpg(suggested: string) {
       }];
     }
     localStorage.setItem(key, JSON.stringify(list));
+    // Push to the server BEFORE reloading. If we just reload, the
+    // debounced scheduleUp never fires — and on remount TvBoot's
+    // syncDown() pulls the OLD value back from the server and we
+    // overwrite the change we just made. Awaiting flush closes that
+    // race window.
+    try { await syncUpNow(); } catch { /* server unreachable — local still ok */ }
     window.location.reload();
   } catch {
     alert('Could not save the new EPG URL.');

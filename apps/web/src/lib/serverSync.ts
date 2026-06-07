@@ -113,6 +113,16 @@ export async function syncDown(): Promise<{ ok: boolean; applied: number }> {
   } catch { return { ok: false, applied: 0 }; }
 }
 
+// Flush the current localStorage snapshot to the server immediately,
+// bypassing the debounce. Callers that imperatively rewrite
+// localStorage and then navigate / reload need this — otherwise the
+// debounced write loses the race against the post-reload syncDown()
+// and the server overwrites the new value back to the old one.
+export async function syncUpNow(): Promise<void> {
+  if (upTimer) { clearTimeout(upTimer); upTimer = null; }
+  await pushNow();
+}
+
 async function pushNow(): Promise<void> {
   if (typeof window === 'undefined') return;
   upInFlight = true;
