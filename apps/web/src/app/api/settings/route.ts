@@ -11,9 +11,15 @@
 // we shouldn't be writing megabyte blobs on every preference toggle.
 // Channel cache and EPG data live elsewhere (sessionStorage / IndexedDB
 // in the browser) — settings are URLs + flags only.
+//
+// Access gate: GET stays open to any signed-in user so they can still
+// pull their settings down after their trial ends (the data is theirs;
+// they don't lose it). PUT requires an active trial / subscription so
+// expired accounts can't keep mutating server state without paying.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireKV } from '@/lib/cfEnv';
+import { requireActiveAccess } from '@/lib/accessGuard';
 import { readSession, readSessionCookie } from '@/lib/auth/serverSession';
 
 export const runtime = 'edge';
@@ -23,21 +29,13 @@ const MAX_BLOB_BYTES = 256 * 1024;
 
 function settingsKey(userId: string): string { return `settings:${userId}`; }
 
-async function authedUserId(req: NextRequest): Promise<{ userId: string; kv: ReturnType<typeof requireKV> } | Response> {
+export async function GET(req: NextRequest) {
   const kv = requireKV();
   if (kv instanceof Response) return kv;
   const sid = readSessionCookie(req);
   const session = sid ? await readSession(kv, sid) : null;
   if (!session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  return { userId: session.userId, kv };
-}
-
-export async function GET(req: NextRequest) {
-  const auth = await authedUserId(req);
-  if (auth instanceof Response) return auth;
-  const { userId, kv } = auth;
-  const kvi = kv as Exclude<typeof kv, Response>;
-  const raw = await kvi.get(settingsKey(userId));
+  const raw = await kv.get(settingsKey(session.userId));
   if (!raw) return NextResponse.json({ settings: {} }, { status: 200 });
   try {
     const parsed = JSON.parse(raw);
@@ -48,16 +46,14 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const auth = await authedUserId(req);
-  if (auth instanceof Response) return auth;
-  const { userId, kv } = auth;
-  const kvi = kv as Exclude<typeof kv, Response>;
+  const guard = await requireActiveAccess(req);
+  if (guard instanceof Response) return guard;
   const text = await req.text();
   if (text.length > MAX_BLOB_BYTES) {
     return NextResponse.json({ error: 'too_large', maxBytes: MAX_BLOB_BYTES }, { status: 413 });
   }
   try { JSON.parse(text); }
   catch { return NextResponse.json({ error: 'bad_json' }, { status: 400 }); }
-  await kvi.put(settingsKey(userId), text);
+  await guard.kv.put(settingsKey(guard.session.userId), text);
   return NextResponse.json({ ok: true }, { status: 200 });
 }

@@ -27,10 +27,14 @@ export const SYNCED_KEYS: readonly string[] = [
   'sources.live',           // M3U source list
   'sources.epg',            // XMLTV source URL list
   'prefs.prefetchNeighbours', // neighbour-prefetch toggle
-  'prefs.parental',         // parental-controls config
+  'prefs.parental',         // parental-controls config (legacy)
   'prefs.appearance',       // appearance / subtitle styling
   'prefs.notifications',    // notification toggles
   'prefs.streamMode',       // 'proxy' (default) or 'direct' — see streamProxy.ts
+  'prefs.spoilerProtection',// hide live scores in EPG / rail
+  'prefs.ratingCap',        // parental rating cap (parental page)
+  'parental.profiles',      // household profile list
+  'parental.blocked',       // channel block list
   'history',                // watch history
   'continueWatching',       // continue-watching shelf entries
   'recordings.scheduled',   // scheduled recordings
