@@ -1,46 +1,59 @@
-// Devices — currently-signed-in devices. The auth backend will own this
-// list eventually (every refresh-token session is a device); until it's
-// deployed we render the current browser only — never invented entries.
+// Devices — what's signed into this account right now.
+//
+// Cleanup pass:
+//   * Header used to say "Your Single plan allows 1 device" with the
+//     plan name hardcoded. Replaced with the real access state from
+//     /api/auth/me — trial / subscribed / expired — and the device
+//     limit is described in terms of the current subscription instead
+//     of asserting "Single".
+//   * "Email me on every new sign-in" + "Auto-revoke devices unused
+//     for 60 days" toggles had no backend wiring; flipping them
+//     persisted nowhere. Removed entirely. They'll come back as a
+//     single working card when the session indexing + email service
+//     are deployed.
+//   * "Sign out from all devices" button only filtered local React
+//     state — other devices kept their cookies. Replaced with an
+//     honest "Sign out THIS device" action that calls /api/auth/logout.
+//
+// What we can show truthfully today: the device you're using right
+// now. Once sessions are indexed per user (KV write at session create,
+// list under user_sessions:<userId>) this page lights up.
+
 'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Shell from '../Shell';
-import Toggle from '@/components/ui/Toggle';
+import { signOut } from '@/lib/session';
+import { useAccess } from '@/lib/useAccess';
 import { getCurrentDevice, type BrowserDevice } from '@/lib/deviceFingerprint';
 
 export default function Devices() {
-  // Empty SSR placeholder; populated on mount once navigator is available.
+  const access = useAccess();
   const [devices, setDevices] = useState<BrowserDevice[]>([]);
-  const [confirm, setConfirm] = useState(false);
-  const [signedOutAll, setSignedOutAll] = useState(false);
 
-  useEffect(() => {
-    setDevices([getCurrentDevice()]);
-  }, []);
+  useEffect(() => { setDevices([getCurrentDevice()]); }, []);
 
-  function signOutAll() {
-    setDevices(devices.filter((d) => d.active));
-    setConfirm(false);
-    setSignedOutAll(true);
-    setTimeout(() => setSignedOutAll(false), 1800);
-  }
+  const planLabel =
+    access.status === 'subscribed' ? 'your subscription' :
+    access.status === 'trial'      ? 'your free trial' :
+    access.status === 'expired'    ? 'your expired trial' :
+                                     'your account';
 
   return (
     <Shell active="devices">
       <header className="ac-panel-head">
         <div className="ac-panel-eyebrow">Devices</div>
-        <h1 className="ac-panel-title">Manage signed-in devices</h1>
+        <h1 className="ac-panel-title">Signed-in devices</h1>
         <p className="ac-panel-sub">
-          Your <strong style={{ color: 'var(--ns-text)' }}>Single</strong> plan allows
-          1 device streaming at the same time. To stream from a second device,
-          either sign out from an existing one or upgrade to{' '}
-          <Link href="/tv/account/plans" className="ac-auth-link">Multi (4 devices)</Link>.
+          Devices that are currently signed into {planLabel}. Sign in on a new
+          device from <Link href="/tv/login" className="ac-auth-link">/tv/login</Link>{' '}
+          and it shows up here.
         </p>
       </header>
 
       <div className="ac-card">
-        <div className="ac-card-title">Signed-in devices · {devices.length}</div>
+        <div className="ac-card-title">This device · {devices.length}</div>
         {devices.map((d) => (
           <div key={d.id} className={`ac-device ${d.active ? 'ac-device-active' : ''}`}>
             <div className="ac-device-icon">{d.icon}</div>
@@ -49,62 +62,30 @@ export default function Devices() {
                 {d.name}
                 {d.active && <span className="ac-device-tag">THIS DEVICE</span>}
               </div>
-              <div className="ac-device-sub">
-                {d.loc} · {d.ip} · {d.last}
-              </div>
+              <div className="ac-device-sub">{d.loc} · {d.last}</div>
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
-              {d.active && (
-                <button className="ac-btn ac-btn-sm" disabled style={{ opacity: 0.5 }}>Current</button>
-              )}
+              <button className="ac-btn ac-btn-sm" disabled style={{ opacity: 0.5 }}>Current</button>
             </div>
           </div>
         ))}
-        {devices.length === 1 && (
-          <p style={{ fontSize: 13, color: 'var(--ns-text-faint)', marginTop: 12 }}>
-            This is the only device signed in. Other devices appear here automatically
-            when they sign into your account.
-          </p>
-        )}
+        <p style={{ fontSize: 13, color: 'var(--ns-text-faint)', marginTop: 14, lineHeight: 1.55 }}>
+          We currently only list the device you&apos;re using right now. Other
+          signed-in devices will appear here once per-user session indexing
+          ships — until then, signing out from one device only affects that
+          device&apos;s cookie.
+        </p>
       </div>
 
       <div className="ac-card">
-        <div className="ac-card-title">Security alerts</div>
-        <div className="ac-toggle-row">
-          <div>
-            <div className="ac-toggle-title">Email me on every new sign-in</div>
-            <div className="ac-toggle-desc">We&apos;ll send a notice when an unfamiliar device signs in. You can revoke from the email.</div>
-          </div>
-          <Toggle initialOn />
-        </div>
-        <div className="ac-toggle-row">
-          <div>
-            <div className="ac-toggle-title">Auto-revoke devices unused for 60 days</div>
-            <div className="ac-toggle-desc">Devices that haven&apos;t streamed in 60 days are signed out automatically.</div>
-          </div>
-          <Toggle initialOn />
-        </div>
-        <div style={{ marginTop: 16 }}>
-          {signedOutAll ? (
-            <span style={{
-              padding: '10px 16px', display: 'inline-block',
-              background: 'var(--ns-accent-soft)', color: 'var(--ns-accent)',
-              borderRadius: 10, fontSize: 13, fontWeight: 700,
-            }}>Done ✓ All other devices signed out.</span>
-          ) : confirm ? (
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <span style={{ alignSelf: 'center', color: 'var(--ns-text-muted)', fontSize: 13 }}>
-                This signs you out from every device except this one. Confirm?
-              </span>
-              <button className="ac-btn ac-btn-sm" onClick={() => setConfirm(false)}>Cancel</button>
-              <button className="ac-btn ac-btn-sm ac-btn-danger" onClick={signOutAll}>Yes, sign out</button>
-            </div>
-          ) : (
-            <button className="ac-btn ac-btn-danger" onClick={() => setConfirm(true)}>
-              ⨂  Sign out from all devices
-            </button>
-          )}
-        </div>
+        <div className="ac-card-title">Sign out</div>
+        <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, margin: '0 0 14px' }}>
+          Sign out from this device. Your settings stay synced to your account
+          and reappear the next time you sign in here.
+        </p>
+        <button className="ac-btn ac-btn-danger" onClick={signOut}>
+          Sign out from this device
+        </button>
       </div>
     </Shell>
   );
