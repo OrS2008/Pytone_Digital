@@ -8,13 +8,15 @@ pages_build_output_dir = ".vercel/output/static"
 # Secret added through the Cloudflare Pages dashboard
 # (Settings → Variables and Secrets → "+ Add" → Type = Secret).
 #
-# The sender domain (the part after @ in BREVO_FROM_EMAIL) must be
-# verified in the Brevo dashboard under "Senders & IP" → "Domains".
-# If it isn't, Brevo returns 400 with "Sender not verified" and the
-# signup flow shows the user a "delivery not configured yet" notice
-# (account still works).
+# Sender is currently a verified Single Sender in the Brevo console
+# (Happytuta1@gmail.com). This is a stop-gap — gmail.com does not let
+# third parties sign on its behalf, so messages will lack DKIM and
+# many recipients (especially other Gmail accounts) will see them as
+# spam or with a "via brevoapis.com" note. Once a real domain is
+# registered + DKIM/SPF/DMARC are set up in Brevo's "Senders & IP →
+# Domains" panel, switch BREVO_FROM_EMAIL here to noreply@<domain>.
 [vars]
-BREVO_FROM_EMAIL = "noreply@novastream.tv"
+BREVO_FROM_EMAIL = "Happytuta1@gmail.com"
 BREVO_FROM_NAME  = "Nova Stream"
 
 # Admin panel identity. The password hash + session secret are stored
