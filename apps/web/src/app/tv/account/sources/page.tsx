@@ -8,6 +8,7 @@ import Shell from '../Shell';
 import ActionButton from '@/components/ui/ActionButton';
 import usePersisted from '@/lib/usePersisted';
 import { fetchAndCache, getUserSourceUrl, invalidateCache, localM3UKey } from '@/lib/channelCache';
+import { maskSourceUrl } from '@/lib/maskUrl';
 
 type Tab = 'live' | 'epg' | 'vod';
 type AddTab = 'm3u' | 'xtream' | 'stalker' | 'upload';
@@ -258,7 +259,7 @@ export default function Sources() {
               <div className="ac-source-meta">
                 <div className="ac-source-title">{s.title}</div>
                 <div className="ac-source-url">
-                  {s.sub.startsWith('local:') ? '📁 Uploaded file (stored in browser)' : s.sub}
+                  {maskSourceUrl(s.sub)}
                 </div>
               </div>
               <div className="ac-source-stats"><div>{s.stat}</div></div>
@@ -366,7 +367,7 @@ export default function Sources() {
               <div className="ac-source-icon" style={{ background: 'rgba(125,249,198,0.10)', color: 'var(--ns-ok)' }}>{s.kind}</div>
               <div className="ac-source-meta">
                 <div className="ac-source-title">{s.title}</div>
-                <div className="ac-source-url">{s.sub}</div>
+                <div className="ac-source-url">{maskSourceUrl(s.sub)}</div>
               </div>
               <div className="ac-source-stats"><div>{s.stat}</div></div>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -400,7 +401,7 @@ export default function Sources() {
               <div className="ac-source-icon" style={{ background: 'rgba(139,92,246,0.14)', color: 'var(--ns-accent-2)' }}>{s.kind}</div>
               <div className="ac-source-meta">
                 <div className="ac-source-title">{s.title}</div>
-                <div className="ac-source-url">{s.sub}</div>
+                <div className="ac-source-url">{maskSourceUrl(s.sub)}</div>
               </div>
               <div className="ac-source-stats"><div>{s.stat}</div></div>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -514,7 +515,7 @@ function ActiveSourceIndicator() {
           padding: '2px 6px', borderRadius: 4,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           maxWidth: '60ch',
-        }}>{active.url}</code>
+        }}>{maskSourceUrl(active.url)}</code>
       )}
     </div>
   );

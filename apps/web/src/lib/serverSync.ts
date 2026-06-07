@@ -48,23 +48,44 @@ let upInFlight = false;
 let upPending = false;
 
 // Snapshot localStorage into a JSON blob the server can store.
-function snapshot(): Record<string, unknown> {
+//
+// We send the RAW localStorage strings rather than parsing them first.
+// The old implementation called JSON.parse() per key and stored the
+// parsed value on the server — that round-trip silently broke any
+// reader that expected to see what its writer produced:
+//
+//   * usePersisted writes JSON.stringify(value), so 'direct' → '"direct"'.
+//     The old snapshot parsed that to 'direct' (no quotes) and stored a
+//     plain string on the server. On download we wrote 'direct' back
+//     into localStorage, and usePersisted's JSON.parse('direct') threw —
+//     the setting silently reverted to its default.
+//
+//   * Toggle writes raw '1' / '0'. JSON.parse('1') = 1, stored as a
+//     number; download stringified it back to '1'. That happened to
+//     round-trip but only because Toggle compares the raw character.
+//
+// Storing the raw string keeps both writers and both readers honest:
+// the server has bytes identical to localStorage, applyToLocalStorage
+// puts those bytes back, and every consumer reads exactly what its
+// own writer would have produced.
+function snapshot(): Record<string, string> {
   if (typeof window === 'undefined') return {};
-  const out: Record<string, unknown> = {};
+  const out: Record<string, string> = {};
   for (const key of SYNCED_KEYS) {
     try {
       const raw = localStorage.getItem(userKey(key));
       if (raw == null) continue;
-      try { out[key] = JSON.parse(raw); }
-      catch { out[key] = raw; }
+      out[key] = raw;
     } catch { /* storage locked */ }
   }
   return out;
 }
 
-// Write a settings blob back into localStorage so the existing
-// `usePersisted` hooks pick it up on next mount / reload. JSON values
-// are re-stringified to match what usePersisted writes.
+// Write a settings blob back into localStorage. Reads strings verbatim
+// (new format); falls back to JSON.stringify for non-strings to soak
+// up legacy server data written before the snapshot-direction fix
+// above. Without this fallback, a user who had synced under the old
+// code would download e.g. an array as `[object Object]`.
 function applyToLocalStorage(blob: Record<string, unknown>) {
   if (typeof window === 'undefined') return;
   for (const [key, value] of Object.entries(blob)) {

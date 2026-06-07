@@ -18,6 +18,7 @@ import { signOut } from '@/lib/session';
 import { useAccess } from '@/lib/useAccess';
 import { getCachedChannels } from '@/lib/channelCache';
 import { userKey } from '@/lib/session';
+import { maskSourceUrl } from '@/lib/maskUrl';
 
 interface Source { id: string; kind: string; title: string; sub: string; stat: string }
 
@@ -50,29 +51,6 @@ function formatDateTime(ms: number | undefined | null): string {
   const d = new Date(ms);
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) +
          ' · ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-}
-
-// Hide the user:pass / token portion of a credential-bearing URL so it
-// can be displayed on screen without leaking the subscription password.
-//
-// http://provider.tv/get.php?username=foo&password=bar&type=m3u
-//   → provider.tv/get.php?username=***&password=***
-//
-// http://host:1600/s/llftbjm2/eurosport1/video.m3u8
-//   → host:1600/s/***/eurosport1/video.m3u8
-function maskSourceUrl(raw: string): string {
-  if (!raw) return '';
-  if (raw.startsWith('local:')) return '📁 Uploaded file';
-  try {
-    const u = new URL(raw);
-    const params = u.searchParams;
-    for (const key of ['username', 'password', 'pass', 'token']) {
-      if (params.has(key)) params.set(key, '***');
-    }
-    let path = u.pathname;
-    path = path.replace(/\/s\/[^/]+(?=\/)/, '/s/***');
-    return `${u.host}${path}${params.toString() ? '?' + params.toString() : ''}`;
-  } catch { return raw; }
 }
 
 export default function AccountOverview() {

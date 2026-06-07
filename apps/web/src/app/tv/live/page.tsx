@@ -30,6 +30,7 @@ import { getCachedChannels, getUserSourceUrl, loadChannelsResult } from '@/lib/c
 import { loadEpgIndex, hydrateChannels, getUserEpgUrl } from '@/lib/epgCache';
 import { proxiedStreamUrl } from '@/lib/streamProxy';
 import { buildCatchupUrl } from '@/lib/catchup';
+import { maskSourceUrl } from '@/lib/maskUrl';
 import { useT } from '@/lib/i18n';
 import './live.css';
 
@@ -815,7 +816,7 @@ function CatchupBanner({
               }}
             >Copy URL</button>
           </div>
-          <div style={{ wordBreak: 'break-all', color: '#B7BEC9' }}>{diagnostic.url}</div>
+          <div style={{ wordBreak: 'break-all', color: '#B7BEC9' }}>{maskSourceUrl(diagnostic.url)}</div>
         </div>
       )}
     </>
