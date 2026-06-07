@@ -1,9 +1,43 @@
-// Playback preferences — audio + subtitle defaults, autoplay, quality cap,
-// data saver. Lives separately from /appearance because these are
-// behavioural rather than visual.
+// Playback preferences.
+//
+// Previous version showed 14 toggles and 5 selects covering features
+// that don't exist in the player:
+//   * "Skip intros automatically — audio fingerprint detection"
+//   * "Resume across devices — real-time CRDT sync"
+//   * "HDR auto-detect", "Volume normalisation across channels"
+//   * "Auto-play next episode"  (we don't have a series concept)
+//   * Maximum quality / cellular cap selects (the player doesn't
+//     read these — adaptive bitrate is left to hls.js)
+//   * Preferred audio / subtitle language selects (the manifest
+//     parser doesn't honour these)
+//
+// Every one of them used <Toggle> without a persistKey, so flipping
+// them stored nothing and changed nothing. Keeping them was
+// actively misleading — a user toggling "Skip intros" expects intros
+// to be skipped.
+//
+// Pass keeps only the two preferences the rest of the codebase
+// actually reads:
+//   * prefs.prefetchNeighbours  — LivePreviewTile pre-warms ±1 channel
+//   * prefs.spoilerProtection   — EPG strip hides scores when on
+//
+// Subtitle styling stays because SubtitleControls writes its own
+// localStorage keys and the player picks them up. Everything else is
+// either gone or framed as a roadmap item.
+
+import Link from 'next/link';
 import Shell from '../Shell';
 import Toggle from '@/components/ui/Toggle';
 import SubtitleControls from '@/components/ui/SubtitleControls';
+
+const ROADMAP = [
+  'Preferred audio / subtitle language',
+  'Adaptive-bitrate cap (data saver)',
+  'Auto-play next episode',
+  'Resume across devices (cloud progress sync)',
+  'HDR auto-detection',
+  'Audio normalisation between channels',
+];
 
 export default function Preferences() {
   return (
@@ -12,140 +46,69 @@ export default function Preferences() {
         <div className="ac-panel-eyebrow">Playback</div>
         <h1 className="ac-panel-title">How you watch</h1>
         <p className="ac-panel-sub">
-          Defaults applied to every new stream. You can override per-stream from the player.
+          Settings that actually affect the player. We don&apos;t list
+          toggles for features that aren&apos;t wired up yet — the roadmap
+          card at the bottom names what&apos;s coming.
         </p>
       </header>
 
       <div className="ac-card">
-        <div className="ac-card-title">Languages</div>
+        <div className="ac-card-title">Live TV</div>
         <div className="ac-toggle-row">
-          <div style={{ minWidth: 240 }}>
-            <div className="ac-toggle-title">Preferred audio language</div>
-            <div className="ac-toggle-desc">First match wins. Falls back to the stream's default if no match.</div>
+          <div>
+            <div className="ac-toggle-title">Pre-warm neighbouring channels</div>
+            <div className="ac-toggle-desc">
+              Loads the manifest for the channel above and below the current
+              one so zapping with the remote feels instant. Uses a little
+              extra bandwidth.
+            </div>
           </div>
-          <select className="ac-input" style={{ width: 280 }} defaultValue="Hebrew (עברית)">
-            <option>Hebrew (עברית)</option>
-            <option>English</option>
-            <option>Arabic (العربية)</option>
-            <option>Russian (Русский)</option>
-          </select>
+          <Toggle persistKey="prefs.prefetchNeighbours" initialOn />
         </div>
         <div className="ac-toggle-row">
-          <div style={{ minWidth: 240 }}>
-            <div className="ac-toggle-title">Preferred subtitle language</div>
-            <div className="ac-toggle-desc">Auto-enabled when the audio is not in your preferred language.</div>
+          <div>
+            <div className="ac-toggle-title">Spoiler protection for sport</div>
+            <div className="ac-toggle-desc">
+              Hides live scores and result-bearing programme titles in the
+              channel rail and EPG until you actually open the channel.
+            </div>
           </div>
-          <select className="ac-input" style={{ width: 280 }} defaultValue="Hebrew (עברית)">
-            <option>Hebrew (עברית)</option>
-            <option>English</option>
-            <option>Off</option>
-          </select>
+          <Toggle persistKey="prefs.spoilerProtection" />
         </div>
       </div>
 
       <div className="ac-card">
-        <div className="ac-card-title">Auto-play & continuity</div>
-        <div className="ac-toggle-row">
-          <div>
-            <div className="ac-toggle-title">Auto-play next episode</div>
-            <div className="ac-toggle-desc">Series jump to the next episode with a 10-second skip-bar overlay.</div>
-          </div>
-          <Toggle initialOn />
-        </div>
-        <div className="ac-toggle-row">
-          <div>
-            <div className="ac-toggle-title">Skip intros automatically</div>
-            <div className="ac-toggle-desc">Uses audio-fingerprint detection to fast-forward through opening sequences.</div>
-          </div>
-          <Toggle initialOn />
-        </div>
-        <div className="ac-toggle-row">
-          <div>
-            <div className="ac-toggle-title">Resume where I left off across devices</div>
-            <div className="ac-toggle-desc">Watching on the TV, finishing on the phone. Real-time CRDT sync.</div>
-          </div>
-          <Toggle initialOn />
-        </div>
-      </div>
-
-      <div className="ac-card">
-        <div className="ac-card-title">Picture & sound</div>
-        <div className="ac-toggle-row">
-          <div style={{ minWidth: 240 }}>
-            <div className="ac-toggle-title">Maximum quality</div>
-            <div className="ac-toggle-desc">Caps the adaptive bitrate. Use to save bandwidth or force 4K.</div>
-          </div>
-          <select className="ac-input" style={{ width: 220 }} defaultValue="Auto (recommended)">
-            <option>Auto (recommended)</option>
-            <option>4K · UHD when available</option>
-            <option>Full HD · 1080p</option>
-            <option>HD · 720p</option>
-            <option>SD · 480p (data saver)</option>
-          </select>
-        </div>
-        <div className="ac-toggle-row">
-          <div>
-            <div className="ac-toggle-title">HDR auto-detect</div>
-            <div className="ac-toggle-desc">Switch to HDR10 / Dolby Vision when the display + content support it.</div>
-          </div>
-          <Toggle initialOn />
-        </div>
-        <div className="ac-toggle-row">
-          <div>
-            <div className="ac-toggle-title">Volume normalisation across channels</div>
-            <div className="ac-toggle-desc">Levels loud / quiet channels so zapping doesn't blast your speakers.</div>
-          </div>
-          <Toggle initialOn />
-        </div>
-        <div className="ac-toggle-row">
-          <div>
-            <div className="ac-toggle-title">Predictive channel prefetch</div>
-            <div className="ac-toggle-desc">Pre-warms the next/previous channel for sub-500ms switching. Uses extra bandwidth.</div>
-          </div>
-          <Toggle initialOn />
-        </div>
-      </div>
-
-      <div className="ac-card">
-        <div className="ac-card-title">Mobile data</div>
-        <div className="ac-toggle-row">
-          <div style={{ minWidth: 240 }}>
-            <div className="ac-toggle-title">On cellular, cap quality at</div>
-            <div className="ac-toggle-desc">Saves your data plan when you're not on Wi-Fi.</div>
-          </div>
-          <select className="ac-input" style={{ width: 220 }} defaultValue="720p">
-            <option>720p</option>
-            <option>480p</option>
-            <option>Auto (no cap)</option>
-            <option>Block playback on cellular</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="ac-card">
-        <div className="ac-card-title">Subtitles</div>
+        <div className="ac-card-title">Subtitle look</div>
         <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, marginTop: 0 }}>
-          Pick how subtitles look across every player on Nova Stream.
+          Font, size, colour and background applied to every subtitle track,
+          on every device you sign in to.
         </p>
         <SubtitleControls />
       </div>
 
       <div className="ac-card">
-        <div className="ac-card-title">Sports &amp; live events</div>
-        <div className="ac-toggle-row">
-          <div>
-            <div className="ac-toggle-title">Spoiler protection</div>
-            <div className="ac-toggle-desc">Hide live scores and result-bearing programme titles in the channel rail and EPG until you actually open the channel.</div>
-          </div>
-          <Toggle persistKey="prefs.spoilerProtection" />
-        </div>
-        <div className="ac-toggle-row">
-          <div>
-            <div className="ac-toggle-title">Pre-warm the next channel</div>
-            <div className="ac-toggle-desc">Loads the manifest for the channel above and below the current one so zapping feels instant. Uses a little extra bandwidth.</div>
-          </div>
-          <Toggle persistKey="prefs.prefetchNeighbours" initialOn />
-        </div>
+        <div className="ac-card-title">Streaming mode</div>
+        <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, margin: '0 0 6px' }}>
+          Choose whether the player fetches video segments directly from
+          your provider&apos;s CDN or routes them through our proxy. The
+          control lives next to your playlists on the{' '}
+          <Link href="/tv/account/sources" className="ac-auth-link">Sources</Link>{' '}
+          page so the choice is right next to the M3U it applies to.
+        </p>
+      </div>
+
+      <div className="ac-card">
+        <div className="ac-card-title">On the roadmap</div>
+        <p style={{ color: 'var(--ns-text-muted)', fontSize: 13.5, margin: '0 0 12px' }}>
+          Features we plan to add to this screen once they exist in the
+          player. Until then we don&apos;t put a switch here that does
+          nothing.
+        </p>
+        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, color: 'var(--ns-text-muted)', lineHeight: 1.8 }}>
+          {ROADMAP.map((label) => (
+            <li key={label}>{label}</li>
+          ))}
+        </ul>
       </div>
     </Shell>
   );

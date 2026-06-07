@@ -1,51 +1,120 @@
+// Notifications.
+//
+// This page used to render 8 toggles spread across "Content alerts",
+// "Account & security" and "Product updates". Not a single one had
+// `persistKey`, so flipping any toggle wrote nothing to storage and
+// triggered nothing in the rest of the app. The categories also
+// referenced features that don't exist (series episode tracking,
+// recording success notifications, card-expiry emails).
+//
+// Honest rewrite: explain what notifications the app DOES send today
+// (almost none) and what will arrive once the notification service
+// is deployed. No fake controls — flipping a switch should change
+// behaviour, full stop.
+
+import Link from 'next/link';
 import Shell from '../Shell';
-import Toggle from '@/components/ui/Toggle';
+
+const TODAY = [
+  {
+    title:  'In-app activation banner',
+    detail: 'Shown once on first sign-up to confirm the trial has started.',
+  },
+  {
+    title:  'In-app trial-ended overlay',
+    detail: 'Shown when your 7-day trial is over, blocking the player until you subscribe.',
+  },
+];
+
+const PLANNED = [
+  {
+    title:  'Email · new sign-in',
+    detail: 'When a new device signs into your account from an unfamiliar IP.',
+  },
+  {
+    title:  'Email · payment receipt',
+    detail: 'After each successful Stripe charge. Sent by Stripe directly, not us.',
+  },
+  {
+    title:  'Email · trial ending in 24h',
+    detail: 'A heads-up so you can subscribe before access cuts off.',
+  },
+  {
+    title:  'In-app · favourite team match starting',
+    detail: 'Live-event reminders for channels you have starred.',
+  },
+];
 
 export default function Notifications() {
   return (
     <Shell active="notifications">
       <header className="ac-panel-head">
         <div className="ac-panel-eyebrow">Notifications</div>
-        <h1 className="ac-panel-title">What we tell you about</h1>
-        <p className="ac-panel-sub">Push notifications + email + in-app banners. You're in control of each.</p>
+        <h1 className="ac-panel-title">What we send you</h1>
+        <p className="ac-panel-sub">
+          We don&apos;t ship a notification preferences panel that pretends to
+          control settings that aren&apos;t wired up. Here&apos;s what Nova Stream
+          actually sends today, and what will be configurable once the
+          notification service is deployed.
+        </p>
       </header>
 
       <div className="ac-card">
-        <div className="ac-card-title">Content alerts</div>
-        {[
-          { t: 'Favourite team match starting',                     d: '10-min countdown before kickoff of marked teams.',         on: true  },
-          { t: 'New episode of a watched series',                   d: 'When the next episode lands on any source you have.',      on: true  },
-          { t: 'Live programme starts on a favourite channel',      d: 'Premium events on starred channels.',                       on: true  },
-          { t: 'Recording started / failed',                        d: 'Heads-up if anything went wrong with a planned recording.', on: false },
-        ].map((r, i) => (
-          <div key={i} className="ac-toggle-row">
-            <div><div className="ac-toggle-title">{r.t}</div><div className="ac-toggle-desc">{r.d}</div></div>
-            <Toggle initialOn={r.on} />
+        <div className="ac-card-title">Active today</div>
+        {TODAY.map((t) => (
+          <div key={t.title} style={{
+            padding: '12px 0',
+            borderTop: '1px solid var(--ns-hairline)',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ns-text)' }}>
+              <span className="ac-status-pill ac-status-ok" style={{ fontSize: 10, marginRight: 10 }}>ACTIVE</span>
+              {t.title}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--ns-text-muted)', marginTop: 4 }}>
+              {t.detail}
+            </div>
           </div>
         ))}
       </div>
 
       <div className="ac-card">
-        <div className="ac-card-title">Account & security</div>
-        {[
-          { t: 'New device sign-in',           d: 'Email + push for every new device. Recommended on.' },
-          { t: 'Failed sign-in attempts',      d: 'Multiple failures from an unknown IP.' },
-          { t: 'Payment receipts',             d: 'After each successful charge.' },
-          { t: 'Card expiring soon',           d: '14 days before your card expires.' },
-        ].map((r, i) => (
-          <div key={i} className="ac-toggle-row">
-            <div><div className="ac-toggle-title">{r.t}</div><div className="ac-toggle-desc">{r.d}</div></div>
-            <Toggle initialOn />
+        <div className="ac-card-title">Planned</div>
+        <p style={{ color: 'var(--ns-text-muted)', fontSize: 13.5, margin: '0 0 12px' }}>
+          On the roadmap. Will appear here with real on/off controls once each one ships.
+        </p>
+        {PLANNED.map((p) => (
+          <div key={p.title} style={{
+            padding: '12px 0',
+            borderTop: '1px solid var(--ns-hairline)',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ns-text)' }}>
+              <span className="ac-status-pill ac-status-mut" style={{ fontSize: 10, marginRight: 10 }}>PLANNED</span>
+              {p.title}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--ns-text-muted)', marginTop: 4 }}>
+              {p.detail}
+            </div>
           </div>
         ))}
       </div>
 
       <div className="ac-card">
-        <div className="ac-card-title">Product updates</div>
-        <div className="ac-toggle-row">
-          <div><div className="ac-toggle-title">New features &amp; tips</div><div className="ac-toggle-desc">Monthly, never spammy. Unsub anytime.</div></div>
-          <Toggle />
-        </div>
+        <div className="ac-card-title">Sound &amp; vibration</div>
+        <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, margin: 0 }}>
+          The app does not produce notification sounds or vibrate. If your
+          device makes a sound when an in-app event fires, that&apos;s your
+          browser&apos;s standard alert tone, not us.
+        </p>
+      </div>
+
+      <div className="ac-card">
+        <div className="ac-card-title">Marketing email</div>
+        <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, margin: '0 0 14px' }}>
+          We don&apos;t send marketing emails. The only email you may receive
+          is the activation message at sign-up (one-shot, transactional).
+          See <Link href="/legal/privacy" className="ac-auth-link">Privacy</Link>{' '}
+          for what we hold.
+        </p>
       </div>
     </Shell>
   );

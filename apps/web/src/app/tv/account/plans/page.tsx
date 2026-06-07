@@ -1,74 +1,86 @@
-// Plans page — Single (1 device) and Multi (4 devices) side by side
-// with a Monthly / Yearly billing toggle. Yearly saves ~17 % vs paying
-// month-by-month, which we surface as a badge so the saving is visible
-// rather than hidden in the maths.
+// Plans page — Single (1 device) and Multi (4 devices) with a
+// Monthly / Yearly billing toggle. Yearly saves vs paying per-month;
+// the actual discount is computed from the prices so the badge can't
+// drift out of sync with the numbers.
 //
-// Clicking a plan POSTs to /api/billing/checkout (with both plan and
-// cycle) and redirects to Stripe's hosted Checkout. Trial period is
-// always 7 days regardless of cycle — handled in the checkout route.
+// Cleanup pass:
+//   * Feature lists used to claim "AI playback failover", "14-day
+//     cloud DVR", "Spoiler protection for sports", "Family profiles
+//     + per-profile parental controls", and "Priority customer
+//     support". The first two don't exist and probably never will
+//     in their original form, the third / fourth are partial
+//     (in-app preference toggles only — there's no per-profile data
+//     model behind them), and the fifth is meaningless for an app
+//     of this size. Replaced with a list of features that actually
+//     ship today, with anything aspirational moved to a roadmap
+//     note under the cards rather than next to a check mark.
+//   * Footer used to say "PCI-DSS Level 1 partner" and "PayPal-
+//     issued receipts" in the same paragraph. The checkout endpoint
+//     uses Stripe Checkout; PayPal isn't involved. Aligned the
+//     wording with reality.
+//   * Sign-in detection now goes through useAccess() so the billing
+//     account banner reflects the server-side identity rather than
+//     a localStorage email that anyone could rewrite.
+
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Shell from '../Shell';
-import { getSessionEmail } from '@/lib/session';
+import { useAccess } from '@/lib/useAccess';
 
 type PlanId  = 'single' | 'multi';
 type Cycle   = 'monthly' | 'yearly';
 
 interface PlanPricing {
-  monthly: number; // USD per month
-  yearly:  number; // USD per year
+  monthly: number;
+  yearly:  number;
 }
 const PRICES: Record<PlanId, PlanPricing> = {
   single: { monthly: 1, yearly: 10 },
   multi:  { monthly: 3, yearly: 20 },
 };
 
-// Yearly = 12 × monthly minus the discount. Computed once and shown as
-// a "Save N%" pill on the toggle so customers see the benefit.
 function yearlyDiscountPct(p: PlanPricing): number {
   const fullYear = p.monthly * 12;
   if (fullYear === 0) return 0;
   return Math.round((1 - p.yearly / fullYear) * 100);
 }
 
+// Feature lists are split deliberately: every checked item below is
+// something the app does today. Aspirational items live in the
+// roadmap note under the grid, not next to a green ✓.
 const FEATURES_SINGLE = [
-  { ok: true,  label: '1 device at a time' },
-  { ok: true,  label: 'Live TV + your M3U / Xtream / Stalker' },
-  { ok: true,  label: 'Personal EPG + posters' },
-  { ok: true,  label: '14-day cloud DVR + catch-up' },
-  { ok: true,  label: 'Restart programme from beginning' },
-  { ok: true,  label: 'AI playback failover' },
-  { ok: true,  label: 'Watch on TV, phone, tablet, web' },
-  { ok: false, label: 'Watch on more than 1 device at the same time' },
+  { ok: true,  label: '1 device streaming at a time' },
+  { ok: true,  label: 'Bring your own M3U / Xtream / Stalker playlist' },
+  { ok: true,  label: 'XMLTV electronic programme guide' },
+  { ok: true,  label: 'Catch-up where your provider supports it' },
+  { ok: true,  label: 'Continue Watching & per-device history' },
+  { ok: true,  label: 'Direct or proxied streaming, per source' },
+  { ok: true,  label: 'Settings sync across every signed-in device' },
+  { ok: false, label: 'Watch from more than 1 device simultaneously' },
 ];
 const FEATURES_MULTI = [
-  { ok: true, label: 'Up to 4 devices at the same time' },
+  { ok: true, label: 'Up to 4 devices streaming at the same time' },
   { ok: true, label: 'Everything in Single' },
-  { ok: true, label: 'Family profiles + per-profile parental controls' },
-  { ok: true, label: 'Per-profile favourites & watch history' },
-  { ok: true, label: 'Shared DVR library' },
-  { ok: true, label: 'Spoiler protection for sports' },
-  { ok: true, label: 'Priority customer support' },
+  { ok: true, label: 'Parental controls with PIN + rating cap' },
+  { ok: true, label: 'Channel block list per account' },
+  { ok: true, label: 'Spoiler protection for sport' },
 ];
 
 export default function Plans() {
-  const [accountEmail, setAccountEmail] = useState<string | null>(null);
+  const access = useAccess();
   const [busy,         setBusy]         = useState<null | PlanId>(null);
   const [error,        setError]        = useState<string | null>(null);
   const [showCanceled, setShowCanceled] = useState(false);
   const [cycle,        setCycle]        = useState<Cycle>('yearly');
 
   useEffect(() => {
-    setAccountEmail(getSessionEmail());
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('canceled')) {
       setShowCanceled(true);
     }
   }, []);
 
-  // Both plans get the same yearly discount % by construction; we show
-  // the higher of the two so the toggle pill never under-promises.
   const savings = useMemo(
     () => Math.max(yearlyDiscountPct(PRICES.single), yearlyDiscountPct(PRICES.multi)),
     [],
@@ -76,7 +88,7 @@ export default function Plans() {
 
   async function start(plan: PlanId) {
     setError(null);
-    if (!accountEmail) {
+    if (!access.email) {
       setError('Please sign in before choosing a plan.');
       return;
     }
@@ -85,7 +97,7 @@ export default function Plans() {
       const resp = await fetch('/api/billing/checkout', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ plan, cycle, email: accountEmail }),
+        body: JSON.stringify({ plan, cycle, email: access.email }),
       });
       const data = await resp.json();
       if (!resp.ok) {
@@ -109,9 +121,9 @@ export default function Plans() {
         <div className="ac-panel-eyebrow">Choose a plan</div>
         <h1 className="ac-panel-title">Pick what fits your home</h1>
         <p className="ac-panel-sub">
-          Both plans include every feature in the app. The only difference is how many
-          devices can stream at the same time. 7-day free trial, no charge until day 8.
-          Cancel any time.
+          Both plans include every feature in the app. The only difference is
+          how many devices can stream at the same time. 7-day free trial, no
+          charge until day 8. Cancel any time.
         </p>
       </header>
 
@@ -125,13 +137,19 @@ export default function Plans() {
 
       <div className="ac-card">
         <div className="ac-card-title">Billing account</div>
-        {accountEmail ? (
+        {access.email ? (
           <p style={{ fontSize: 14, marginTop: 0, color: 'var(--ns-text-muted)' }}>
-            Charges and PayPal receipts will go to <strong style={{ color: 'var(--ns-text)' }}>{accountEmail}</strong>.
+            Charges and Stripe receipts will go to{' '}
+            <strong style={{ color: 'var(--ns-text)' }}>{access.email}</strong>.
+          </p>
+        ) : access.status === 'loading' ? (
+          <p style={{ fontSize: 14, marginTop: 0, color: 'var(--ns-text-faint)' }}>
+            Loading…
           </p>
         ) : (
           <p style={{ fontSize: 14, marginTop: 0, color: 'var(--ns-text-muted)' }}>
-            You need to be signed in before choosing a plan. <Link href="/tv/login" className="live-status-link">Sign in →</Link>
+            You need to be signed in before choosing a plan.{' '}
+            <Link href="/tv/login" className="ac-auth-link">Sign in →</Link>
           </p>
         )}
         {error && (
@@ -139,8 +157,6 @@ export default function Plans() {
         )}
       </div>
 
-      {/* Monthly / Yearly switch. The yearly side carries a savings
-          pill so the customer can see the benefit without doing maths. */}
       <div className="cycle-toggle" role="tablist" aria-label="Billing cycle">
         <button
           role="tab"
@@ -177,7 +193,7 @@ export default function Plans() {
           id="multi"
           name="Multi"
           headline="For the whole home"
-          tagline="Up to four devices streaming at once. Family profiles included."
+          tagline="Up to four devices streaming at once."
           pricing={PRICES.multi}
           cycle={cycle}
           features={FEATURES_MULTI}
@@ -187,10 +203,24 @@ export default function Plans() {
         />
       </div>
 
+      <div className="ac-card" style={{ marginTop: 22 }}>
+        <div className="ac-card-title">On the roadmap</div>
+        <p style={{ color: 'var(--ns-text-muted)', fontSize: 13.5, margin: '0 0 8px' }}>
+          Listed separately so the feature ticks on the plan cards stay
+          honest. These items don&apos;t ship today; we&apos;ll move each one onto
+          the cards as it lands.
+        </p>
+        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, color: 'var(--ns-text-muted)', lineHeight: 1.8 }}>
+          <li>Cloud DVR — schedule recordings that play back from our servers</li>
+          <li>Family profiles — per-profile favourites, history, and parental cap</li>
+          <li>Programme restart — jump to the beginning of the show that&apos;s on</li>
+        </ul>
+      </div>
+
       <div style={{ marginTop: 28, fontSize: 13, color: 'var(--ns-text-faint)', textAlign: 'center' }}>
-        Payments are processed by our PCI-DSS Level 1 partner. Your card is never stored on
-        our servers. PayPal-issued receipts go straight to your PayPal email — no separate
-        billing inbox to manage.
+        Payments are processed by Stripe. We never see or store your card —
+        Stripe holds the payment method and emails you a receipt for every
+        charge.
       </div>
     </Shell>
   );
@@ -211,8 +241,6 @@ function PlanCard(props: {
 }) {
   const amount = props.cycle === 'monthly' ? props.pricing.monthly : props.pricing.yearly;
   const cycleLabel = props.cycle === 'monthly' ? '/ month' : '/ year';
-  // Show the equivalent monthly rate underneath when on yearly so the
-  // customer can compare apples to apples without recalculating.
   const monthlyEquivalent = props.cycle === 'yearly'
     ? (props.pricing.yearly / 12).toFixed(2)
     : null;
