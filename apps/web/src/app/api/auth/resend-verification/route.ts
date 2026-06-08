@@ -42,14 +42,10 @@ export async function POST(req: NextRequest) {
   const password = typeof body.password === 'string' ? body.password : '';
   if (!email || !password) return NextResponse.json({ error: 'bad_request' }, { status: 400 });
 
+  let idToken: string;
   try {
     const fb = await firebaseSignin(email, password);
-    await firebaseSendOobCode({
-      requestType: 'VERIFY_EMAIL',
-      idToken:     fb.idToken,
-      continueUrl: `${originUrl(req)}/tv/login?verified=1`,
-    });
-    return NextResponse.json({ ok: true });
+    idToken = fb.idToken;
   } catch (e) {
     if (e instanceof FirebaseNotConfiguredError) {
       return NextResponse.json({ error: 'auth_unconfigured' }, { status: 503 });
@@ -58,5 +54,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'invalid_credentials' }, { status: 401 });
     }
     throw e;
+  }
+
+  // Two-step send: try the one-click /tv/auth-action continueUrl
+  // first; if Firebase says the domain isn't authorised, retry
+  // without continueUrl so the user still gets a working (if less
+  // pretty) Firebase-hosted verification page.
+  try {
+    await firebaseSendOobCode({
+      requestType: 'VERIFY_EMAIL',
+      idToken,
+      continueUrl: `${originUrl(req)}/tv/auth-action`,
+    });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    if (e instanceof FirebaseAuthError && /UNAUTHORIZED_CONTINUE_URI|INVALID_CONTINUE_URI/i.test(e.code)) {
+      try {
+        await firebaseSendOobCode({ requestType: 'VERIFY_EMAIL', idToken });
+        return NextResponse.json({ ok: true, warning: 'continue_url_unauthorised' });
+      } catch (e2) {
+        const detail = e2 instanceof FirebaseAuthError ? e2.code : (e2 as Error).message;
+        return NextResponse.json({ error: 'send_failed', detail }, { status: 502 });
+      }
+    }
+    const detail = e instanceof FirebaseAuthError ? e.code : (e as Error).message;
+    return NextResponse.json({ error: 'send_failed', detail }, { status: 502 });
   }
 }

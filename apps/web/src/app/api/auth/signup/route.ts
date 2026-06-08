@@ -76,27 +76,49 @@ export async function POST(req: NextRequest) {
     // joins back to the auth identity without an extra lookup.
     const user = await createUserFromFirebase(kv, firebaseUser.localId, email);
 
-    // Trigger Firebase to email the verification link. `continueUrl`
-    // points back to /tv/login so the user lands on the sign-in
-    // screen after clicking through the Firebase action page; the
-    // `?verified=1` flag lets the page show a confirmation toast.
-    let emailSent = true;
+    // Trigger Firebase to email the verification link. Two-step send:
+    // first with a continueUrl back to /tv/auth-action (so the click
+    // lands on our one-click verify page); if Firebase rejects the
+    // continueUrl as not-authorised (UNAUTHORIZED_CONTINUE_URI — most
+    // common cause of "no email arrived"), retry without continueUrl
+    // so the user at least gets *some* verification link.
+    let emailSent  = false;
+    let emailError: string | null = null;
     try {
       await firebaseSendOobCode({
         requestType: 'VERIFY_EMAIL',
         idToken:     firebaseUser.idToken,
-        continueUrl: `${originUrl(req)}/tv/login?verified=1`,
+        continueUrl: `${originUrl(req)}/tv/auth-action`,
       });
+      emailSent = true;
     } catch (e) {
-      emailSent = false;
-      console.warn('[auth/signup] verification email send failed', String(e));
+      if (e instanceof FirebaseAuthError && /UNAUTHORIZED_CONTINUE_URI|INVALID_CONTINUE_URI/i.test(e.code)) {
+        try {
+          await firebaseSendOobCode({
+            requestType: 'VERIFY_EMAIL',
+            idToken:     firebaseUser.idToken,
+          });
+          emailSent  = true;
+          emailError = 'continue_url_unauthorised';
+          console.warn('[auth/signup] continueUrl rejected — sent without it. Add the domain to Firebase Console → Authentication → Settings → Authorized domains.');
+        } catch (e2) {
+          emailError = e2 instanceof FirebaseAuthError ? e2.code : (e2 as Error).message;
+          console.warn('[auth/signup] verification email send failed (no continueUrl)', emailError);
+        }
+      } else {
+        emailError = e instanceof FirebaseAuthError ? e.code : (e as Error).message;
+        console.warn('[auth/signup] verification email send failed', emailError);
+      }
     }
 
     // No session cookie here on purpose — the user must verify the
     // email first. /tv/signup redirects to a "check your inbox" page
     // and /tv/login refuses the account until the address is proven.
+    // `emailError` surfaces in the response so the signup UI can tell
+    // the user (or operator) exactly which Firebase quota / config
+    // tripped.
     return NextResponse.json(
-      { ok: true, email: user.email, emailSent, requiresVerification: true },
+      { ok: true, email: user.email, emailSent, emailError, requiresVerification: true },
       { status: 201 },
     );
   } catch (err) {

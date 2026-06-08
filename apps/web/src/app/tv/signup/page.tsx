@@ -66,6 +66,21 @@ export default function Signup() {
         setSending(false);
         return;
       }
+      // If the response carries `emailSent: false`, the account was
+      // created but Firebase refused to ship the verification email —
+      // surface the reason so the operator can fix the Firebase config
+      // (most often: domain not in the Authorized list).
+      try {
+        const body = await r.json() as { emailSent?: boolean; emailError?: string };
+        if (body.emailSent === false) {
+          const hint = body.emailError === 'continue_url_unauthorised'
+            ? ' Add the deploy domain to Firebase Console → Authentication → Settings → Authorized domains.'
+            : '';
+          setError(`Account created, but the verification email could not be sent (${body.emailError || 'unknown'}).${hint}`);
+          setSending(false);
+          return;
+        }
+      } catch { /* response wasn't JSON — fall through to redirect */ }
       // The account exists in Firebase Auth but is not signed in yet —
       // the user has to click the verification link Firebase emailed
       // before /api/auth/login will let them through. Park them on the
