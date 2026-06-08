@@ -69,6 +69,40 @@ function rewriteOne(absUrl: string, mode: RewriteMode): string {
     : `/api/stream?url=${encodeURIComponent(absUrl)}`;
 }
 
+// HLS archive-vs-live signature check.
+//
+// Flussonic (and the rest of the IPTV server ecosystem) sometimes
+// responds to a catch-up URL by silently serving the LIVE manifest:
+// the request goes through, status is 200, content-type is HLS, but
+// the manifest describes the live edge instead of the requested
+// archive window. The player happily plays it — looks like catch-up
+// worked, except the wrong content is on screen.
+//
+// Signal we look at: a real archive manifest carries either
+//   #EXT-X-PLAYLIST-TYPE:VOD            (definitively VOD)
+// or
+//   #EXT-X-ENDLIST                      (manifest is final / bounded)
+// Flussonic emits both for archive segments; live emits neither.
+//
+// If we're confident the caller was asking for an archive URL — see
+// looksLikeArchiveRequest() — and neither marker shows up, we reject
+// the response with 502 so the caller's existing "advance to the
+// next candidate on failure" path takes over.
+function manifestLooksLikeArchive(text: string): boolean {
+  if (/^\s*#EXT-X-PLAYLIST-TYPE\s*:\s*VOD\b/im.test(text)) return true;
+  if (/^\s*#EXT-X-ENDLIST\b/im.test(text)) return true;
+  return false;
+}
+
+function looksLikeArchiveRequest(upstreamUrl: URL, req: NextRequest): boolean {
+  if (req.nextUrl.searchParams.get('expect') === 'archive') return true;
+  const p = upstreamUrl.pathname;
+  if (/\/(?:index|archive)-\d+-\d+(\.m3u8|$)/i.test(p)) return true;
+  if (/\/timeshift_(?:abs|rel)-\d+(\.m3u8|$)/i.test(p))  return true;
+  if (/\/archive\.m3u8$/i.test(p) && upstreamUrl.searchParams.has('from')) return true;
+  return false;
+}
+
 // Rewrite every absolute / relative URL inside an HLS manifest.
 // Operates on text content only; if the body isn't an M3U we pass it
 // through untouched. Relative URLs are resolved against the manifest's
@@ -160,6 +194,19 @@ export async function GET(req: NextRequest) {
   if (looksLikeManifest && upstream.body) {
     const mode: RewriteMode = req.nextUrl.searchParams.get('mode') === 'direct' ? 'direct' : 'proxy';
     const text = await upstream.text();
+
+    if (looksLikeArchiveRequest(u, req) && !manifestLooksLikeArchive(text)) {
+      // Upstream gave us a live manifest in response to an archive
+      // request. Surface this as a hard 502 so the player advances.
+      return new Response(
+        JSON.stringify({
+          error:  'silent_live',
+          detail: 'Upstream returned a live manifest in response to an archive request. Try the next URL format.',
+        }),
+        { status: 502, headers: { 'content-type': 'application/json' } },
+      );
+    }
+
     const rewritten = rewriteManifest(text, u.toString(), mode);
     return new Response(rewritten, {
       status: 200,
