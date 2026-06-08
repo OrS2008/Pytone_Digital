@@ -191,6 +191,17 @@ async function fetchAndParse(url: string): Promise<LoadResult> {
 
 interface AutoEpgSource { id: string; kind: string; title: string; sub: string; stat: string }
 
+// Only auto-fill the EPG when the user has NOT chosen one themselves.
+// The previous version prepended the playlist's url-tvg URL on every
+// fetch, which silently demoted a user-set entry and made
+// `loadEpgIndex` (which picks the first valid URL) read the auto URL
+// instead. Result: users who'd configured a working EPG saw "0
+// programmes match" after every refresh.
+//
+// Rule now: if the list contains ANY entry that wasn't put there by us
+// (id !== 'epg-auto-*'), the user is in charge — we don't touch it.
+// We also skip when our most recent auto entry already matches the
+// inferred URL, so a returning user doesn't churn their settings.
 function autoSyncEpgFromM3U(inferred: string) {
   if (typeof window === 'undefined') return;
   const key = userKey('sources.epg');
@@ -203,11 +214,31 @@ function autoSyncEpgFromM3U(inferred: string) {
     }
   } catch { /* locked storage */ }
 
-  // Skip when the auto EPG is already the first entry — avoids
-  // resurrecting the same row on every page reload + rewriting an
-  // unchanged sources.epg, which would trigger an unnecessary
-  // scheduleUp every time.
-  if (list[0]?.sub === inferred) return;
+  // Anything with a real http(s) URL that we didn't put there is the
+  // user's deliberate choice. The user wins — but as a courtesy, we
+  // also evict any stale auto entries from a previous session so the
+  // Sources UI doesn't show two competing EPGs side-by-side.
+  const hasUserEntry = list.some((s) =>
+    s && typeof s.sub === 'string' && /^https?:\/\//i.test(s.sub) &&
+    !(s.id || '').startsWith('epg-auto-'),
+  );
+  if (hasUserEntry) {
+    const cleaned = list.filter((s) => !(s.id || '').startsWith('epg-auto-'));
+    if (cleaned.length !== list.length) {
+      try { localStorage.setItem(key, JSON.stringify(cleaned)); } catch { /* quota */ }
+      try { window.dispatchEvent(new Event('ns-settings-synced')); } catch { /* ignore */ }
+      void (async () => {
+        try {
+          const { syncUpNow } = await import('./serverSync');
+          await syncUpNow();
+        } catch { /* ignore */ }
+      })();
+    }
+    return;
+  }
+
+  // Same inferred URL still active? No-op so we don't churn settings.
+  if (list[0]?.sub === inferred && (list[0]?.id || '').startsWith('epg-auto-')) return;
 
   const entry: AutoEpgSource = {
     id:    `epg-auto-${Date.now()}`,
@@ -216,20 +247,12 @@ function autoSyncEpgFromM3U(inferred: string) {
     sub:   inferred,
     stat:  'auto-detected from playlist',
   };
-  // Put the auto entry first so loadEpgIndex's "first valid URL
-  // wins" pick uses it. Keep any other entries the user added so
-  // they're not lost — they're just no longer the active EPG.
-  list = [entry, ...list.filter((s) => s.sub !== inferred)];
+  // Drop stale auto entries with a different URL, then prepend the
+  // new one. We never touch entries the user added themselves.
+  list = [entry, ...list.filter((s) => !(s.id || '').startsWith('epg-auto-'))];
 
   try { localStorage.setItem(key, JSON.stringify(list)); } catch { /* quota */ }
-  // Tell mounted usePersisted hooks (Sources screen) to re-read so
-  // the UI reflects the new EPG entry without a reload.
   try { window.dispatchEvent(new Event('ns-settings-synced')); } catch { /* ignore */ }
-  // Push to the server so a fresh sign-in on another device gets
-  // the corrected EPG too. Fire-and-forget — the existing
-  // scheduleUp debounce would also catch it, but settings the
-  // server already has stale data means we want this PUT to win
-  // ASAP.
   void (async () => {
     try {
       const { syncUpNow } = await import('./serverSync');

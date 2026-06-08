@@ -89,8 +89,15 @@ export function getUserEpgUrl(): string | null {
     const raw = localStorage.getItem(userKey('sources.epg'));
     if (!raw) return null;
     const list = JSON.parse(raw) as StoredSource[];
-    const src = list.find((s) => isRealEpgUrl(s.sub));
-    return src ? src.sub : null;
+    if (!Array.isArray(list)) return null;
+    // Prefer entries the user added themselves (id NOT starting with
+    // `epg-auto-`) over the playlist-inferred auto entries — a leftover
+    // auto entry from an earlier session shouldn't beat the EPG the
+    // user actually configured.
+    const userPicked = list.find((s) => isRealEpgUrl(s.sub) && !(s.id || '').startsWith('epg-auto-'));
+    if (userPicked) return userPicked.sub;
+    const auto = list.find((s) => isRealEpgUrl(s.sub));
+    return auto ? auto.sub : null;
   } catch { return null; }
 }
 
