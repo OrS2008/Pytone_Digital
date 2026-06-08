@@ -29,8 +29,14 @@ function AuthActionInner() {
   const mode    = (params.get('mode') ?? '').toLowerCase();
   const oobCode = params.get('oobCode') ?? '';
 
+  // No oobCode = the user landed here via Firebase's default hosted
+  // action page (custom action URL not configured), which already
+  // applied the code on its end and then hit "Continue", forwarding
+  // them to our continueUrl. In that case the email IS verified —
+  // we just don't have a session yet. Bounce them to /tv/login with
+  // the success banner so the next step is obvious.
   if (!oobCode) {
-    return <ErrorCard message="Missing oobCode in the URL." />;
+    return <NoCodeRedirect />;
   }
   if (mode === 'verifyemail' || mode === 'verify_email') {
     return <VerifyEmailFlow oobCode={oobCode} />;
@@ -39,6 +45,24 @@ function AuthActionInner() {
     return <ResetPasswordFlow oobCode={oobCode} />;
   }
   return <UnsupportedCard />;
+}
+
+function NoCodeRedirect() {
+  useEffect(() => {
+    const t = setTimeout(() => {
+      window.location.href = '/tv/login?verified=1';
+    }, 1200);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <main className="ah-root">
+      <div className="ah-card" style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 48, marginBottom: 8 }}>✓</div>
+        <h1 className="ah-title">Email verified</h1>
+        <p className="ah-sub">Taking you to the sign-in screen…</p>
+      </div>
+    </main>
+  );
 }
 
 // --- mode=verifyEmail ---------------------------------------------------
