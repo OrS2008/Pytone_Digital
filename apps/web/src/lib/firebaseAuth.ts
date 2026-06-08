@@ -141,3 +141,21 @@ export async function firebaseChangePassword(idToken: string, newPassword: strin
     idToken, password: newPassword, returnSecureToken: true,
   });
 }
+
+// Apply an out-of-band code (the `oobCode` query param in the link
+// Firebase emails). For email verification this flips emailVerified
+// to true on the matching account. Single-use — the second call with
+// the same code returns INVALID_OOB_CODE / EXPIRED_OOB_CODE.
+//
+// Response includes the email + the localId so the caller can finish
+// the verification flow without re-asking the user who they are.
+export interface ApplyOobResult {
+  email:        string;
+  localId?:     string;
+  emailVerified?: boolean;
+  /** "VERIFY_EMAIL" | "PASSWORD_RESET" | "EMAIL_SIGNIN" | ... */
+  requestType?: string;
+}
+export async function firebaseApplyOobCode(oobCode: string): Promise<ApplyOobResult> {
+  return call<ApplyOobResult>('accounts:update', { oobCode });
+}
