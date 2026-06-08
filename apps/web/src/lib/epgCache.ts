@@ -159,6 +159,7 @@ function toProgramme(p: EpgProgramme): Programme {
     stop:  new Date(p.stop),
     description: p.description,
     catchupAvailable: true,
+    catchupId: p.catchupId,
   };
 }
 

@@ -29,6 +29,13 @@ export interface CatchupRequest {
   channel: M3UChannel;
   startMs: number;
   durationMin: number;
+  /**
+   * XMLTV <programme catchup-id="..."> when the EPG ships one. Some
+   * providers (Stalker portal especially) only honour timeshift via a
+   * per-programme opaque id rather than UTC; expanding `{catchup-id}`
+   * gives us that path.
+   */
+  catchupId?: string;
 }
 
 export interface CatchupResult {
@@ -48,11 +55,21 @@ export interface CatchupResult {
 
 function pad2(n: number) { return String(n).padStart(2, '0'); }
 
+// Apply the channel's catchup-correction (in minutes, signed) to the
+// requested programme start. Used to compensate for an XMLTV whose
+// timezone doesn't match the catch-up endpoint's expected timezone.
+function correctedStartMs(req: CatchupRequest): number {
+  const corr = req.channel.catchupCorrection;
+  if (!corr) return req.startMs;
+  return req.startMs + corr * 60_000;
+}
+
 function expandTemplate(template: string, req: CatchupRequest): string {
-  const start = new Date(req.startMs);
-  const stop  = new Date(req.startMs + req.durationMin * 60_000);
-  const offset = Math.max(0, Math.floor((Date.now() - req.startMs) / 1000));
-  const utc    = Math.floor(req.startMs / 1000);
+  const startMs = correctedStartMs(req);
+  const start = new Date(startMs);
+  const stop  = new Date(startMs + req.durationMin * 60_000);
+  const offset = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+  const utc    = Math.floor(startMs / 1000);
   const utcend = Math.floor(stop.getTime() / 1000);
   const Y = String(start.getUTCFullYear());
   const m = pad2(start.getUTCMonth() + 1);
@@ -61,28 +78,60 @@ function expandTemplate(template: string, req: CatchupRequest): string {
   const M = pad2(start.getUTCMinutes());
   const S = pad2(start.getUTCSeconds());
   const isoStart = `${Y}-${m}-${d}-${H}-${M}-${S}`;
+  const durationSec = req.durationMin * 60;
 
   const subs: Record<string, string> = {
-    'start':     isoStart,
-    'utc':       String(utc),
-    'utcend':    String(utcend),
-    'duration':  String(req.durationMin),
-    'offset':    String(offset),
-    'Y':         Y,
-    'm':         m,
-    'd':         d,
-    'H':         H,
-    'M':         M,
-    'S':         S,
-    'timestamp': String(utc),
-    'lutc':      String(Math.floor(Date.now() / 1000)),
+    'start':       isoStart,
+    'utc':         String(utc),
+    'utcend':      String(utcend),
+    'duration':    String(req.durationMin),
+    'offset':      String(offset),
+    'Y':           Y,
+    'm':           m,
+    'd':           d,
+    'H':           H,
+    'M':           M,
+    'S':           S,
+    'timestamp':   String(utc),
+    'lutc':        String(Math.floor(Date.now() / 1000)),
+    'catchup-id':  req.catchupId || '',
   };
 
-  // Replace ${name} and {name} forms. Done with a single scan so we
-  // don't double-substitute when a value happens to contain another
-  // placeholder-looking substring.
-  return template.replace(/\$?\{([A-Za-z][\w]*)\}/g, (m_, key) => {
-    return Object.prototype.hasOwnProperty.call(subs, key) ? subs[key] : m_;
+  // Replace placeholders. Supports three shapes from the pvr.iptvsimple
+  // spec:
+  //   {name}          — bare token lookup
+  //   ${name}         — dollar-prefixed alias used by older docs
+  //   {name:N}        — formatted: zero-pad numeric tokens to N digits,
+  //                     and for `offset` interpret N as a duration in
+  //                     SECONDS (used by Flussonic-style timeshift_rel).
+  return template.replace(/\$?\{([A-Za-z][\w-]*)(?::([+-]?\d+))?\}/g, (raw, key, spec) => {
+    // `{offset:N}` is overloaded in the spec: it sometimes means
+    // "offset, padded to N digits" and sometimes "literal N-second
+    // offset". We resolve as follows: if the placeholder is exactly
+    // `{offset:N}` with N a positive integer, treat N as a literal
+    // seconds-back-from-now offset (Flussonic timeshift_rel). For every
+    // other token, N is a zero-padding width.
+    if (key === 'offset' && spec) {
+      const n = Number(spec);
+      if (Number.isFinite(n) && n > 0 && spec === String(Math.floor(n))) {
+        return String(n);
+      }
+    }
+    // `{duration:N}` — many providers want the duration in SECONDS
+    // (not minutes) when an explicit width is requested.
+    if (key === 'duration' && spec) {
+      const w = Number(spec);
+      if (Number.isFinite(w) && w > 0) {
+        return String(durationSec).padStart(w, '0');
+      }
+    }
+    if (!Object.prototype.hasOwnProperty.call(subs, key)) return raw;
+    const value = subs[key];
+    if (spec) {
+      const w = Number(spec);
+      if (Number.isFinite(w) && w > 0) return value.padStart(w, '0');
+    }
+    return value;
   });
 }
 
@@ -152,7 +201,8 @@ function parseFlussonicLiveUrl(streamUrl: string): FlussonicParts | null {
 }
 
 function buildFlussonicCandidates(req: CatchupRequest, p: FlussonicParts): string[] {
-  const utcStart = Math.floor(req.startMs / 1_000);
+  const startMs  = correctedStartMs(req);
+  const utcStart = Math.floor(startMs / 1_000);
   const durSec   = req.durationMin * 60;
   const utcEnd   = utcStart + durSec;
   const utcNow   = Math.floor(Date.now() / 1_000);
@@ -235,14 +285,15 @@ function parseXtreamLiveUrl(streamUrl: string): XtreamParts | null {
 // different shapes; rather than guess we hand the player a small
 // ordered list and let it advance on a fatal load error.
 function buildXtreamCandidates(req: CatchupRequest, p: XtreamParts): string[] {
-  const d = new Date(req.startMs);
+  const startMs = correctedStartMs(req);
+  const d = new Date(startMs);
   const Y  = d.getFullYear();
   const mo = String(d.getMonth() + 1).padStart(2, '0');
   const da = String(d.getDate()).padStart(2, '0');
   const H  = String(d.getHours()).padStart(2, '0');
   const M  = String(d.getMinutes()).padStart(2, '0');
-  const utcStart = Math.floor(req.startMs / 1_000);
-  const utcEnd   = Math.floor((req.startMs + req.durationMin * 60_000) / 1_000);
+  const utcStart = Math.floor(startMs / 1_000);
+  const utcEnd   = Math.floor((startMs + req.durationMin * 60_000) / 1_000);
   const utcNow   = Math.floor(Date.now() / 1_000);
   const u = encodeURIComponent(p.user);
   const pw = encodeURIComponent(p.pass);
@@ -320,8 +371,23 @@ export function buildCatchupUrl(req: CatchupRequest): CatchupResult {
   const ch = req.channel;
   const kind = (ch.catchupKind || '').toLowerCase();
   const live = ch.streamUrl;
-  const utc    = Math.floor(req.startMs / 1000);
-  const utcend = Math.floor((req.startMs + req.durationMin * 60_000) / 1000);
+  const startMs = correctedStartMs(req);
+  const utc    = Math.floor(startMs / 1000);
+  const utcend = Math.floor((startMs + req.durationMin * 60_000) / 1000);
+
+  // `vod` mode — the catchup-source IS the playback URL, no live URL
+  // involved. Some providers expose each programme as a standalone VOD
+  // entry rather than a time-slice of the live stream; the template
+  // typically references {catchup-id} or {start}.
+  if (kind === 'vod') {
+    if (ch.catchupSource) {
+      return { url: expandTemplate(ch.catchupSource, req) };
+    }
+    return {
+      url: null,
+      reason: 'This channel is marked catchup="vod" but ships no catchup-source URL template.',
+    };
+  }
 
   const all = collectAllCandidates(req);
   if (all.length > 0) {

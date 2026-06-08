@@ -12,6 +12,8 @@ export interface Programme {
   // Whether catch-up is available for this programme — drives whether the
   // "Restart from beginning" button is enabled.
   catchupAvailable?: boolean;
+  /** Opaque XMLTV catchup-id, when shipped on `<programme>`. */
+  catchupId?: string;
 }
 
 export interface Channel {
@@ -37,4 +39,6 @@ export interface Channel {
   catchupKind?: string;
   catchupSource?: string;
   catchupDays?: number;
+  /** Signed minute offset to compensate for EPG/timeshift timezone drift. */
+  catchupCorrection?: number;
 }

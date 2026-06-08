@@ -24,13 +24,19 @@ export interface M3UChannel {
   streamUrl: string;
   tvgId?: string;
   // Catch-up support. Providers signal whether a channel has a DVR
-  // archive via `catchup="default"` (or "append" / "shift" / "flussonic")
-  // plus a `catchup-source` URL template that gets ${start}, ${duration}
-  // etc. substituted at playback time. Channels without these stay
-  // live-only — the catch-up UI tells the user so.
+  // archive via `catchup="default"` (or "append" / "shift" / "flussonic"
+  // / "xc" / "vod") plus a `catchup-source` URL template that gets
+  // ${start}, ${duration} etc. substituted at playback time. Channels
+  // without these stay live-only.
+  //
+  // `catchupCorrection` is a signed `HH:MM` offset some providers
+  // include to compensate for an EPG that's in a different timezone
+  // than the timeshift endpoint expects. We add it to the requested
+  // programme start before building the URL.
   catchupKind?: string;
   catchupSource?: string;
   catchupDays?: number;
+  catchupCorrection?: number; // minutes, signed
 }
 
 interface ExtInf {
@@ -42,6 +48,26 @@ interface ExtInf {
   catchupKind?: string;
   catchupSource?: string;
   catchupDays?: number;
+  catchupCorrection?: number;
+}
+
+// "+02:00" / "-01:30" / "+3" / "-2" / "120" / "-90" — pvr.iptvsimple
+// accepts a few shapes here. Returns minutes (signed), or undefined
+// when the value is unparseable.
+function parseCatchupCorrection(raw: string): number | undefined {
+  const v = raw.trim();
+  if (!v) return undefined;
+  const hm = /^([+-]?)(\d{1,2}):(\d{2})$/.exec(v);
+  if (hm) {
+    const sign = hm[1] === '-' ? -1 : 1;
+    return sign * (Number(hm[2]) * 60 + Number(hm[3]));
+  }
+  const num = Number(v);
+  if (Number.isFinite(num)) {
+    // Bare integer is interpreted as MINUTES, matching pvr.iptvsimple.
+    return num;
+  }
+  return undefined;
 }
 
 const ATTR = /([\w-]+)="([^"]*)"/g;
@@ -88,9 +114,10 @@ function parseExtInf(line: string): ExtInf | null {
       case 'group-title':    out.group   = v; break;
       case 'tvg-chno':       out.tvgChno = Number(v) || undefined; break;
       case 'catchup':
-      case 'catchup-type':   out.catchupKind   = v.toLowerCase(); break;
-      case 'catchup-source': out.catchupSource = v; break;
-      case 'catchup-days':   out.catchupDays   = Number(v) || undefined; break;
+      case 'catchup-type':       out.catchupKind       = v.toLowerCase(); break;
+      case 'catchup-source':     out.catchupSource     = v; break;
+      case 'catchup-days':       out.catchupDays       = Number(v) || undefined; break;
+      case 'catchup-correction': out.catchupCorrection = parseCatchupCorrection(v); break;
     }
   }
   return out;
@@ -105,7 +132,7 @@ export function parseM3U(text: string): M3UChannel[] {
   // declare catchup once on the #EXTM3U line and expect every channel
   // below to inherit it. Without inheriting, we'd think nothing on the
   // playlist supports DVR.
-  const defaults: Pick<ExtInf, 'catchupKind' | 'catchupSource' | 'catchupDays'> = {};
+  const defaults: Pick<ExtInf, 'catchupKind' | 'catchupSource' | 'catchupDays' | 'catchupCorrection'> = {};
 
   for (const raw of lines) {
     const line = raw.trim();
@@ -119,9 +146,10 @@ export function parseM3U(text: string): M3UChannel[] {
       while ((m = ATTR.exec(head)) !== null) {
         const k = m[1].toLowerCase();
         const v = m[2];
-        if (k === 'catchup' || k === 'catchup-type') defaults.catchupKind   = v.toLowerCase();
-        if (k === 'catchup-source')                  defaults.catchupSource = v;
-        if (k === 'catchup-days')                    defaults.catchupDays   = Number(v) || undefined;
+        if (k === 'catchup' || k === 'catchup-type') defaults.catchupKind       = v.toLowerCase();
+        if (k === 'catchup-source')                  defaults.catchupSource     = v;
+        if (k === 'catchup-days')                    defaults.catchupDays       = Number(v) || undefined;
+        if (k === 'catchup-correction')              defaults.catchupCorrection = parseCatchupCorrection(v);
       }
       continue;
     }
@@ -139,9 +167,10 @@ export function parseM3U(text: string): M3UChannel[] {
       category:      pending.group   || 'Uncategorised',
       streamUrl:     line,
       tvgId:         pending.tvgId,
-      catchupKind:   pending.catchupKind   ?? defaults.catchupKind,
-      catchupSource: pending.catchupSource ?? defaults.catchupSource,
-      catchupDays:   pending.catchupDays   ?? defaults.catchupDays,
+      catchupKind:       pending.catchupKind       ?? defaults.catchupKind,
+      catchupSource:     pending.catchupSource     ?? defaults.catchupSource,
+      catchupDays:       pending.catchupDays       ?? defaults.catchupDays,
+      catchupCorrection: pending.catchupCorrection ?? defaults.catchupCorrection,
     });
     pending = null;
   }

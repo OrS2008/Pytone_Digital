@@ -19,6 +19,13 @@ export interface EpgProgramme {
   stop:  number;
   title: string;
   description?: string;
+  /**
+   * Opaque per-programme id some providers (Stalker, certain Flussonic
+   * deployments) ship on `<programme catchup-id="...">`. When present
+   * the catch-up URL builder substitutes it for `{catchup-id}` in the
+   * channel's catchup-source template.
+   */
+  catchupId?: string;
 }
 
 const PROG_OPEN = /<programme\b([^>]*)>/g;
@@ -67,15 +74,16 @@ function unwrapCdata(s: string): string {
 
 // Parse a single <programme>…</programme> element into our minimal shape.
 function readProgramme(openAttrs: string, inner: string): EpgProgramme | null {
-  let channelId = '', start = '', stop = '';
+  let channelId = '', start = '', stop = '', catchupId = '';
   ATTR_RE.lastIndex = 0;
   let am: RegExpExecArray | null;
   while ((am = ATTR_RE.exec(openAttrs)) !== null) {
     const k = am[1].toLowerCase();
     const v = am[2];
-    if      (k === 'channel') channelId = v;
-    else if (k === 'start')   start = v;
-    else if (k === 'stop')    stop  = v;
+    if      (k === 'channel')    channelId = v;
+    else if (k === 'start')      start     = v;
+    else if (k === 'stop')       stop      = v;
+    else if (k === 'catchup-id') catchupId = v;
   }
   if (!channelId || !start) return null;
 
@@ -95,6 +103,7 @@ function readProgramme(openAttrs: string, inner: string): EpgProgramme | null {
     stop:  isFinite(stopMs) ? stopMs : startMs + 30 * 60_000,
     title,
     description: desc,
+    catchupId: catchupId || undefined,
   };
 }
 

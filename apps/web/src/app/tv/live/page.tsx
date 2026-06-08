@@ -176,9 +176,11 @@ export default function LivePage() {
         catchupKind: active.catchupKind,
         catchupSource: active.catchupSource,
         catchupDays: active.catchupDays,
+        catchupCorrection: active.catchupCorrection,
       },
       startMs: catchupMs,
       durationMin,
+      catchupId: programme?.catchupId,
     });
     if (!built.url) {
       return active; // fall through to live edge; banner explains why
