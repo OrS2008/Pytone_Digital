@@ -22,6 +22,13 @@ import { findUserByEmail, createUserFromFirebase, normaliseEmail, touchLastLogin
 import { verifyPassword } from '@/lib/auth/password';
 import { createSession, setSessionCookieHeader } from '@/lib/auth/serverSession';
 import {
+  readPreverifyCookie,
+  deletePreverifyHandle,
+  clearPreverifyCookieHeader,
+  createPreverifyHandle,
+  setPreverifyCookieHeader,
+} from '@/lib/auth/preverify';
+import {
   firebaseSignin,
   firebaseSignup,
   firebaseLookupByIdToken,
@@ -95,7 +102,21 @@ export async function POST(req: NextRequest) {
   }
 
   if (!emailVerified && !user.legacyMigrated) {
-    return NextResponse.json({ error: 'email_not_verified', email }, { status: 403 });
+    // Mint a pre-verify handle so /tv/check-email's resend button
+    // works without forcing the user to re-enter the password they
+    // just typed. The handle holds the refresh token, not the
+    // password itself.
+    const preverifyToken = await createPreverifyHandle(kv, user.email, firebaseUser!.refreshToken);
+    return new NextResponse(
+      JSON.stringify({ error: 'email_not_verified', email }),
+      {
+        status: 403,
+        headers: {
+          'content-type': 'application/json',
+          'set-cookie':   setPreverifyCookieHeader(preverifyToken),
+        },
+      },
+    );
   }
 
   await touchLastLogin(kv, user);
@@ -104,12 +125,20 @@ export async function POST(req: NextRequest) {
     userAgent: req.headers.get('user-agent') ?? undefined,
     ip:        req.headers.get('cf-connecting-ip') ?? req.headers.get('x-forwarded-for') ?? undefined,
   });
+
+  // Once a real session is in hand the pre-verify handle is dead
+  // weight — drop the KV row and clear the cookie alongside the new
+  // session cookie.
+  const preverifyCookie = readPreverifyCookie(req);
+  if (preverifyCookie) await deletePreverifyHandle(kv, preverifyCookie);
+
+  const headers = new Headers({ 'content-type': 'application/json' });
+  headers.append('set-cookie', setSessionCookieHeader(sid));
+  headers.append('set-cookie', clearPreverifyCookieHeader());
+
   return new NextResponse(JSON.stringify({ ok: true, email: user.email }), {
     status: 200,
-    headers: {
-      'content-type': 'application/json',
-      'set-cookie':   setSessionCookieHeader(sid),
-    },
+    headers,
   });
 }
 

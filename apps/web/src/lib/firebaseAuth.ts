@@ -159,3 +159,39 @@ export interface ApplyOobResult {
 export async function firebaseApplyOobCode(oobCode: string): Promise<ApplyOobResult> {
   return call<ApplyOobResult>('accounts:update', { oobCode });
 }
+
+// Exchange a refresh token for a fresh idToken. The endpoint lives on
+// a different host (securetoken.googleapis.com) and accepts
+// form-encoded data, not JSON — separate from the identitytoolkit
+// API. Returns a brand-new refresh token too so callers should
+// rotate-store it.
+export interface RefreshResult {
+  id_token:      string;
+  refresh_token: string;
+  expires_in:    string;
+  user_id:       string;
+  project_id:    string;
+}
+export async function firebaseExchangeRefreshToken(refreshToken: string): Promise<RefreshResult> {
+  const url = `https://securetoken.googleapis.com/v1/token?key=${encodeURIComponent(apiKey())}`;
+  const body = new URLSearchParams({
+    grant_type:    'refresh_token',
+    refresh_token: refreshToken,
+  });
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+  const text = await r.text();
+  if (!r.ok) {
+    let code = 'unknown';
+    try {
+      const j = JSON.parse(text) as ErrorEnvelope;
+      if (j?.error?.message) code = j.error.message;
+    } catch { /* ignore */ }
+    throw new FirebaseAuthError(r.status, code, text.slice(0, 400));
+  }
+  try { return JSON.parse(text) as RefreshResult; }
+  catch { throw new FirebaseAuthError(r.status, 'bad_json', text.slice(0, 400)); }
+}

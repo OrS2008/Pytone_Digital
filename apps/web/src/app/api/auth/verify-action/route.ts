@@ -28,6 +28,11 @@ import { requireKV } from '@/lib/cfEnv';
 import { createUserFromFirebase, findUserByEmail, normaliseEmail, touchLastLogin } from '@/lib/auth/users';
 import { createSession, setSessionCookieHeader } from '@/lib/auth/serverSession';
 import {
+  readPreverifyCookie,
+  deletePreverifyHandle,
+  clearPreverifyCookieHeader,
+} from '@/lib/auth/preverify';
+import {
   firebaseApplyOobCode,
   FirebaseAuthError,
   FirebaseNotConfiguredError,
@@ -89,14 +94,19 @@ export async function POST(req: NextRequest) {
     ip:        req.headers.get('cf-connecting-ip') ?? req.headers.get('x-forwarded-for') ?? undefined,
   });
 
+  // Drop the pre-verification handle now that a real session exists.
+  // The cookie + KV row are no use to anyone once the user is in.
+  const preverifyCookie = readPreverifyCookie(req);
+  if (preverifyCookie) await deletePreverifyHandle(kv, preverifyCookie);
+
+  // Two Set-Cookie headers: the session cookie that signs the user in
+  // plus a clearing header for the pre-verify cookie.
+  const headers = new Headers({ 'content-type': 'application/json' });
+  headers.append('set-cookie', setSessionCookieHeader(sid));
+  headers.append('set-cookie', clearPreverifyCookieHeader());
+
   return new NextResponse(
     JSON.stringify({ ok: true, email: user.email, redirectTo: '/tv' }),
-    {
-      status: 200,
-      headers: {
-        'content-type': 'application/json',
-        'set-cookie':   setSessionCookieHeader(sid),
-      },
-    },
+    { status: 200, headers },
   );
 }

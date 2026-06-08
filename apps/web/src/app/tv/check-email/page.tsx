@@ -4,9 +4,10 @@
 //
 // Where the signup form sends the user after a successful signup. The
 // account exists in Firebase Auth but cannot sign in until they click
-// the link Firebase emailed. We surface the email address, a resend
-// button (re-authenticates against Firebase first, so a stranger
-// can't spam an inbox), and a "I've verified, sign in" CTA.
+// the link Firebase emailed. We surface the email address + a one-tap
+// resend button. Proof of identity for the resend comes from the
+// HTTP-only `ns_preverify` cookie /api/auth/signup just set, so the
+// user doesn't have to retype the password they just chose.
 
 import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -16,32 +17,33 @@ import '../auth/auth.css';
 function CheckEmailInner() {
   const params = useSearchParams();
   const email  = params.get('email') ?? '';
-  const [password, setPassword] = useState('');
-  const [sending,  setSending]  = useState(false);
-  const [msg,      setMsg]      = useState<string | null>(null);
-  const [err,      setErr]      = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [msg,     setMsg]     = useState<string | null>(null);
+  const [err,     setErr]     = useState<string | null>(null);
 
-  async function resend(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null); setMsg(null);
-    if (!email)            return setErr('Missing email — open the signup page again.');
-    if (password.length < 8) return setErr('Enter the password you signed up with.');
-    setSending(true);
+  async function resend() {
+    setErr(null); setMsg(null); setSending(true);
     try {
       const r = await fetch('/api/auth/resend-verification', {
         method: 'POST',
         credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, password }),
       });
-      if (r.status === 401) setErr('That password doesn\'t match — try again.');
-      else if (!r.ok)       setErr(`Couldn't resend (${r.status}). Try again in a minute.`);
-      else                  setMsg('Sent! Check your inbox (and spam folder).');
+      if (r.status === 401) {
+        // Pre-verify cookie missing / expired — sign-in is the only
+        // way back. Point the user at /tv/login (which itself will
+        // redirect them right back here with a fresh cookie when the
+        // server detects email_not_verified).
+        setErr('Your verification session has expired. Sign in again to get a fresh link.');
+      } else if (!r.ok) {
+        const body = await r.json().catch(() => ({})) as { detail?: string };
+        setErr(`Couldn't resend (${r.status})${body.detail ? `: ${body.detail}` : '.'}`);
+      } else {
+        setMsg('Sent! Check your inbox (and the spam folder).');
+      }
     } catch (e) {
-      setErr(`Couldn\'t resend: ${(e as Error).message}`);
+      setErr(`Couldn't resend: ${(e as Error).message}`);
     } finally {
       setSending(false);
-      setPassword('');
     }
   }
 
@@ -53,7 +55,7 @@ function CheckEmailInner() {
         <p className="ah-sub" style={{ marginBottom: 18 }}>
           We sent a verification link to{' '}
           <strong style={{ color: '#fff' }}>{email || 'your email'}</strong>.
-          Click the link, then come back here to sign in.
+          Click the link — you&apos;ll be signed in and dropped on the home screen.
         </p>
         <p className="ah-sub" style={{ fontSize: 13, opacity: 0.75 }}>
           The link comes from <code>noreply@nova-stream-4ee03.firebaseapp.com</code> —
@@ -62,27 +64,17 @@ function CheckEmailInner() {
 
         <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '24px 0' }} />
 
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: '#E9EBF1', margin: '0 0 10px' }}>
-          Didn&apos;t get the email?
-        </h2>
-        <form onSubmit={resend}>
-          <label className="ah-label">
-            Password
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Same password you just signed up with"
-              className="ah-input"
-            />
-          </label>
-          {err && <div className="ah-err" style={{ marginTop: 10 }}>{err}</div>}
-          {msg && <div style={{ marginTop: 10, color: '#7DF9C6', fontSize: 13 }}>{msg}</div>}
-          <button type="submit" disabled={sending} className="ah-btn" style={{ marginTop: 14 }}>
-            {sending ? 'Sending…' : 'Resend verification email'}
-          </button>
-        </form>
+        <button
+          type="button"
+          onClick={resend}
+          disabled={sending}
+          className="ah-btn"
+        >
+          {sending ? 'Sending…' : 'Resend verification email'}
+        </button>
+
+        {err && <div className="ah-err" style={{ marginTop: 12 }}>{err}</div>}
+        {msg && <div style={{ marginTop: 12, color: '#7DF9C6', fontSize: 13 }}>{msg}</div>}
 
         <p className="ah-sub" style={{ marginTop: 22, textAlign: 'center' }}>
           Already verified?{' '}

@@ -1,24 +1,27 @@
 // POST /api/auth/resend-verification
 //
 // Re-sends the Firebase Auth verification email for an account that
-// signed up but never clicked the original link.
+// signed up but never clicked the original link. No body required —
+// proof of identity comes from the HTTP-only `ns_preverify` cookie
+// that /api/auth/signup just set. The cookie maps to a server-side
+// KV row holding the Firebase refresh token, which we exchange for a
+// fresh idToken on the fly.
 //
-// Body: { email, password } — we need the password because Firebase's
-// sendOobCode(VERIFY_EMAIL) requires the user's own idToken, which we
-// obtain by signing in. Forcing the password keeps strangers from
-// spamming an inbox with verification mail.
-//
-// Response: 200 + { ok: true } in every successful case (sent + already
-// verified) so the response shape can't be used to enumerate.
+// Response: 200 + { ok: true } on success.
 // Errors:
-//   400 — missing fields
-//   401 — wrong credentials
-//   503 — auth not configured
+//   401 — no preverify cookie, expired KV row, or refresh exchange
+//         failed (cookie cleared)
+//   503 — KV / Firebase not configured
 
 import { NextRequest, NextResponse } from 'next/server';
-import { normaliseEmail } from '@/lib/auth/users';
+import { requireKV } from '@/lib/cfEnv';
 import {
-  firebaseSignin,
+  readPreverifyCookie,
+  readPreverifyHandle,
+  clearPreverifyCookieHeader,
+} from '@/lib/auth/preverify';
+import {
+  firebaseExchangeRefreshToken,
   firebaseSendOobCode,
   FirebaseAuthError,
   FirebaseNotConfiguredError,
@@ -34,32 +37,45 @@ function originUrl(req: NextRequest): string {
 }
 
 export async function POST(req: NextRequest) {
-  let body: { email?: unknown; password?: unknown };
-  try { body = await req.json(); }
-  catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }); }
+  const kv = requireKV();
+  if (kv instanceof Response) return kv;
 
-  const email    = typeof body.email    === 'string' ? normaliseEmail(body.email) : '';
-  const password = typeof body.password === 'string' ? body.password : '';
-  if (!email || !password) return NextResponse.json({ error: 'bad_request' }, { status: 400 });
+  const cookie = readPreverifyCookie(req);
+  const handle = await readPreverifyHandle(kv, cookie);
+  if (!handle) {
+    // Cookie missing / expired / KV row evicted. Clear the dead
+    // cookie so subsequent attempts know to fall back to a fresh
+    // signin (the resend page will surface the sign-in link).
+    return new NextResponse(JSON.stringify({ error: 'no_preverify_handle' }), {
+      status: 401,
+      headers: {
+        'content-type': 'application/json',
+        'set-cookie':   clearPreverifyCookieHeader(),
+      },
+    });
+  }
 
   let idToken: string;
   try {
-    const fb = await firebaseSignin(email, password);
-    idToken = fb.idToken;
+    const r = await firebaseExchangeRefreshToken(handle.refreshToken);
+    idToken = r.id_token;
   } catch (e) {
     if (e instanceof FirebaseNotConfiguredError) {
       return NextResponse.json({ error: 'auth_unconfigured' }, { status: 503 });
     }
-    if (e instanceof FirebaseAuthError) {
-      return NextResponse.json({ error: 'invalid_credentials' }, { status: 401 });
-    }
-    throw e;
+    return new NextResponse(JSON.stringify({ error: 'refresh_failed' }), {
+      status: 401,
+      headers: {
+        'content-type': 'application/json',
+        'set-cookie':   clearPreverifyCookieHeader(),
+      },
+    });
   }
 
-  // Two-step send: try the one-click /tv/auth-action continueUrl
-  // first; if Firebase says the domain isn't authorised, retry
-  // without continueUrl so the user still gets a working (if less
-  // pretty) Firebase-hosted verification page.
+  // Two-step send (same fallback as signup): try the one-click
+  // /tv/auth-action continueUrl first; on UNAUTHORIZED_CONTINUE_URI
+  // retry with no continueUrl so the user still gets a working
+  // verification link (Firebase-hosted fallback).
   try {
     await firebaseSendOobCode({
       requestType: 'VERIFY_EMAIL',

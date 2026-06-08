@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireKV } from '@/lib/cfEnv';
 import { createUserFromFirebase, findUserByEmail, normaliseEmail } from '@/lib/auth/users';
+import { createPreverifyHandle, setPreverifyCookieHeader } from '@/lib/auth/preverify';
 import {
   firebaseSignup,
   firebaseSendOobCode,
@@ -111,15 +112,28 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // No session cookie here on purpose — the user must verify the
+    // Stash the freshly-issued Firebase refresh token under a server-
+    // side handle and hand the browser the opaque key in an HTTP-only
+    // cookie. /api/auth/resend-verification trades the cookie back for
+    // a fresh idToken so the "Resend verification email" button can
+    // work without prompting for the password again.
+    const preverifyToken = await createPreverifyHandle(kv, user.email, firebaseUser.refreshToken);
+
+    // No SESSION cookie here on purpose — the user must verify the
     // email first. /tv/signup redirects to a "check your inbox" page
     // and /tv/login refuses the account until the address is proven.
     // `emailError` surfaces in the response so the signup UI can tell
     // the user (or operator) exactly which Firebase quota / config
     // tripped.
-    return NextResponse.json(
-      { ok: true, email: user.email, emailSent, emailError, requiresVerification: true },
-      { status: 201 },
+    return new NextResponse(
+      JSON.stringify({ ok: true, email: user.email, emailSent, emailError, requiresVerification: true }),
+      {
+        status: 201,
+        headers: {
+          'content-type': 'application/json',
+          'set-cookie':   setPreverifyCookieHeader(preverifyToken),
+        },
+      },
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
