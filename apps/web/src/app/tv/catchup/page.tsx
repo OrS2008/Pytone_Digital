@@ -31,6 +31,7 @@ import TvNav from '@/components/tv/TvNav';
 import { TvFocusProvider } from '@/components/tv/TvFocus';
 import { getCachedChannels, loadChannels } from '@/lib/channelCache';
 import { loadEpgIndex, getUserEpgUrl, programmesFor, type EpgIndex } from '@/lib/epgCache';
+import { maskSourceUrl } from '@/lib/maskUrl';
 import type { EpgProgramme } from '@/lib/epg';
 import { userKey } from '@/lib/session';
 import type { M3UChannel } from '@/lib/m3u';
@@ -79,19 +80,58 @@ export default function CatchupPage() {
   const [selectedNum, setSelectedNum] = useState<number | null>(null);
   const [showRecordings, setShowRecordings] = useState(false);
   const [q, setQ] = useState('');
+  // EPG diagnostic — what we actually fetched, parsed and matched.
+  // Lets the user see at a glance why catch-up has no programmes:
+  //   "EPG fetch failed (502)"      → upstream unreachable / wrong URL
+  //   "0 channels in EPG"           → fetch ok but XMLTV had no <channel>
+  //   "0 channels match your M3U"   → tvg-ids don't align between feeds
+  //   "Ready · 14k programmes"      → all good
+  const [epgDiag, setEpgDiag] = useState<{
+    url:         string | null;
+    fetchStatus: 'idle' | 'loading' | 'ok' | 'fail';
+    fetchError?: string;
+    epgChannels: number;
+    matched:     number;
+  }>({ url: null, fetchStatus: 'idle', epgChannels: 0, matched: 0 });
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const list = await loadChannels();
       if (!cancelled && list.length > 0) setChannels(list);
-      if (getUserEpgUrl()) {
-        setEpgState('loading');
-        const idx = await loadEpgIndex();
-        if (cancelled) return;
-        if (idx && idx.byId.size > 0) { setEpgIndex(idx); setEpgState('ready'); }
-        else                          { setEpgState('none'); }
+
+      const epgUrl = getUserEpgUrl();
+      if (!epgUrl) {
+        setEpgDiag({ url: null, fetchStatus: 'idle', epgChannels: 0, matched: 0 });
+        return;
       }
+
+      setEpgState('loading');
+      setEpgDiag((d) => ({ ...d, url: epgUrl, fetchStatus: 'loading' }));
+
+      // loadEpgIndex itself swallows errors and returns null, which
+      // is why "no programmes" was invisible. We classify the
+      // outcome here so the banner can tell the user exactly what
+      // failed: fetch (null index) vs parse (index with 0 channels)
+      // vs match (channels parsed but no tvg-id overlap with M3U).
+      const idx = await loadEpgIndex();
+      if (cancelled) return;
+
+      const epgChannelCount = idx?.byId.size ?? 0;
+      const matched = idx && list.length
+        ? list.reduce((n, ch) => n + (programmesFor(idx, ch).length > 0 ? 1 : 0), 0)
+        : 0;
+
+      setEpgDiag({
+        url:         epgUrl,
+        fetchStatus: idx == null ? 'fail' : 'ok',
+        fetchError:  idx == null ? 'fetch or parse failed (see network tab)' : undefined,
+        epgChannels: epgChannelCount,
+        matched,
+      });
+
+      if (idx && idx.byId.size > 0) { setEpgIndex(idx); setEpgState('ready'); }
+      else                          { setEpgState('none'); }
     })();
     try {
       const raw = localStorage.getItem(userKey('recordings'));
@@ -246,6 +286,8 @@ export default function CatchupPage() {
             style={searchStyle}
           />
         </div>
+
+        <EpgStatusBanner diag={epgDiag} channelCount={channels.length} />
 
         <section style={{ padding: '20px 24px 64px', maxWidth: 1280, margin: '0 auto' }}>
           {channels.length === 0 ? (
@@ -506,6 +548,110 @@ const tileCatStyle: React.CSSProperties = {
   whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden',
   maxWidth: '100%',
 };
+// EPG status banner. Renders nothing in the happy path, a coloured
+// strip otherwise so the user immediately sees WHY there are no
+// programmes — instead of staring at an empty grid.
+function EpgStatusBanner({
+  diag,
+  channelCount,
+}: {
+  diag: {
+    url:         string | null;
+    fetchStatus: 'idle' | 'loading' | 'ok' | 'fail';
+    fetchError?: string;
+    epgChannels: number;
+    matched:     number;
+  };
+  channelCount: number;
+}) {
+  if (diag.fetchStatus === 'idle' && !diag.url) {
+    return (
+      <div style={epgBannerStyle('mut')}>
+        <strong>No programme guide configured.</strong>{' '}
+        Catch-up needs an XMLTV EPG to know what aired and when.{' '}
+        <Link href="/tv/account/sources?tab=epg" style={{ color: '#FF3B6E' }}>
+          Add one →
+        </Link>
+      </div>
+    );
+  }
+  if (diag.fetchStatus === 'loading') {
+    return (
+      <div style={epgBannerStyle('mut')}>
+        Loading programme guide…
+      </div>
+    );
+  }
+  if (diag.fetchStatus === 'fail') {
+    return (
+      <div style={epgBannerStyle('err')}>
+        <strong>Couldn&apos;t fetch your EPG ({diag.fetchError}).</strong>{' '}
+        URL: <code style={epgUrlStyle}>{maskSourceUrl(diag.url || '')}</code>
+        {' · '}
+        <Link href="/tv/account/sources?tab=epg" style={{ color: '#FF3B6E' }}>Edit URL →</Link>
+      </div>
+    );
+  }
+  if (diag.fetchStatus === 'ok' && diag.epgChannels === 0) {
+    return (
+      <div style={epgBannerStyle('err')}>
+        <strong>EPG fetched, but contains zero channels.</strong>{' '}
+        The file at <code style={epgUrlStyle}>{maskSourceUrl(diag.url || '')}</code>{' '}
+        is reachable but doesn&apos;t parse as XMLTV. Common cause: HTML error page served instead of XML.
+      </div>
+    );
+  }
+  if (diag.fetchStatus === 'ok' && diag.matched === 0) {
+    return (
+      <div style={epgBannerStyle('warn')}>
+        <strong>EPG has {diag.epgChannels.toLocaleString()} channels, but none match your M3U.</strong>{' '}
+        Programmes can&apos;t attach because the <code>tvg-id</code> values in your playlist
+        don&apos;t line up with the <code>&lt;channel id&gt;</code> values in this EPG.
+        {' · '}
+        Try a different EPG that matches your provider, or ask the provider for a guide
+        with the matching IDs.
+      </div>
+    );
+  }
+  if (diag.fetchStatus === 'ok' && channelCount > 0 && diag.matched > 0) {
+    const matchPct = Math.round((diag.matched / channelCount) * 100);
+    return (
+      <div style={epgBannerStyle('ok')}>
+        EPG ready · {diag.matched.toLocaleString()} / {channelCount.toLocaleString()}{' '}
+        channels matched ({matchPct}%)
+        {matchPct < 60 && (
+          <span style={{ marginLeft: 6, color: '#FFB020' }}>
+            — many channels still without a guide. A more complete EPG would fill these in.
+          </span>
+        )}
+      </div>
+    );
+  }
+  return null;
+}
+
+const epgBannerToneColors: Record<'ok' | 'warn' | 'err' | 'mut', { bg: string; border: string; fg: string }> = {
+  ok:   { bg: 'rgba(125,249,198,0.08)', border: 'rgba(125,249,198,0.32)', fg: '#7DF9C6' },
+  warn: { bg: 'rgba(255,176,32,0.08)',  border: 'rgba(255,176,32,0.32)',  fg: '#FFB020' },
+  err:  { bg: 'rgba(255,107,123,0.08)', border: 'rgba(255,107,123,0.32)', fg: '#FF6B7B' },
+  mut:  { bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.10)', fg: '#B7BEC9' },
+};
+function epgBannerStyle(tone: 'ok' | 'warn' | 'err' | 'mut'): React.CSSProperties {
+  const c = epgBannerToneColors[tone];
+  return {
+    maxWidth: 1280, margin: '14px auto 0', padding: '10px 16px',
+    background: c.bg, border: `1px solid ${c.border}`, borderRadius: 10,
+    color: c.fg, fontSize: 13, lineHeight: 1.5,
+  };
+}
+const epgUrlStyle: React.CSSProperties = {
+  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+  fontSize: 11,
+  padding: '1px 5px', borderRadius: 4,
+  background: 'rgba(255,255,255,0.06)',
+  color: '#E9EBF1',
+};
+
 const searchStyle: React.CSSProperties = {
   width: '100%', fontSize: 15, padding: '12px 16px',
   borderRadius: 10,

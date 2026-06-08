@@ -857,6 +857,22 @@
   margin-bottom: 14px;
 }
 
+/* The .ac-detail definition list ships with a fixed 200 px label
+   column that's right for full-width panels but too generous when
+   .ac-detail is nested into one of the three Overview cards (each
+   ~33 % of the available width). At narrow card widths the value
+   column collapses and "11 Jun 2026" wraps onto two lines.
+   Override per-grid: shrink the label column to its natural size,
+   keep the value column on a single line, drop the bottom gutter so
+   tighter rows stack better. */
+.ac-overview-grid .ac-detail {
+  grid-template-columns: max-content 1fr;
+  gap: 10px 14px;
+  align-items: baseline;
+}
+.ac-overview-grid .ac-detail dt { font-size: 12.5px; white-space: nowrap; }
+.ac-overview-grid .ac-detail dd { font-size: 14px;   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 .ac-mono {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 12.5px;
