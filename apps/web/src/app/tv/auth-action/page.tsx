@@ -47,19 +47,55 @@ function AuthActionInner() {
   return <UnsupportedCard />;
 }
 
+// Fallback path: Firebase's default action page consumed the oobCode
+// on their end and bounced the user to our continueUrl with no
+// credentials in the URL. The preverify HTTP-only cookie we set at
+// signup is still attached though, so we can swap the refresh token
+// inside it for an idToken, confirm Firebase now reports the address
+// as verified, and mint a real session — giving the user the same
+// "click → home" experience the custom action URL would.
 function NoCodeRedirect() {
+  const [state, setState] = useState<'working' | 'ok' | 'manual'>('working');
   useEffect(() => {
-    const t = setTimeout(() => {
-      window.location.href = '/tv/login?verified=1';
-    }, 1200);
-    return () => clearTimeout(t);
+    (async () => {
+      try {
+        const r = await fetch('/api/auth/post-verify', {
+          method: 'POST',
+          credentials: 'include',
+        });
+        if (r.ok) {
+          const body = await r.json().catch(() => ({})) as {
+            ok?: boolean; email?: string; redirectTo?: string;
+          };
+          if (body.ok) {
+            if (body.email) { setSessionEmail(body.email); setActivated(true); }
+            try { await syncDown(); } catch { /* ignore */ }
+            setState('ok');
+            setTimeout(() => { window.location.href = body.redirectTo || '/tv'; }, 600);
+            return;
+          }
+        }
+        // Cookie missing / refresh failed / still-unverified — fall
+        // back to the manual sign-in screen with the verified banner
+        // so the user always lands somewhere sensible.
+        setState('manual');
+        setTimeout(() => { window.location.href = '/tv/login?verified=1'; }, 1000);
+      } catch {
+        setState('manual');
+        setTimeout(() => { window.location.href = '/tv/login?verified=1'; }, 1000);
+      }
+    })();
   }, []);
   return (
     <main className="ah-root">
       <div className="ah-card" style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 48, marginBottom: 8 }}>✓</div>
         <h1 className="ah-title">Email verified</h1>
-        <p className="ah-sub">Taking you to the sign-in screen…</p>
+        <p className="ah-sub">
+          {state === 'manual'
+            ? 'Taking you to the sign-in screen…'
+            : 'Signing you in — taking you to the home screen.'}
+        </p>
       </div>
     </main>
   );
