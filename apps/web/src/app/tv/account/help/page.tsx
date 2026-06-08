@@ -18,6 +18,8 @@ const LEGAL = [
 export default function Help() {
   const [confirming, setConfirming] = useState(false);
   const [deleted,    setDeleted]    = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleting,   setDeleting]   = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [exporting,  setExporting]  = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -68,14 +70,23 @@ export default function Help() {
   // localStorage as if the user were still signed in.
   async function handleDelete() {
     setDeleteError(null);
-    setConfirming(false);
+    if (deletePassword.length < 8) {
+      setDeleteError('Enter your current password to confirm.');
+      return;
+    }
+    setDeleting(true);
     try {
       const r = await fetch('/api/privacy/delete', {
         method: 'POST',
         credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ password: deletePassword }),
       });
       if (r.status === 401) {
-        setDeleteError('You need to sign in again before deleting your account.');
+        const body = await r.json().catch(() => ({})) as { error?: string };
+        setDeleteError(body.error === 'wrong_password'
+          ? 'That password doesn\'t match — try again.'
+          : 'You need to sign in again before deleting your account.');
         return;
       }
       if (r.status === 503) {
@@ -83,15 +94,20 @@ export default function Help() {
         return;
       }
       if (!r.ok) {
-        setDeleteError(`Delete failed (${r.status}).`);
+        const body = await r.json().catch(() => ({})) as { detail?: string };
+        setDeleteError(`Delete failed (${r.status})${body.detail ? `: ${body.detail}` : '.'}`);
         return;
       }
       setDeleted(true);
+      setConfirming(false);
+      setDeletePassword('');
       // signOut() clears local session and navigates to /tv/login.
-      // Fire after a short pause so the user sees the SCHEDULED chip.
+      // Fire after a short pause so the user sees the DELETED chip.
       setTimeout(() => { signOut(); }, 1200);
     } catch (err) {
       setDeleteError(`Delete failed: ${(err as Error).message}`);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -187,11 +203,36 @@ export default function Help() {
           {deleted ? (
             <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: 'var(--ns-text-faint)' }}>DELETED</span>
           ) : confirming ? (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="ac-btn ac-btn-sm" onClick={() => setConfirming(false)}>Cancel</button>
-              <button className="ac-btn ac-btn-sm ac-btn-danger" onClick={handleDelete}>
-                Yes, delete
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+              <input
+                type="password"
+                autoComplete="current-password"
+                placeholder="Confirm with your password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                disabled={deleting}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.10)',
+                  color: '#E9EBF1',
+                  fontSize: 13,
+                  minWidth: 240,
+                }}
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="ac-btn ac-btn-sm"
+                  onClick={() => { setConfirming(false); setDeletePassword(''); setDeleteError(null); }}
+                  disabled={deleting}
+                >Cancel</button>
+                <button
+                  className="ac-btn ac-btn-sm ac-btn-danger"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                >{deleting ? 'Deleting…' : 'Yes, delete'}</button>
+              </div>
             </div>
           ) : (
             <button className="ac-btn ac-btn-sm ac-btn-danger" onClick={() => setConfirming(true)}>

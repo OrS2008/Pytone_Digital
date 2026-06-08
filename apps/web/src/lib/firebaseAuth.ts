@@ -136,6 +136,14 @@ export async function firebaseLookupByIdToken(idToken: string): Promise<Firebase
   return r.users?.[0] ?? null;
 }
 
+// Permanently removes a Firebase Auth user. Self-deletion only —
+// `idToken` proves the requester is the account owner. Admin-style
+// deletion of other users needs the Admin SDK, which isn't available
+// on the edge runtime.
+export async function firebaseDeleteAccount(idToken: string): Promise<void> {
+  await call('accounts:delete', { idToken });
+}
+
 export async function firebaseChangePassword(idToken: string, newPassword: string): Promise<FirebaseUser> {
   return call<FirebaseUser>('accounts:update', {
     idToken, password: newPassword, returnSecureToken: true,
