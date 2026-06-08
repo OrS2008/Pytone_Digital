@@ -1,42 +1,29 @@
 'use client';
 
 /*
- * LiveScrubber — keyboard / remote driven timeshift seek.
- *
- *   ←  jump back  10 s    (accelerates on continuous press)
- *   →  jump forward 10 s  (accelerates, stops at live edge)
- *   Enter / Space — commit immediately (otherwise commits after a
- *   short idle pause)
+ * LiveScrubber — 10-second skip controller.
  *
  * UX:
- *   - While the user is scrubbing we show a centered floating badge
- *     ("⏪ −30 s from live") and a horizontal mini-timeline at the
- *     bottom showing the seek position relative to the catch-up
- *     window (channel.catchupDays back ↔ live edge).
- *   - Pending delta is held in local state, NOT pushed to the player,
- *     so the player isn't torn down on every keystroke. The change
- *     is committed (setCatchupMs) once the user pauses for 400 ms —
- *     at that point the player rebuilds with the timeshift URL.
- *   - When the seek crosses the live edge we clear catch-up entirely
- *     (onReturnLive) so the player snaps back to live HLS.
+ *   ←  jump back 10 s            (show "−10s" badge)
+ *   →  jump forward 10 s         (show "+10s" badge)
+ *   Hold either arrow            keeps skipping while held; the badge
+ *                                tallies the running offset so the user
+ *                                sees how far back they've gone.
+ *   Enter / Space                commit immediately, otherwise commits
+ *                                ~350 ms after the last keystroke.
  *
- * Acceleration: each press within the auto-repeat window grows the
- * jump size. The browser's own key-repeat fires keydown 20–30 times
- * per second when held, so we get smooth fast-forward / rewind for
- * free.
+ * No persistent bottom timeline — the user explicitly asked for a YouTube-
+ * style transient badge instead of a percent bar.
+ *
+ * Auto-repeat: browsers fire keydown ~30×/sec when a key is held. We
+ * throttle ticks to ~140 ms (so a held key skips a comfortable ~70 s per
+ * second instead of unscrubbable insta-jumps), and add 10 s per tick.
+ *
+ * Crossing the live edge clears catch-up entirely so the player snaps
+ * back to the live URL.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useT } from '@/lib/i18n';
-
-interface Flash {
-  /** Big number in the centre of the dial. "LIVE" when at the edge. */
-  value: string;
-  /** Smaller unit label under the value. Empty for LIVE. */
-  unit:  string;
-  /** Which direction the user pressed last (-1 = back, 1 = forward). */
-  dir:   -1 | 1;
-}
 
 interface Props {
   /** 0 = live, otherwise unix-ms of the catch-up start. */
@@ -47,21 +34,37 @@ interface Props {
   onReturnLive:  () => void;
   /** True while the fullscreen player overlay is active. */
   active?: boolean;
-  /**
-   * True while the bottom InfoBar is on screen. We hide the
-   * scrubber's bottom timeline in that case so it doesn't sit on
-   * top of the programme description — the floating "−30 s" flash
-   * still appears because it lives well above any chrome.
-   */
+  /** Called on every skip tick BEFORE the debounced commit, so the
+   *  InfoBar progress slider can update immediately. The committed
+   *  seek (which actually re-attaches the player) still goes through
+   *  onSeek 350 ms later. Null means "back to live preview". */
+  onPreview?: (previewMs: number | null) => void;
+  /** Kept for source compatibility; the new design has no bottom bar
+   *  so this prop is now ignored. */
   infoBarVisible?: boolean;
 }
 
-const BASE_STEP_MS   = 10_000;      // first press is 10 s
-const MAX_STEP_MS    = 5 * 60_000;  // cap at 5 min so a long hold doesn't overshoot
-const ACCEL_FACTOR   = 1.25;        // each repeat grows the step by 25 %
-const ACCEL_RESET_MS = 600;         // ≥ 600 ms gap resets the step
-const COMMIT_IDLE_MS = 400;         // commit after this much idle time
-const OVERLAY_FADE_MS = 1_400;
+const STEP_MS         = 10_000;
+const TICK_THROTTLE_MS = 140;   // min interval between auto-repeat ticks
+const COMMIT_IDLE_MS   = 350;
+const BADGE_FADE_MS    = 900;
+
+interface Badge {
+  dir:    -1 | 1;
+  /** Total accumulated offset since the user started this scrub burst,
+   *  in seconds (positive number). */
+  offsetSec: number;
+}
+
+function fmtOffset(sec: number): string {
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  if (m < 60) return s === 0 ? `${m}m` : `${m}m ${s}s`;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return mm === 0 ? `${h}h` : `${h}h ${mm}m`;
+}
 
 export default function LiveScrubber({
   catchupMs,
@@ -69,42 +72,23 @@ export default function LiveScrubber({
   onSeek,
   onReturnLive,
   active = true,
-  infoBarVisible = false,
 }: Props) {
-  const { t } = useT();
-  // pendingMs is the staged target timestamp — the player hasn't been
-  // told about it yet. catchupMs reflects what the player is actually
-  // playing.
   const [pendingMs, setPendingMs] = useState<number>(0);
-  const [overlay,   setOverlay]   = useState<string | null>(null);
+  const [badge,     setBadge]     = useState<Badge | null>(null);
 
-  const stepRef       = useRef<number>(BASE_STEP_MS);
-  const lastPressRef  = useRef<number>(0);
-  const commitTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const overlayTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTickRef    = useRef<number>(0);
+  const burstStartRef  = useRef<number>(0); // when the current scrub burst started (ms epoch)
+  const commitTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const badgeTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Synchronise pending with the actual playing position whenever the
-  // outside world changes it (e.g. user clicked "Back to live" or
-  // tuned a different channel).
-  useEffect(() => {
-    setPendingMs(catchupMs);
-  }, [catchupMs]);
-
-  const flashOverlay = useCallback((text: string) => {
-    setOverlay(text);
-    if (overlayTimer.current) clearTimeout(overlayTimer.current);
-    overlayTimer.current = setTimeout(() => setOverlay(null), OVERLAY_FADE_MS);
-  }, []);
+  // Outside changes (e.g. user clicked "Back to live") rebase pending.
+  useEffect(() => { setPendingMs(catchupMs); }, [catchupMs]);
 
   const commit = useCallback((target: number) => {
-    // Crossing back over the live edge clears catch-up entirely so
-    // the player rebuilds with the original live URL (which is
-    // always a smoother stream than timeshift on most panels).
-    if (target >= Date.now() - 15_000) {
-      onReturnLive();
-    } else {
-      onSeek(target);
-    }
+    // Crossing the live edge clears catch-up entirely so the player
+    // rebuilds with the original live URL — smoother than timeshift.
+    if (target >= Date.now() - 15_000) onReturnLive();
+    else                                onSeek(target);
   }, [onSeek, onReturnLive]);
 
   const scheduleCommit = useCallback((target: number) => {
@@ -112,131 +96,68 @@ export default function LiveScrubber({
     commitTimer.current = setTimeout(() => commit(target), COMMIT_IDLE_MS);
   }, [commit]);
 
-  // The actual seek step. Called per ArrowLeft / ArrowRight press.
-  const step = useCallback((dir: -1 | 1) => {
+  const tick = useCallback((dir: -1 | 1) => {
     const now = Date.now();
-    // Reset acceleration if the user paused between presses, otherwise
-    // grow it geometrically.
-    if (now - lastPressRef.current > ACCEL_RESET_MS) {
-      stepRef.current = BASE_STEP_MS;
-    } else {
-      stepRef.current = Math.min(MAX_STEP_MS, Math.round(stepRef.current * ACCEL_FACTOR));
-    }
-    lastPressRef.current = now;
+    if (now - lastTickRef.current < TICK_THROTTLE_MS) return;
+    // If the previous burst was long enough ago, reset the badge counter
+    // so a fresh press shows "10s" rather than continuing the last total.
+    if (now - lastTickRef.current > 800) burstStartRef.current = 0;
+    lastTickRef.current = now;
 
     setPendingMs((prev) => {
       const baseline = prev || now;
       const earliest = now - maxRewindDays * 86_400_000;
-      const ceiling  = now;  // never go past live
-      const next     = Math.max(earliest, Math.min(ceiling, baseline + dir * stepRef.current));
+      const ceiling  = now;
+      const next     = Math.max(earliest, Math.min(ceiling, baseline + dir * STEP_MS));
 
-      const offsetMin = Math.max(0, Math.round((now - next) / 60_000));
+      // Track the running total for the badge display.
+      if (!burstStartRef.current) burstStartRef.current = prev || now;
       const offsetSec = Math.max(0, Math.round((now - next) / 1_000));
-      let label: string;
-      if (next >= now - 15_000) {
-        label = t('live.scrubber.live');
-      } else if (offsetSec < 60) {
-        label = `⏪ −${offsetSec}s`;
-      } else if (offsetMin < 60) {
-        label = `⏪ −${offsetMin}m`;
-      } else {
-        const h = Math.floor(offsetMin / 60);
-        const m = offsetMin % 60;
-        label = `⏪ −${h}h ${m}m`;
-      }
-      flashOverlay(label);
+
+      setBadge({ dir, offsetSec });
+      if (badgeTimer.current) clearTimeout(badgeTimer.current);
+      badgeTimer.current = setTimeout(() => setBadge(null), BADGE_FADE_MS);
+
       scheduleCommit(next);
       return next;
     });
-  }, [flashOverlay, scheduleCommit, maxRewindDays, t]);
+  }, [maxRewindDays, scheduleCommit]);
 
-  // Global key listener. Only active while the player is on-screen,
-  // and never when the user is typing into an input.
+  // Global key listener — never active while typing into an input.
   useEffect(() => {
     if (!active) return;
     function onKey(e: KeyboardEvent) {
       const el = document.activeElement;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || (el as HTMLElement).isContentEditable)) return;
       if (e.key === 'ArrowLeft') {
-        step(-1);
+        tick(-1);
         e.preventDefault();
       } else if (e.key === 'ArrowRight') {
-        step(1);
+        tick(1);
         e.preventDefault();
       } else if ((e.key === 'Enter' || e.key === ' ') && commitTimer.current) {
-        // Force-commit on Enter so remote users can finish a long
-        // scrub without waiting for the idle window.
         clearTimeout(commitTimer.current);
         commitTimer.current = null;
         commit(pendingMs);
       }
     }
-    function onUp(e: KeyboardEvent) {
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        // Reset acceleration on key release so the next press starts
-        // at the base step again.
-        stepRef.current = BASE_STEP_MS;
-      }
-    }
     window.addEventListener('keydown', onKey);
-    window.addEventListener('keyup',   onUp);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('keyup',   onUp);
-    };
-  }, [active, step, commit, pendingMs]);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [active, tick, commit, pendingMs]);
 
-  // Clean up timers on unmount so a stale commit doesn't fire after
-  // the user has tuned a different channel.
   useEffect(() => () => {
-    if (commitTimer.current)  clearTimeout(commitTimer.current);
-    if (overlayTimer.current) clearTimeout(overlayTimer.current);
+    if (commitTimer.current) clearTimeout(commitTimer.current);
+    if (badgeTimer.current)  clearTimeout(badgeTimer.current);
   }, []);
 
   if (!active) return null;
+  if (!badge)  return null;
 
-  const now = Date.now();
-  const earliest = now - maxRewindDays * 86_400_000;
-  const inCatchup = pendingMs > 0 && pendingMs < now - 15_000;
-  // Map pendingMs onto a 0..1 position across the catch-up window.
-  // 0 = oldest replayable moment, 1 = live edge.
-  const pct = inCatchup
-    ? ((pendingMs - earliest) / (now - earliest)) * 100
-    : 100;
-
+  const arrows = badge.dir < 0 ? '«' : '»';
   return (
-    <>
-      {/* Floating "−30s" / "+1m" badge during active scrubbing. */}
-      {overlay && (
-        <div className="live-scrubber-flash" role="status" aria-live="polite">
-          {overlay}
-        </div>
-      )}
-
-      {/* Bottom mini-timeline. Only visible while the user is
-          actively scrubbing (same lifetime as the flash overlay) and
-          when the catch-up offset is large enough to be worth
-          showing — otherwise the persistent pink line sits across
-          the video for no reason. */}
-      {overlay && !infoBarVisible && (
-      <div className="live-scrubber-bar" aria-hidden>
-        <div className="live-scrubber-bar-track">
-          <div className="live-scrubber-bar-fill" style={{ width: `${pct}%` }} />
-          <div className="live-scrubber-bar-head" style={{ left: `${pct}%` }} />
-          <div className="live-scrubber-bar-live" />
-        </div>
-        <div className="live-scrubber-bar-labels">
-          <span>{t('live.scrubber.hint')}</span>
-          {inCatchup ? (
-            <button type="button" className="live-scrubber-bar-back" onClick={onReturnLive}>
-              {t('live.scrubber.returnLive')}
-            </button>
-          ) : (
-            <span className="live-scrubber-bar-live-label">● {t('live.scrubber.live')}</span>
-          )}
-        </div>
-      </div>
-      )}
-    </>
+    <div className={`live-skip-badge ${badge.dir < 0 ? 'back' : 'forward'}`} role="status" aria-live="polite">
+      <span className="live-skip-arrows" aria-hidden>{arrows}</span>
+      <span className="live-skip-num">{fmtOffset(badge.offsetSec)}</span>
+    </div>
   );
 }

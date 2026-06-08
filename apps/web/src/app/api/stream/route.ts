@@ -105,10 +105,13 @@ function manifestLooksLikeArchive(text: string): boolean {
 function looksLikeArchiveRequest(upstreamUrl: URL, req: NextRequest): boolean {
   if (req.nextUrl.searchParams.get('expect') === 'archive') return true;
   const p = upstreamUrl.pathname;
-  // Flussonic-style archive paths — distinct from live, hard-404 on
-  // servers without DVR.
-  if (/\/(?:index|archive)-\d+-\d+(\.m3u8|$)/i.test(p)) return true;
-  if (/\/timeshift_(?:abs|rel)-\d+(\.m3u8|$)/i.test(p))  return true;
+  // Flussonic-style archive paths. The leaf is `<base>-<startUtc>-<duration>.m3u8`
+  // where <base> is whatever the live playlist filename was: `index`, `archive`,
+  // `video`, `mono`, `playlist`, `stream`, ... we accept any word-shape with
+  // a >=6-digit start and >=2-digit duration so the guard catches every
+  // Flussonic build, not just the official `index/archive` ones.
+  if (/\/[a-z0-9_]+-\d{6,}-\d{2,}\.m3u8(?:\?|$)/i.test(p)) return true;
+  if (/\/timeshift_(?:abs|rel)-\d+(\.m3u8|$)/i.test(p))    return true;
   if (/\/archive\.m3u8$/i.test(p) && upstreamUrl.searchParams.has('from')) return true;
   // Xtream timeshift path — `/timeshift/USER/PASS/DUR/DATE/SID.m3u8`.
   // A well-behaved Xtream panel returns 404 when timeshift is off; some

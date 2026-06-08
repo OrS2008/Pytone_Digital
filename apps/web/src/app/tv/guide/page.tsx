@@ -432,9 +432,15 @@ function GuideRow({ row, dayStart, dayEnd, now }: {
           const reachable = p.start >= earliestCatchup;
           const canPlay = isCurrent || (inPast && reachable);
           const durationMin = Math.max(1, Math.round((p.stop - p.start) / 60_000));
-          const startSec = Math.floor(p.start / 1000);
+          // /tv/live's ?start= parameter is in MILLISECONDS — its
+          // `setCatchupMs` reads it verbatim and passes it as `startMs`
+          // to the catch-up URL builder, which divides by 1000 to get
+          // utcStart. Sending seconds here used to produce a UTC stamp
+          // 1000× too small, e.g. `video-1780915-2700.m3u8` instead of
+          // `video-1780915000-2700.m3u8`, and the provider's silent-live
+          // fallback would play.
           const href = inPast
-            ? `/tv/live?ch=${channel.number}&start=${startSec}&dur=${durationMin}`
+            ? `/tv/live?ch=${channel.number}&start=${p.start}&dur=${durationMin}`
             : `/tv/live?ch=${channel.number}`;
 
           const bg = isCurrent
