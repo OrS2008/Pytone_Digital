@@ -29,7 +29,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import TvNav from '@/components/tv/TvNav';
 import { TvFocusProvider } from '@/components/tv/TvFocus';
-import { getCachedChannels, loadChannels } from '@/lib/channelCache';
+import { getCachedChannels, getInferredEpgUrl, loadChannels } from '@/lib/channelCache';
 import { loadEpgIndex, getUserEpgUrl, programmesFor, type EpgIndex } from '@/lib/epgCache';
 import { maskSourceUrl } from '@/lib/maskUrl';
 import type { EpgProgramme } from '@/lib/epg';
@@ -86,13 +86,20 @@ export default function CatchupPage() {
   //   "0 channels in EPG"           → fetch ok but XMLTV had no <channel>
   //   "0 channels match your M3U"   → tvg-ids don't align between feeds
   //   "Ready · 14k programmes"      → all good
+  //
+  // When the M3U itself declared a url-tvg attribute (most providers
+  // do) we surface it as `suggestedUrl` so the banner can offer a
+  // one-click "switch to the EPG this playlist expects" affordance —
+  // the most common root cause of "0 channels match" is that the
+  // user picked a generic EPG instead of the provider's own.
   const [epgDiag, setEpgDiag] = useState<{
-    url:         string | null;
-    fetchStatus: 'idle' | 'loading' | 'ok' | 'fail';
-    fetchError?: string;
-    epgChannels: number;
-    matched:     number;
-  }>({ url: null, fetchStatus: 'idle', epgChannels: 0, matched: 0 });
+    url:          string | null;
+    fetchStatus:  'idle' | 'loading' | 'ok' | 'fail';
+    fetchError?:  string;
+    epgChannels:  number;
+    matched:      number;
+    suggestedUrl: string | null;
+  }>({ url: null, fetchStatus: 'idle', epgChannels: 0, matched: 0, suggestedUrl: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -101,8 +108,9 @@ export default function CatchupPage() {
       if (!cancelled && list.length > 0) setChannels(list);
 
       const epgUrl = getUserEpgUrl();
+      const suggestedUrl = getInferredEpgUrl();
       if (!epgUrl) {
-        setEpgDiag({ url: null, fetchStatus: 'idle', epgChannels: 0, matched: 0 });
+        setEpgDiag({ url: null, fetchStatus: 'idle', epgChannels: 0, matched: 0, suggestedUrl });
         return;
       }
 
@@ -123,11 +131,12 @@ export default function CatchupPage() {
         : 0;
 
       setEpgDiag({
-        url:         epgUrl,
-        fetchStatus: idx == null ? 'fail' : 'ok',
-        fetchError:  idx == null ? 'fetch or parse failed (see network tab)' : undefined,
-        epgChannels: epgChannelCount,
+        url:          epgUrl,
+        fetchStatus:  idx == null ? 'fail' : 'ok',
+        fetchError:   idx == null ? 'fetch or parse failed (see network tab)' : undefined,
+        epgChannels:  epgChannelCount,
         matched,
+        suggestedUrl: suggestedUrl && suggestedUrl !== epgUrl ? suggestedUrl : null,
       });
 
       if (idx && idx.byId.size > 0) { setEpgIndex(idx); setEpgState('ready'); }
@@ -551,16 +560,52 @@ const tileCatStyle: React.CSSProperties = {
 // EPG status banner. Renders nothing in the happy path, a coloured
 // strip otherwise so the user immediately sees WHY there are no
 // programmes — instead of staring at an empty grid.
+//
+// When the M3U itself declared a url-tvg attribute (almost every
+// commercial provider does) and the user's currently-configured EPG
+// fails to match anything, we surface a one-click affordance to
+// switch to the playlist-provided EPG. That's the single most
+// common root cause of "0 matched" — user picked a generic EPG
+// from a public list, the IDs don't line up.
+function applySuggestedEpg(suggested: string) {
+  if (typeof window === 'undefined') return;
+  if (!confirm(
+    `Replace your current EPG with the one your playlist references?\n\n${maskSourceUrl(suggested)}\n\nAfter the swap, reload /tv/catchup to see programmes.`,
+  )) return;
+  try {
+    const key = userKey('sources.epg');
+    const raw = localStorage.getItem(key);
+    type SourceLite = { id: string; kind: string; title: string; sub: string; stat: string };
+    let list: SourceLite[] = [];
+    try { if (raw) list = JSON.parse(raw); } catch { /* corrupt — start fresh */ }
+    list = list.map((s) => ({ ...s, sub: suggested, title: 'Provider EPG (auto-detected)', stat: 'from M3U url-tvg' }));
+    if (list.length === 0) {
+      list = [{
+        id:    `epg-${Date.now()}`,
+        kind:  'XML',
+        title: 'Provider EPG (auto-detected)',
+        sub:   suggested,
+        stat:  'from M3U url-tvg',
+      }];
+    }
+    localStorage.setItem(key, JSON.stringify(list));
+    window.location.reload();
+  } catch {
+    alert('Could not save the new EPG URL.');
+  }
+}
+
 function EpgStatusBanner({
   diag,
   channelCount,
 }: {
   diag: {
-    url:         string | null;
-    fetchStatus: 'idle' | 'loading' | 'ok' | 'fail';
-    fetchError?: string;
-    epgChannels: number;
-    matched:     number;
+    url:          string | null;
+    fetchStatus:  'idle' | 'loading' | 'ok' | 'fail';
+    fetchError?:  string;
+    epgChannels:  number;
+    matched:      number;
+    suggestedUrl: string | null;
   };
   channelCount: number;
 }) {
@@ -569,9 +614,19 @@ function EpgStatusBanner({
       <div style={epgBannerStyle('mut')}>
         <strong>No programme guide configured.</strong>{' '}
         Catch-up needs an XMLTV EPG to know what aired and when.{' '}
-        <Link href="/tv/account/sources?tab=epg" style={{ color: '#FF3B6E' }}>
-          Add one →
-        </Link>
+        {diag.suggestedUrl ? (
+          <>
+            Your playlist points at{' '}
+            <code style={epgUrlStyle}>{maskSourceUrl(diag.suggestedUrl)}</code>.{' '}
+            <button type="button" onClick={() => applySuggestedEpg(diag.suggestedUrl!)} style={epgButtonStyle}>
+              Use this EPG →
+            </button>
+          </>
+        ) : (
+          <Link href="/tv/account/sources?tab=epg" style={{ color: '#FF3B6E' }}>
+            Add one →
+          </Link>
+        )}
       </div>
     );
   }
@@ -589,6 +644,17 @@ function EpgStatusBanner({
         URL: <code style={epgUrlStyle}>{maskSourceUrl(diag.url || '')}</code>
         {' · '}
         <Link href="/tv/account/sources?tab=epg" style={{ color: '#FF3B6E' }}>Edit URL →</Link>
+        {diag.suggestedUrl && (
+          <>
+            <br />
+            Your playlist points at{' '}
+            <code style={epgUrlStyle}>{maskSourceUrl(diag.suggestedUrl)}</code>{' '}
+            instead.{' '}
+            <button type="button" onClick={() => applySuggestedEpg(diag.suggestedUrl!)} style={epgButtonStyle}>
+              Switch to this EPG →
+            </button>
+          </>
+        )}
       </div>
     );
   }
@@ -607,9 +673,19 @@ function EpgStatusBanner({
         <strong>EPG has {diag.epgChannels.toLocaleString()} channels, but none match your M3U.</strong>{' '}
         Programmes can&apos;t attach because the <code>tvg-id</code> values in your playlist
         don&apos;t line up with the <code>&lt;channel id&gt;</code> values in this EPG.
-        {' · '}
-        Try a different EPG that matches your provider, or ask the provider for a guide
-        with the matching IDs.
+        {diag.suggestedUrl ? (
+          <>
+            <br />
+            Your playlist itself references{' '}
+            <code style={epgUrlStyle}>{maskSourceUrl(diag.suggestedUrl)}</code>{' '}
+            as its matching EPG.{' '}
+            <button type="button" onClick={() => applySuggestedEpg(diag.suggestedUrl!)} style={epgButtonStyle}>
+              Switch to this EPG →
+            </button>
+          </>
+        ) : (
+          <> · Try a different EPG, or ask your provider for one with matching IDs.</>
+        )}
       </div>
     );
   }
@@ -650,6 +726,16 @@ const epgUrlStyle: React.CSSProperties = {
   padding: '1px 5px', borderRadius: 4,
   background: 'rgba(255,255,255,0.06)',
   color: '#E9EBF1',
+};
+const epgButtonStyle: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center',
+  padding: '4px 10px', marginInlineStart: 4,
+  fontSize: 12, fontWeight: 700,
+  background: 'rgba(255,59,110,0.18)',
+  color: '#FF3B6E',
+  border: '1px solid rgba(255,59,110,0.40)',
+  borderRadius: 999, cursor: 'pointer',
+  fontFamily: 'inherit',
 };
 
 const searchStyle: React.CSSProperties = {

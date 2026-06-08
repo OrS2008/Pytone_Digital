@@ -18,7 +18,7 @@
 // the same browser still see two completely separate lists.
 
 import type { M3UChannel } from './m3u';
-import { parseM3U } from './m3u';
+import { extractM3UUrlTvg, parseM3U } from './m3u';
 import { userKey } from './session';
 
 interface StoredSource { id: string; kind: string; title: string; sub: string; stat: string }
@@ -27,6 +27,10 @@ interface CacheEntry {
   url:         string;          // the M3U URL we parsed
   fetchedAt:   number;
   channels:    M3UChannel[];
+  /** EPG URL the playlist itself referenced via `#EXTM3U url-tvg="…"`,
+   *  if any. Surfaced so the EPG diagnostic banner can suggest it
+   *  when the user-configured EPG doesn't match. */
+  inferredEpgUrl?: string | null;
 }
 
 const MAX_AGE_MS = 30 * 60_000;
@@ -164,10 +168,20 @@ async function fetchAndParse(url: string): Promise<LoadResult> {
       error: 'Playlist contained no channels. The file may be empty or use a non-standard format.',
     };
   }
-  const entry: CacheEntry = { url, fetchedAt: Date.now(), channels };
+  const inferredEpgUrl = extractM3UUrlTvg(text);
+  const entry: CacheEntry = { url, fetchedAt: Date.now(), channels, inferredEpgUrl };
   MEM.set(memKey(), entry);
   writeSessionCache(entry);
   return { channels };
+}
+
+// Returns the EPG URL the user's M3U declared on its #EXTM3U header,
+// if any. Read from the in-memory cache so it's cheap; null when the
+// playlist hasn't been parsed yet on this page, when no header
+// attribute was present, or when the value isn't a usable http(s) URL.
+export function getInferredEpgUrl(): string | null {
+  const entry = MEM.get(memKey());
+  return entry?.inferredEpgUrl ?? null;
 }
 
 // Loads channels for the currently-configured live source. Returns a
