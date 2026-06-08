@@ -12,7 +12,6 @@ import { proxiedStreamUrl, onStreamModeChange } from '@/lib/streamProxy';
  *     autoplay-with-sound; muted is universally allowed).
  *   - HLS via hls.js MSE on non-Safari, native <video> on Safari/iOS.
  *   - Picture-in-Picture toggle.
- *   - Chromecast button when the Cast SDK is available.
  *   - AI failover: a transient HLS fatal error triggers an automatic
  *     re-init with a longer buffer + conservative ABR before we give
  *     up and show the error card.
@@ -55,12 +54,6 @@ interface HlsCtor {
   ErrorTypes: { NETWORK_ERROR: string; MEDIA_ERROR: string };
 }
 
-declare global {
-  interface Window {
-    chrome?: { cast?: unknown };
-    __onGCastApiAvailable?: (ok: boolean) => void;
-  }
-}
 
 const RECONNECT_DELAYS_MS = [800, 2400, 6000]; // 3 retries, expanding backoff.
 
@@ -70,7 +63,6 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(!startUnmuted);
   const [pipActive, setPipActive] = useState(false);
-  const [castReady, setCastReady] = useState(false);
   // Bumped whenever the user flips the Direct Streaming toggle. The
   // main stream-lifecycle effect depends on this, so the player
   // tears down and reattaches with the new mode — without it, the
@@ -248,20 +240,10 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     };
   }, [channel?.streamUrl, altsKey, autoPlay, modeVersion]);
 
-  // Load the Chromecast Sender library so we can offer a Cast button.
-  // Silent if the script can't load (network policy, ad blocker, etc.).
-  // Also subscribe to native PiP events on the <video> element through
-  // a regular DOM listener — React's onEnter/LeavePictureInPicture
-  // props aren't typed in the standard React typings.
+  // Subscribe to native PiP events on the <video> element through a
+  // regular DOM listener — React's onEnter/LeavePictureInPicture props
+  // aren't typed in the standard React typings.
   useEffect(() => {
-    if (window.chrome?.cast) { setCastReady(true); }
-    else {
-      window.__onGCastApiAvailable = (ok: boolean) => { if (ok) setCastReady(true); };
-      const s = document.createElement('script');
-      s.src = 'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1';
-      s.async = true;
-      document.head.appendChild(s);
-    }
     const v = videoRef.current;
     if (!v) return;
     const onEnter = () => setPipActive(true);
@@ -311,18 +293,6 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     } catch { /* user denied / unsupported */ }
   }
 
-  function startCast() {
-    // Minimal sender flow — the Cast framework will surface its own
-    // device picker. Once the user picks a target the page hands the
-    // URL off; from there the cast device handles playback itself.
-    const w = window as unknown as {
-      cast?: { framework?: { CastContext?: { getInstance: () => { requestSession: () => Promise<unknown> } } } };
-    };
-    const ctx = w.cast?.framework?.CastContext?.getInstance();
-    if (!ctx) return;
-    ctx.requestSession().catch(() => {/* user cancelled */});
-  }
-
   return (
     <div className="player-surface" onClick={onSurfaceClick}>
       {channel?.streamUrl ? (
@@ -353,14 +323,6 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
               title={pipActive ? 'Leave Picture-in-Picture' : 'Enter Picture-in-Picture'}
               aria-label="Picture in picture"
             >▭</button>
-            {castReady && (
-              <button
-                className="player-tool"
-                onClick={startCast}
-                title="Cast to a Chromecast"
-                aria-label="Cast"
-              >📺</button>
-            )}
           </div>
 
           {!playing && !err && (
