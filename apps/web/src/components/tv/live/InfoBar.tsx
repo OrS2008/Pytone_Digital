@@ -25,6 +25,12 @@ interface Props {
   onRestartProgramme?: () => void;
   /** True when the player is already in catch-up mode. */
   inCatchup?: boolean;
+  /**
+   * Current playback head in ms-since-epoch. Drives the programme
+   * progress bar so it tracks the user's scrubbing in real time. When
+   * undefined, the bar falls back to Date.now() (live edge).
+   */
+  playheadMs?: number;
 }
 
 /*
@@ -217,7 +223,10 @@ export default function InfoBar(p: Props) {
 
   if (!p.channel) return null;
   const ch = p.channel;
-  const progress = ch.now ? clamp01((Date.now() - ch.now.start.getTime()) / (ch.now.stop.getTime() - ch.now.start.getTime())) : 0;
+  // Use the user-supplied playhead so the progress bar tracks ← / →
+  // skip in real time. Falls back to Date.now() at the live edge.
+  const head = p.playheadMs ?? Date.now();
+  const progress = ch.now ? clamp01((head - ch.now.start.getTime()) / (ch.now.stop.getTime() - ch.now.start.getTime())) : 0;
   const canRestart = !!ch.now && (!!ch.catchupSource || !!ch.catchupKind);
 
   return (

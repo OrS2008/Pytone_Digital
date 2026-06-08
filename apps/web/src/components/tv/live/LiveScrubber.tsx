@@ -71,6 +71,7 @@ export default function LiveScrubber({
   maxRewindDays = 7,
   onSeek,
   onReturnLive,
+  onPreview,
   active = true,
 }: Props) {
   const [pendingMs, setPendingMs] = useState<number>(0);
@@ -118,10 +119,15 @@ export default function LiveScrubber({
       if (badgeTimer.current) clearTimeout(badgeTimer.current);
       badgeTimer.current = setTimeout(() => setBadge(null), BADGE_FADE_MS);
 
+      // Push the optimistic playhead up to the parent so the InfoBar
+      // progress slider tracks each keystroke immediately. The real
+      // catchupMs only changes after the debounced commit fires.
+      onPreview?.(next >= now - 15_000 ? null : next);
+
       scheduleCommit(next);
       return next;
     });
-  }, [maxRewindDays, scheduleCommit]);
+  }, [maxRewindDays, scheduleCommit, onPreview]);
 
   // Global key listener — never active while typing into an input.
   useEffect(() => {

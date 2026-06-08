@@ -112,6 +112,11 @@ export default function LivePage() {
   // timestamp instead of the live edge. Cleared when the user clicks
   // "Return to live" or picks a different channel from the rail.
   const [catchupMs, setCatchupMs] = useState<number>(initialDeep.startMs);
+  // Optimistic preview of the pending seek target during a ← / → skip
+  // burst. The actual catchupMs only updates after the LiveScrubber
+  // debounce; this preview keeps the InfoBar's progress slider tracking
+  // every keystroke immediately. Null when no scrub is in progress.
+  const [previewMs, setPreviewMs] = useState<number | null>(null);
   // Duration hint passed in the deeplink (?dur=X minutes). The live
   // page can't know past-programme durations from active.now (which
   // only covers the current live programme), so the catchup page bakes
@@ -315,27 +320,40 @@ export default function LivePage() {
     };
   }, [watching]);
 
-  // The 5-second auto-hide window is re-armed on every activity tick
-  // (mouse move, click, key press inside the player overlay) so the
-  // info bar surfaces whenever the user is actively interacting and
-  // melts away when they settle into watching.
-  const [activityTick, setActivityTick] = useState(0);
+  // The 5-second auto-hide window is re-armed imperatively on every
+  // activity tick (mouse move, click, key press inside the player
+  // overlay). We used to drive this via a useEffect with `activityTick`
+  // in the deps, but on the SECOND showing the cleanup+effect cycle
+  // could lose the timer when the mousemove batched with the previous
+  // hide — the bar then stayed visible forever. Managing the timer
+  // through a ref sidesteps all of that.
   const lastActivityRef = useRef(0);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const armHide = useCallback(() => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => setInfoVisible(false), 5000);
+  }, []);
   const wakeInfoBar = useCallback(() => {
     const now = Date.now();
-    // Throttle to once every 250 ms so a moving mouse doesn't cause a
-    // setState flood.
+    // Throttle to once every 250 ms so a moving mouse doesn't churn.
     if (now - lastActivityRef.current < 250) return;
     lastActivityRef.current = now;
     setInfoVisible(true);
-    setActivityTick((t) => t + 1);
-  }, []);
+    armHide();
+  }, [armHide]);
 
+  // Arm the hide on first mount (bar starts visible) and on every
+  // channel change (tune() sets visible=true and we want a fresh 5 s).
   useEffect(() => {
-    if (!infoVisible) return;
-    const t = setTimeout(() => setInfoVisible(false), 5000);
-    return () => clearTimeout(t);
-  }, [infoVisible, activeIdx, activityTick]);
+    if (!infoVisible) {
+      if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+      return;
+    }
+    armHide();
+    return () => {
+      if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+    };
+  }, [infoVisible, activeIdx, armHide]);
 
   // Channel prefetch — warm the HLS manifest of the channels above and
   // below the current one so the next zap is closer to instant. Opt-in
@@ -601,8 +619,9 @@ export default function LivePage() {
               <LiveScrubber
                 catchupMs={catchupMs}
                 maxRewindDays={active.catchupDays ?? 7}
-                onSeek={(ms) => setCatchupMs(ms)}
-                onReturnLive={() => setCatchupMs(0)}
+                onSeek={(ms) => { setCatchupMs(ms); setPreviewMs(null); }}
+                onReturnLive={() => { setCatchupMs(0); setPreviewMs(null); }}
+                onPreview={(ms) => setPreviewMs(ms)}
                 active={watching}
                 infoBarVisible={infoVisible}
               />
@@ -621,6 +640,7 @@ export default function LivePage() {
               activeIdx={activeIdx}
               channels={channels}
               inCatchup={catchupMs > 0}
+              playheadMs={previewMs ?? (catchupMs > 0 ? catchupMs : Date.now())}
               onReturnLive={() => setCatchupMs(0)}
               onRestartProgramme={() => {
                 if (active?.now) setCatchupMs(active.now.start.getTime());
