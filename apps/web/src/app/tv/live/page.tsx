@@ -68,6 +68,21 @@ type LoadState =
   | { kind: 'mock' }
   | { kind: 'error'; message: string; url: string };
 
+// Defensive: callers should send `?start=` in milliseconds, but a
+// historical bug used to ship the value in seconds. Anything that looks
+// like a unix-second timestamp (year 2001 – year 2099 worth of seconds,
+// 10-digit range) gets multiplied by 1000 so the downstream catch-up
+// builder doesn't divide twice and land in 1970. Real ms values are at
+// least 13 digits (~1e12) and stay untouched.
+function normaliseEpoch(raw: number): number {
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  // 1_000_000_000 sec = 2001-09-09, 4_000_000_000 sec = 2096. Outside
+  // that range we assume it's already milliseconds (or junk we leave
+  // for the date constructor to reject).
+  if (raw >= 1_000_000_000 && raw < 10_000_000_000) return raw * 1000;
+  return raw;
+}
+
 export default function LivePage() {
   // Synchronous hydration: if the cache already has the user's
   // playlist from a previous visit / route, use it instantly.
@@ -81,7 +96,7 @@ export default function LivePage() {
     if (typeof window === 'undefined') return { idx: 0, watch: false, startMs: 0, durMin: 0 };
     const params = new URLSearchParams(window.location.search);
     const want = params.get('ch');
-    const startMs = Number(params.get('start')) || 0;
+    const startMs = normaliseEpoch(Number(params.get('start')) || 0);
     const durMin  = Number(params.get('dur'))   || 0;
     // ?preview=1 means "tune this channel but stay in the small
     // preview" — Search uses this so a click on a result doesn't
@@ -143,7 +158,7 @@ export default function LivePage() {
   // soon as the first paint finishes — before the user sees anything.
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
-    const ms  = Number(p.get('start')) || 0;
+    const ms  = normaliseEpoch(Number(p.get('start')) || 0);
     const dur = Number(p.get('dur'))   || 0;
     if (ms  > 0) setCatchupMs(ms);
     if (dur > 0) setCatchupDurMin(dur);
