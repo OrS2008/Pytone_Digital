@@ -32,8 +32,10 @@ import TvNav from '@/components/tv/TvNav';
 import { TvFocusProvider } from '@/components/tv/TvFocus';
 import { getCachedChannels, loadChannels } from '@/lib/channelCache';
 import { loadEpgIndex, getUserEpgUrl, programmesFor, type EpgIndex } from '@/lib/epgCache';
+import { loadDigest } from '@/lib/digestClient';
 import type { EpgProgramme } from '@/lib/epg';
 import type { M3UChannel } from '@/lib/m3u';
+import type { DigestChannel } from '@/lib/digest';
 
 const PX_PER_MIN = 4;
 const PX_PER_HOUR = PX_PER_MIN * 60;
@@ -72,11 +74,32 @@ interface RowData {
   programmes: EpgProgramme[];
 }
 
+// The digest endpoint hands us programmes as a compact {s, e, t}
+// triple. Inflate to EpgProgramme so the row component doesn't need to
+// know which path the data came from.
+function digestToRowData(digestChannels: DigestChannel[]): RowData[] {
+  const out: RowData[] = [];
+  for (const ch of digestChannels) {
+    if (ch.programmes.length === 0) continue;
+    const programmes: EpgProgramme[] = ch.programmes.map((p) => ({
+      channelId: ch.tvgId || ch.id,
+      start: p.s,
+      stop:  p.e,
+      title: p.t,
+      description: p.d,
+      catchupId: p.c,
+    }));
+    out.push({ channel: ch, programmes });
+  }
+  return out;
+}
+
 export default function GuidePage() {
   const [channels, setChannels] = useState<M3UChannel[]>(
     (typeof window !== 'undefined' ? getCachedChannels() : null) ?? [],
   );
   const [epgIndex, setEpgIndex] = useState<EpgIndex | null>(null);
+  const [digestRows, setDigestRows] = useState<RowData[] | null>(null);
   const [epgState, setEpgState] = useState<'idle' | 'loading' | 'ready' | 'none'>(
     typeof window !== 'undefined' && getUserEpgUrl() ? 'idle' : 'none',
   );
@@ -92,15 +115,31 @@ export default function GuidePage() {
     return () => clearInterval(t);
   }, []);
 
-  // Load channels + EPG on mount. Both have their own caches so this
-  // is effectively free on subsequent visits.
+  // Load channels + EPG on mount. We try the pre-matched server digest
+  // first (one round-trip, KV-cached, no client-side parsing) and fall
+  // back to the legacy two-fetch flow if the digest endpoint is
+  // unavailable or returns an error — that way a deploy that hasn't
+  // shipped the digest endpoint yet still gets a working guide.
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setEpgState('loading');
+      const { digest, source } = await loadDigest();
+      if (cancelled) return;
+      if (digest && digest.channels.length > 0) {
+        setChannels(digest.channels);
+        const rows = digestToRowData(digest.channels);
+        setDigestRows(rows);
+        setEpgState(rows.length > 0 ? 'ready' : 'none');
+        return;
+      }
+      // Fallback path — same as the original flow.
       const list = await loadChannels();
       if (!cancelled && list.length > 0) setChannels(list);
-      if (!getUserEpgUrl()) { setEpgState('none'); return; }
-      setEpgState('loading');
+      if (!getUserEpgUrl()) {
+        setEpgState(source === 'unconfigured' ? 'none' : 'none');
+        return;
+      }
       const idx = await loadEpgIndex();
       if (cancelled) return;
       setEpgIndex(idx);
@@ -130,23 +169,38 @@ export default function GuidePage() {
   // Build per-channel programme lists for the selected day. We filter
   // here rather than in the row component so a fresh search query
   // doesn't re-walk the full EPG once per visible row.
+  //
+  // Two data sources merge into the same shape: the server digest
+  // (`digestRows` — already matched per channel) and the legacy
+  // client-side EPG index (`epgIndex` — re-matched on every render).
+  // Whichever loaded first wins.
   const rows = useMemo<RowData[]>(() => {
-    if (!epgIndex) return [];
     const needle = q.trim().toLowerCase();
+    const dayFilter = (progs: EpgProgramme[]) =>
+      progs.filter((p) => p.stop > dayStart && p.start < dayEnd);
+
+    if (digestRows) {
+      const out: RowData[] = [];
+      for (const r of digestRows) {
+        if (needle && !r.channel.name.toLowerCase().includes(needle)) continue;
+        const day = dayFilter(r.programmes);
+        if (day.length === 0) continue;
+        out.push({ channel: r.channel, programmes: day });
+      }
+      return out;
+    }
+    if (!epgIndex) return [];
     const out: RowData[] = [];
     for (const ch of channels) {
       if (needle && !ch.name.toLowerCase().includes(needle)) continue;
       const all = programmesFor(epgIndex, ch);
       if (all.length === 0) continue;
-      // Anything that overlaps the selected day shows up — a programme
-      // starting at 23:45 and ending at 00:30 appears on BOTH days,
-      // clipped on each side.
-      const day = all.filter((p) => p.stop > dayStart && p.start < dayEnd);
+      const day = dayFilter(all);
       if (day.length === 0) continue;
       out.push({ channel: ch, programmes: day });
     }
     return out;
-  }, [channels, epgIndex, q, dayStart, dayEnd]);
+  }, [channels, digestRows, epgIndex, q, dayStart, dayEnd]);
 
   const todayMs = startOfDay(now);
   const isToday = dayStart === todayMs;
