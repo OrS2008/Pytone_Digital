@@ -12,6 +12,7 @@ const ITEMS: { key: string; href: string }[] = [
   { key: 'nav.live',     href: '/tv/live' },
   { key: 'nav.sports',   href: '/tv/sports' },
   { key: 'nav.movies',   href: '/tv/vod' },
+  { key: 'nav.guide',    href: '/tv/guide' },
   { key: 'nav.catchup',  href: '/tv/catchup' },
   { key: 'nav.search',   href: '/tv/search' },
 ];

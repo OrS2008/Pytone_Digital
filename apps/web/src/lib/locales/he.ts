@@ -3,6 +3,7 @@ const he: Record<string, string> = {
   'nav.home':      'בית',
   'nav.sports':    'ספורט',
   'nav.movies':    'סרטים',
+  'nav.guide':     'מדריך תוכניות',
   'nav.catchup':   'צפייה חוזרת',
   'nav.search':    'חיפוש',
   'nav.account':   'חשבון',
