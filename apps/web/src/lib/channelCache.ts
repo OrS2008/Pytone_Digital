@@ -18,19 +18,15 @@
 // the same browser still see two completely separate lists.
 
 import type { M3UChannel } from './m3u';
-import { extractM3UUrlTvg, parseM3U } from './m3u';
+import { parseM3U } from './m3u';
 import { userKey } from './session';
 
 interface StoredSource { id: string; kind: string; title: string; sub: string; stat: string }
 
 interface CacheEntry {
-  url:         string;          // the M3U URL we parsed
-  fetchedAt:   number;
-  channels:    M3UChannel[];
-  /** EPG URL the playlist itself referenced via `#EXTM3U url-tvg="…"`,
-   *  if any. Surfaced so the EPG diagnostic banner can suggest it
-   *  when the user-configured EPG doesn't match. */
-  inferredEpgUrl?: string | null;
+  url:       string;          // the M3U URL we parsed
+  fetchedAt: number;
+  channels:  M3UChannel[];
 }
 
 const MAX_AGE_MS = 30 * 60_000;
@@ -168,120 +164,10 @@ async function fetchAndParse(url: string): Promise<LoadResult> {
       error: 'Playlist contained no channels. The file may be empty or use a non-standard format.',
     };
   }
-  const inferredEpgUrl = extractM3UUrlTvg(text);
-  const entry: CacheEntry = { url, fetchedAt: Date.now(), channels, inferredEpgUrl };
+  const entry: CacheEntry = { url, fetchedAt: Date.now(), channels };
   MEM.set(memKey(), entry);
   writeSessionCache(entry);
-  // Auto-configure the EPG source from the playlist's url-tvg
-  // attribute. Most users would never know to look for the right
-  // EPG URL otherwise — and the M3U header IS the right URL by
-  // definition (the provider declared it). We do this silently on
-  // every M3U fetch:
-  //   * sources.epg empty → add the url-tvg entry
-  //   * first entry already matches → no-op
-  //   * first entry differs    → replace it
-  // The user can still override manually in Sources → EPG; our
-  // replacement uses a distinct title ("Provider EPG (auto)") so
-  // they can spot it.
-  if (inferredEpgUrl) {
-    // Fire-and-forget — autoSyncEpgFromM3U awaits the initial
-    // syncDown internally before mutating sources.epg, so it can't
-    // race the server's GET on first mount.
-    void (async () => {
-      try { await autoSyncEpgFromM3U(inferredEpgUrl); }
-      catch { /* localStorage locked / sync unavailable — ignore */ }
-    })();
-  }
   return { channels };
-}
-
-interface AutoEpgSource { id: string; kind: string; title: string; sub: string; stat: string }
-
-// Only auto-fill the EPG when the user has NOT chosen one themselves.
-// The previous version prepended the playlist's url-tvg URL on every
-// fetch, which silently demoted a user-set entry and made
-// `loadEpgIndex` (which picks the first valid URL) read the auto URL
-// instead. Result: users who'd configured a working EPG saw "0
-// programmes match" after every refresh.
-//
-// Rule now: if the list contains ANY entry that wasn't put there by us
-// (id !== 'epg-auto-*'), the user is in charge — we don't touch it.
-// We also skip when our most recent auto entry already matches the
-// inferred URL, so a returning user doesn't churn their settings.
-async function autoSyncEpgFromM3U(inferred: string): Promise<void> {
-  if (typeof window === 'undefined') return;
-  // The boot-time syncDown writes the server's snapshot of
-  // localStorage. If we make our own write before it completes, the
-  // syncDown response will overwrite us with stale data. Wait for it
-  // first so the user's manual EPG (if any) is on disk when we check.
-  try {
-    const { awaitInitialSyncDown } = await import('./serverSync');
-    await awaitInitialSyncDown();
-  } catch { /* offline / module unavailable — proceed anyway */ }
-  const key = userKey('sources.epg');
-  let list: AutoEpgSource[] = [];
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw) {
-      try { list = JSON.parse(raw); } catch { list = []; }
-      if (!Array.isArray(list)) list = [];
-    }
-  } catch { /* locked storage */ }
-
-  // Anything with a real http(s) URL that we didn't put there is the
-  // user's deliberate choice. The user wins — but as a courtesy, we
-  // also evict any stale auto entries from a previous session so the
-  // Sources UI doesn't show two competing EPGs side-by-side.
-  const hasUserEntry = list.some((s) =>
-    s && typeof s.sub === 'string' && /^https?:\/\//i.test(s.sub) &&
-    !(s.id || '').startsWith('epg-auto-'),
-  );
-  if (hasUserEntry) {
-    const cleaned = list.filter((s) => !(s.id || '').startsWith('epg-auto-'));
-    if (cleaned.length !== list.length) {
-      try { localStorage.setItem(key, JSON.stringify(cleaned)); } catch { /* quota */ }
-      try { window.dispatchEvent(new Event('ns-settings-synced')); } catch { /* ignore */ }
-      void (async () => {
-        try {
-          const { syncUpNow } = await import('./serverSync');
-          await syncUpNow();
-        } catch { /* ignore */ }
-      })();
-    }
-    return;
-  }
-
-  // Same inferred URL still active? No-op so we don't churn settings.
-  if (list[0]?.sub === inferred && (list[0]?.id || '').startsWith('epg-auto-')) return;
-
-  const entry: AutoEpgSource = {
-    id:    `epg-auto-${Date.now()}`,
-    kind:  'XML',
-    title: 'Provider EPG (auto)',
-    sub:   inferred,
-    stat:  'auto-detected from playlist',
-  };
-  // Drop stale auto entries with a different URL, then prepend the
-  // new one. We never touch entries the user added themselves.
-  list = [entry, ...list.filter((s) => !(s.id || '').startsWith('epg-auto-'))];
-
-  try { localStorage.setItem(key, JSON.stringify(list)); } catch { /* quota */ }
-  try { window.dispatchEvent(new Event('ns-settings-synced')); } catch { /* ignore */ }
-  void (async () => {
-    try {
-      const { syncUpNow } = await import('./serverSync');
-      await syncUpNow();
-    } catch { /* offline / unavailable */ }
-  })();
-}
-
-// Returns the EPG URL the user's M3U declared on its #EXTM3U header,
-// if any. Read from the in-memory cache so it's cheap; null when the
-// playlist hasn't been parsed yet on this page, when no header
-// attribute was present, or when the value isn't a usable http(s) URL.
-export function getInferredEpgUrl(): string | null {
-  const entry = MEM.get(memKey());
-  return entry?.inferredEpgUrl ?? null;
 }
 
 // Loads channels for the currently-configured live source. Returns a
