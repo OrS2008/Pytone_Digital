@@ -67,12 +67,10 @@ export default function Signup() {
       }
       setSessionEmail(email);
       setActivated(true);
-      // Fire-and-forget activation email; account is usable immediately.
-      fetch('/api/email/activate', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email }),
-      }).catch(() => { /* delivery is best-effort */ });
+      // The verification email is sent by Firebase Authentication as
+      // part of /api/auth/signup — no separate /api/email/activate
+      // call needed here. Account is usable immediately during the
+      // 7-day trial; the email just confirms the address.
       window.location.href = '/tv';
       return;
     } catch (err) {

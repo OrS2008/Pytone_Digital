@@ -45,7 +45,7 @@ interface UsersPage { users: UserRow[]; cursor: string | null; listComplete: boo
 
 interface DiagInfo {
   bindings:   { NOVA_KV: boolean };
-  envVars:    { ADMIN_USERNAME: boolean; ADMIN_PASSWORD_HASH: boolean; ADMIN_SESSION_SECRET: boolean; BREVO_API_KEY: boolean };
+  envVars:    { ADMIN_USERNAME: boolean; ADMIN_PASSWORD_HASH: boolean; ADMIN_SESSION_SECRET: boolean; FIREBASE_API_KEY: boolean };
   app:        { version: string; commit: string | null };
 }
 
@@ -352,7 +352,7 @@ function SystemTab() {
         <DiagRow ok={diag?.envVars.ADMIN_USERNAME}      label="ADMIN_USERNAME"      hint="From wrangler.toml [vars]." />
         <DiagRow ok={diag?.envVars.ADMIN_PASSWORD_HASH} label="ADMIN_PASSWORD_HASH" hint="Secret · Cloudflare Pages dashboard." />
         <DiagRow ok={diag?.envVars.ADMIN_SESSION_SECRET}label="ADMIN_SESSION_SECRET"hint="Secret · Cloudflare Pages dashboard." />
-        <DiagRow ok={diag?.envVars.BREVO_API_KEY}       label="BREVO_API_KEY"       hint="Secret · used by /api/email/activate + /api/auth/forgot-password. Sender domain must be verified in Brevo." />
+        <DiagRow ok={diag?.envVars.FIREBASE_API_KEY}    label="FIREBASE_API_KEY"    hint="Web SDK key · used by /api/auth/signup, /login, /forgot-password. Configure email templates in Firebase Console → Authentication." />
       </section>
 
       <section className="adm-card">

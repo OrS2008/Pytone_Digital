@@ -3,30 +3,30 @@
 // Storage layout:
 //   user:<lowercased-email>  → JSON UserRecord
 //
-// Email is the primary key because every auth flow (signup, login,
-// password reset) starts from "the user typed an email". Storing under
-// the email avoids a second index and keeps the auth code trivial.
-// The internal userId is the partition for settings and history blobs
-// so renaming/changing email later doesn't require migrating data.
+// Email is the primary lookup key because every auth flow starts from
+// "the user typed an email". The internal userId is the Firebase UID
+// (since the Firebase migration) and is the partition key for settings,
+// history, and recordings blobs.
+//
+// Password hashing used to live here too; with Firebase Authentication
+// taking over the password store, `passwordHash` is now optional and
+// only present on legacy records that haven't been migrated to Firebase
+// yet. Login goes through Firebase directly; this module never verifies
+// passwords any more.
 
 import type { KVNamespace } from '../cfEnv';
-import { hashPassword, randomId, verifyPassword } from './password';
 
 export interface UserRecord {
-  userId:        string;
+  userId:        string;       // Firebase UID for new users; legacy random id otherwise.
   email:         string;       // lowercased + trimmed
-  passwordHash:  string;       // pbkdf2$... format from auth/password
+  /** Legacy pbkdf2 hash. Present only on accounts created before the
+   *  Firebase Auth migration. Login does NOT consult this any more —
+   *  Firebase is the source of truth — but we keep the field so a
+   *  one-shot login-time migration can read it. */
+  passwordHash?: string;
   createdAt:     number;
   lastLoginAt?:  number;
   // Trial / subscription enforcement.
-  //   trialStartedAt — stamped at createUser(); the 7-day clock runs
-  //     from this and is the authoritative source for "is the trial
-  //     still active" (the client-side localStorage value used to be
-  //     authoritative but trivially lied about). Defaults to
-  //     createdAt for users that pre-date this field.
-  //   subscribedUntil — non-zero when a paid subscription has been
-  //     verified by the billing webhook. Either of trial or
-  //     subscription being valid grants access.
   trialStartedAt?:  number;
   subscribedUntil?: number;
 }
@@ -42,13 +42,19 @@ export async function findUserByEmail(kv: KVNamespace, email: string): Promise<U
   try { return JSON.parse(raw) as UserRecord; } catch { return null; }
 }
 
-export async function createUser(kv: KVNamespace, email: string, password: string): Promise<UserRecord> {
-  const passwordHash = await hashPassword(password);
+// Create a KV record for a user that lives in Firebase Auth. The
+// caller (signup route) has already created the Firebase Auth user
+// and hands us the UID. We mirror just enough to drive trial /
+// subscription state and the join key for settings.
+export async function createUserFromFirebase(
+  kv: KVNamespace,
+  firebaseUid: string,
+  email: string,
+): Promise<UserRecord> {
   const now = Date.now();
   const record: UserRecord = {
-    userId:    randomId(),
-    email:     normaliseEmail(email),
-    passwordHash,
+    userId:         firebaseUid,
+    email:          normaliseEmail(email),
     createdAt:      now,
     trialStartedAt: now,
   };
@@ -86,13 +92,11 @@ export function accessState(user: UserRecord, now: number = Date.now()): AccessS
   return { status, trialEndsAt, subscribedUntil: subbedUntil, daysLeft };
 }
 
-export async function loginUser(kv: KVNamespace, email: string, password: string): Promise<UserRecord | null> {
-  const user = await findUserByEmail(kv, email);
-  if (!user) return null;
-  const ok = await verifyPassword(password, user.passwordHash);
-  if (!ok) return null;
+// Record a successful login. Called from the login route AFTER
+// Firebase has accepted the credentials.
+export async function touchLastLogin(kv: KVNamespace, user: UserRecord): Promise<void> {
   user.lastLoginAt = Date.now();
-  // Best-effort timestamp update — failures here don't block login.
-  try { await kv.put(userKey(email), JSON.stringify(user)); } catch { /* ignore */ }
-  return user;
+  try { await kv.put(userKey(user.email), JSON.stringify(user)); }
+  catch { /* best-effort; don't block login */ }
 }
+

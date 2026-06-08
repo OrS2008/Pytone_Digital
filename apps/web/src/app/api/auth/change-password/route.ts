@@ -1,21 +1,22 @@
 // POST /api/auth/change-password
 //
-// Authenticated. Verifies the user's current password against the
-// stored hash, then writes a fresh PBKDF2 hash for the new password.
-// The session cookie stays valid — the user does not get signed out
-// from the current device after a password change, only from any
-// other device the next time they hit auth (since their hash
-// no longer matches).
+// Authenticated. Verifies the user's current password against Firebase
+// Authentication (the source of truth for credentials), then updates
+// the Firebase Auth password. Our KV record holds no hash any more.
 //
 // Body:   { currentPassword: string, newPassword: string }
-// Errors: 400 bad request, 401 not signed in, 403 current pwd wrong,
-//         422 weak new password, 503 NOVA_KV missing.
+// Errors: 400 bad request, 401 not signed in / wrong current password,
+//         422 weak new password, 503 KV / Firebase not configured.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireKV } from '@/lib/cfEnv';
 import { readSession, readSessionCookie } from '@/lib/auth/serverSession';
-import { findUserByEmail } from '@/lib/auth/users';
-import { hashPassword, verifyPassword } from '@/lib/auth/password';
+import {
+  firebaseSignin,
+  firebaseChangePassword,
+  FirebaseAuthError,
+  FirebaseNotConfiguredError,
+} from '@/lib/firebaseAuth';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -38,14 +39,32 @@ export async function POST(req: NextRequest) {
   if (next.length < 8)     return NextResponse.json({ error: 'weak_password' }, { status: 422 });
   if (next === current)    return NextResponse.json({ error: 'same_password' }, { status: 422 });
 
-  const user = await findUserByEmail(kv, session.email);
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  // Re-authenticate first — that returns a fresh idToken we can use to
+  // authorise the password update. Doing a full signin (rather than
+  // exchanging the refresh token) is cheap and avoids us storing the
+  // refresh token at all.
+  let idToken: string;
+  try {
+    const fb = await firebaseSignin(session.email, current);
+    idToken = fb.idToken;
+  } catch (e) {
+    if (e instanceof FirebaseNotConfiguredError) {
+      return NextResponse.json({ error: 'auth_unconfigured' }, { status: 503 });
+    }
+    if (e instanceof FirebaseAuthError) {
+      return NextResponse.json({ error: 'wrong_password' }, { status: 401 });
+    }
+    throw e;
+  }
 
-  const ok = await verifyPassword(current, user.passwordHash);
-  if (!ok) return NextResponse.json({ error: 'wrong_password' }, { status: 403 });
-
-  user.passwordHash = await hashPassword(next);
-  await kv.put(`user:${user.email}`, JSON.stringify(user));
+  try {
+    await firebaseChangePassword(idToken, next);
+  } catch (e) {
+    if (e instanceof FirebaseAuthError && /WEAK_PASSWORD/.test(e.code)) {
+      return NextResponse.json({ error: 'weak_password' }, { status: 422 });
+    }
+    throw e;
+  }
 
   return NextResponse.json({ ok: true, changedAt: new Date().toISOString() });
 }

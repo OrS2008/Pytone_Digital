@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
       ADMIN_USERNAME:       !!process.env.ADMIN_USERNAME,
       ADMIN_PASSWORD_HASH:  !!process.env.ADMIN_PASSWORD_HASH,
       ADMIN_SESSION_SECRET: !!process.env.ADMIN_SESSION_SECRET && process.env.ADMIN_SESSION_SECRET.length >= 32,
-      BREVO_API_KEY:        !!process.env.BREVO_API_KEY,
+      FIREBASE_API_KEY:     !!process.env.FIREBASE_API_KEY,
     },
     app: {
       version: '1.0.0',

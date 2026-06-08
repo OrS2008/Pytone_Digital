@@ -2,12 +2,13 @@
 
 // Forgot-password — step 1 of the email-driven password reset.
 //
-// Posts to /api/auth/forgot-password which generates a 30-minute reset
-// token, stores it in KV, and emails the link via Brevo. The page
-// always shows the "Check your inbox" confirmation regardless of
-// whether the email exists in our database, so a curious visitor
-// can't use this form to enumerate registered emails. The server
-// returns the same body shape in both cases.
+// Posts to /api/auth/forgot-password which asks Firebase Authentication
+// to email a reset link (Firebase hosts the page where the user picks
+// a new password). The page always shows the "Check your inbox"
+// confirmation regardless of whether the email exists in our
+// database, so a curious visitor can't use this form to enumerate
+// registered emails. The server returns the same body shape in both
+// cases.
 
 import { useState } from 'react';
 import Link from 'next/link';

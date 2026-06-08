@@ -3,21 +3,20 @@ compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = ".vercel/output/static"
 
-# Email sending — Brevo's HTTPS transactional API. Only the sender
-# identity lives in plaintext here; the actual BREVO_API_KEY is a
-# Secret added through the Cloudflare Pages dashboard
-# (Settings → Variables and Secrets → "+ Add" → Type = Secret).
+# Firebase Authentication — Firebase is the source of truth for
+# email/password auth (signup, login, password reset, email
+# verification) AND is what delivers the verification + reset emails.
+# Configured in the Firebase Console for project `nova-stream-4ee03`.
 #
-# Sender is currently a verified Single Sender in the Brevo console
-# (Happytuta1@gmail.com). This is a stop-gap — gmail.com does not let
-# third parties sign on its behalf, so messages will lack DKIM and
-# many recipients (especially other Gmail accounts) will see them as
-# spam or with a "via brevoapis.com" note. Once a real domain is
-# registered + DKIM/SPF/DMARC are set up in Brevo's "Senders & IP →
-# Domains" panel, switch BREVO_FROM_EMAIL here to noreply@<domain>.
+# The Web API key is safe in plaintext — Firebase designs it as a
+# public identifier. Sensitive operations require the user's own
+# idToken or oobCode (which Firebase issues), so a leaked API key on
+# its own grants nothing an attacker doesn't already have via the
+# user-facing Web SDK.
 [vars]
-BREVO_FROM_EMAIL = "Happytuta1@gmail.com"
-BREVO_FROM_NAME  = "Nova Stream"
+FIREBASE_API_KEY     = "AIzaSyDQnISrsyATFS5w7_fRMy-pSlRC741HIms"
+FIREBASE_AUTH_DOMAIN = "nova-stream-4ee03.firebaseapp.com"
+FIREBASE_PROJECT_ID  = "nova-stream-4ee03"
 
 # Admin panel identity. The password hash + session secret are stored
 # in the Cloudflare Pages dashboard as encrypted Secrets (not here)
