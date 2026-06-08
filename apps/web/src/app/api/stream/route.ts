@@ -61,12 +61,20 @@ function isAllowedCaller(req: NextRequest): boolean {
 type RewriteMode = 'proxy' | 'direct';
 
 function rewriteOne(absUrl: string, mode: RewriteMode): string {
-  // In direct mode we return the upstream URL verbatim so the browser
-  // fetches segments straight from the provider's CDN. In proxy mode
-  // we wrap so the segment also comes back through this route.
-  return mode === 'direct'
-    ? absUrl
-    : `/api/stream?url=${encodeURIComponent(absUrl)}`;
+  if (mode !== 'direct') return `/api/stream?url=${encodeURIComponent(absUrl)}`;
+  // Direct mode: segments + keys go to the provider's CDN, but NESTED
+  // manifests (variant playlists inside a master, audio rendition
+  // playlists) stay proxied so we can rewrite their inner segment URLs
+  // to absolute and add CORS. A master playlist points at variant
+  // .m3u8 files — if those came back without CORS, the browser would
+  // reject them and playback would die at adaptive-bitrate switch
+  // time. Segment files (.ts / .m4s / .mp4 / .vtt / .key) usually have
+  // CORS on a real IPTV CDN, which is the whole reason direct mode is
+  // a win.
+  if (/\.m3u8(\?|$)/i.test(absUrl)) {
+    return `/api/stream?url=${encodeURIComponent(absUrl)}&mode=direct`;
+  }
+  return absUrl;
 }
 
 // HLS archive-vs-live signature check.
@@ -97,9 +105,21 @@ function manifestLooksLikeArchive(text: string): boolean {
 function looksLikeArchiveRequest(upstreamUrl: URL, req: NextRequest): boolean {
   if (req.nextUrl.searchParams.get('expect') === 'archive') return true;
   const p = upstreamUrl.pathname;
+  // Flussonic-style archive paths — distinct from live, hard-404 on
+  // servers without DVR.
   if (/\/(?:index|archive)-\d+-\d+(\.m3u8|$)/i.test(p)) return true;
   if (/\/timeshift_(?:abs|rel)-\d+(\.m3u8|$)/i.test(p))  return true;
   if (/\/archive\.m3u8$/i.test(p) && upstreamUrl.searchParams.has('from')) return true;
+  // Xtream timeshift path — `/timeshift/USER/PASS/DUR/DATE/SID.m3u8`.
+  // A well-behaved Xtream panel returns 404 when timeshift is off; some
+  // forks accept the URL but return the live manifest. Guard it.
+  if (/\/timeshift\/[^/]+\/[^/]+\/\d+\/[^/]+\/\d+\.m3u8/i.test(p)) return true;
+  // Cloddy / Stalker convention — caller appended `utc=` (or `lutc=`)
+  // to the LIVE URL to mean "rewind to this time". Many panels ignore
+  // these params and silently serve live; that's the worst-offender
+  // silent-live case for ordinary IPTV reseller stacks.
+  if (upstreamUrl.searchParams.has('utc'))  return true;
+  if (upstreamUrl.searchParams.has('lutc')) return true;
   return false;
 }
 

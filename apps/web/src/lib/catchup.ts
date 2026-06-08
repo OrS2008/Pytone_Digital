@@ -68,7 +68,12 @@ function expandTemplate(template: string, req: CatchupRequest): string {
   const startMs = correctedStartMs(req);
   const start = new Date(startMs);
   const stop  = new Date(startMs + req.durationMin * 60_000);
-  const offset = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+  // Offset is a RELATIVE quantity — seconds elapsed between "now" and
+  // the programme start. Correction shifts both NOW and START by the
+  // same amount in the provider's frame, so applying it to offset
+  // double-counts the shift and breaks Flussonic timeshift_rel. Use
+  // the raw request start here, not the corrected one.
+  const offset = Math.max(0, Math.floor((Date.now() - req.startMs) / 1000));
   const utc    = Math.floor(startMs / 1000);
   const utcend = Math.floor(stop.getTime() / 1000);
   const Y = String(start.getUTCFullYear());
@@ -97,25 +102,19 @@ function expandTemplate(template: string, req: CatchupRequest): string {
     'catchup-id':  req.catchupId || '',
   };
 
-  // Replace placeholders. Supports three shapes from the pvr.iptvsimple
-  // spec:
+  // Replace placeholders. Supports the shapes pvr.iptvsimple uses:
   //   {name}          — bare token lookup
   //   ${name}         — dollar-prefixed alias used by older docs
-  //   {name:N}        — formatted: zero-pad numeric tokens to N digits,
-  //                     and for `offset` interpret N as a duration in
-  //                     SECONDS (used by Flussonic-style timeshift_rel).
+  //   {name:N}        — zero-pad numeric tokens to N digits.
+  //   {duration:N}    — duration in SECONDS, zero-padded to N digits.
+  // The `{offset:+N}` literal-N escape (Flussonic timeshift_rel
+  // convention) requires a leading `+` so it can't shadow the
+  // zero-padding form.
   return template.replace(/\$?\{([A-Za-z][\w-]*)(?::([+-]?\d+))?\}/g, (raw, key, spec) => {
-    // `{offset:N}` is overloaded in the spec: it sometimes means
-    // "offset, padded to N digits" and sometimes "literal N-second
-    // offset". We resolve as follows: if the placeholder is exactly
-    // `{offset:N}` with N a positive integer, treat N as a literal
-    // seconds-back-from-now offset (Flussonic timeshift_rel). For every
-    // other token, N is a zero-padding width.
-    if (key === 'offset' && spec) {
-      const n = Number(spec);
-      if (Number.isFinite(n) && n > 0 && spec === String(Math.floor(n))) {
-        return String(n);
-      }
+    if (key === 'offset' && spec && /^\+\d+$/.test(spec)) {
+      // `{offset:+90}` — literal 90-second offset for callers that
+      // want to bypass the computed value.
+      return spec.slice(1);
     }
     // `{duration:N}` — many providers want the duration in SECONDS
     // (not minutes) when an explicit width is requested.
@@ -128,7 +127,7 @@ function expandTemplate(template: string, req: CatchupRequest): string {
     if (!Object.prototype.hasOwnProperty.call(subs, key)) return raw;
     const value = subs[key];
     if (spec) {
-      const w = Number(spec);
+      const w = Number(spec.replace(/^\+/, ''));
       if (Number.isFinite(w) && w > 0) return value.padStart(w, '0');
     }
     return value;
@@ -206,7 +205,8 @@ function buildFlussonicCandidates(req: CatchupRequest, p: FlussonicParts): strin
   const durSec   = req.durationMin * 60;
   const utcEnd   = utcStart + durSec;
   const utcNow   = Math.floor(Date.now() / 1_000);
-  const offset   = Math.max(0, utcNow - utcStart);
+  // Offset stays relative to the raw request — see expandTemplate.
+  const offset   = Math.max(0, Math.floor((Date.now() - req.startMs) / 1_000));
 
   // Some Flussonic deployments serve the live stream behind a signed
   // /s/<token>/ prefix but expose the DVR archive at the un-signed

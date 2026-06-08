@@ -38,6 +38,25 @@ export function getStreamMode(): Mode {
 export function setStreamMode(mode: Mode) {
   if (typeof window === 'undefined') return;
   try { localStorage.setItem(fullKey(), JSON.stringify(mode)); } catch { /* ignore */ }
+  try { window.dispatchEvent(new Event('ns-stream-mode-changed')); } catch { /* ignore */ }
+}
+
+// Subscribe to live changes of the stream mode. PlayerSurface uses
+// this to force a re-attach when the user flips the toggle while
+// watching — without it the hls.js instance stays bound to the
+// previously-built URL and the toggle silently has no effect.
+export function onStreamModeChange(handler: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  const wrapped = () => handler();
+  const storage = (e: StorageEvent) => { if (e.key === fullKey()) handler(); };
+  window.addEventListener('ns-stream-mode-changed', wrapped);
+  window.addEventListener('ns-settings-synced', wrapped); // server sync may rewrite the key
+  window.addEventListener('storage', storage);            // cross-tab toggle
+  return () => {
+    window.removeEventListener('ns-stream-mode-changed', wrapped);
+    window.removeEventListener('ns-settings-synced', wrapped);
+    window.removeEventListener('storage', storage);
+  };
 }
 
 export function proxiedStreamUrl(upstream: string): string {

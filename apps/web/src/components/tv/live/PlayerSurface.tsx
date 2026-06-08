@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { Channel } from './types';
-import { proxiedStreamUrl } from '@/lib/streamProxy';
+import { proxiedStreamUrl, onStreamModeChange } from '@/lib/streamProxy';
 
 /*
  * The player surface.
@@ -71,6 +71,12 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
   const [muted, setMuted] = useState(!startUnmuted);
   const [pipActive, setPipActive] = useState(false);
   const [castReady, setCastReady] = useState(false);
+  // Bumped whenever the user flips the Direct Streaming toggle. The
+  // main stream-lifecycle effect depends on this, so the player
+  // tears down and reattaches with the new mode — without it, the
+  // toggle silently has no effect on the currently-playing channel.
+  const [modeVersion, setModeVersion] = useState(0);
+  useEffect(() => onStreamModeChange(() => setModeVersion((v) => v + 1)), []);
 
   // Stream lifecycle: attach hls.js / native HLS to the <video>,
   // wire the AI-failover hooks, clean up on channel change.
@@ -240,7 +246,7 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
       video.removeAttribute('src');
       video.load();
     };
-  }, [channel?.streamUrl, altsKey, autoPlay]);
+  }, [channel?.streamUrl, altsKey, autoPlay, modeVersion]);
 
   // Load the Chromecast Sender library so we can offer a Cast button.
   // Silent if the script can't load (network policy, ad blocker, etc.).

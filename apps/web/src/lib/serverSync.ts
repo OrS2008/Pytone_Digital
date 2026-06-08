@@ -97,6 +97,25 @@ function applyToLocalStorage(blob: Record<string, unknown>) {
   }
 }
 
+// Gate that resolves when the boot-time syncDown finishes. Anything
+// that mutates localStorage settings on mount (the M3U auto-EPG sync
+// is the textbook case) awaits this — otherwise the outbound PUT can
+// race the inbound GET and the GET wins, silently undoing the
+// mutation. Resolves even when syncDown fails, because the consumer
+// would otherwise wait forever for an anonymous / offline user.
+let _initialDone = false;
+let _initialResolvers: Array<() => void> = [];
+export function awaitInitialSyncDown(): Promise<void> {
+  if (_initialDone) return Promise.resolve();
+  return new Promise<void>((resolve) => { _initialResolvers.push(resolve); });
+}
+function markInitialDone() {
+  if (_initialDone) return;
+  _initialDone = true;
+  for (const r of _initialResolvers) r();
+  _initialResolvers = [];
+}
+
 export async function syncDown(): Promise<{ ok: boolean; applied: number }> {
   if (typeof window === 'undefined') return { ok: false, applied: 0 };
   try {
@@ -111,6 +130,7 @@ export async function syncDown(): Promise<{ ok: boolean; applied: number }> {
     window.dispatchEvent(new Event('ns-settings-synced'));
     return { ok: true, applied: Object.keys(blob).length };
   } catch { return { ok: false, applied: 0 }; }
+  finally { markInitialDone(); }
 }
 
 // Flush the current localStorage snapshot to the server immediately,

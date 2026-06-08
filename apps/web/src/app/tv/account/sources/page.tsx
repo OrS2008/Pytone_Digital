@@ -459,7 +459,15 @@ function StreamModeToggle({
       <input
         type="checkbox"
         checked={isDirect}
-        onChange={(e) => setMode(e.target.checked ? 'direct' : 'proxy')}
+        onChange={(e) => {
+          setMode(e.target.checked ? 'direct' : 'proxy');
+          // Notify any currently-mounted player so it can reattach
+          // with the new mode. Without this, the toggle silently has
+          // no effect until the user re-tunes — exactly the "doesn't
+          // work well" symptom.
+          try { window.dispatchEvent(new Event('ns-stream-mode-changed')); }
+          catch { /* ignore */ }
+        }}
         style={{ marginTop: 4, width: 18, height: 18, cursor: 'pointer' }}
       />
       <div style={{ flex: 1 }}>

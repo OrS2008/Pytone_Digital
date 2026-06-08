@@ -184,7 +184,13 @@ async function fetchAndParse(url: string): Promise<LoadResult> {
   // replacement uses a distinct title ("Provider EPG (auto)") so
   // they can spot it.
   if (inferredEpgUrl) {
-    try { autoSyncEpgFromM3U(inferredEpgUrl); } catch { /* localStorage locked — ignore */ }
+    // Fire-and-forget — autoSyncEpgFromM3U awaits the initial
+    // syncDown internally before mutating sources.epg, so it can't
+    // race the server's GET on first mount.
+    void (async () => {
+      try { await autoSyncEpgFromM3U(inferredEpgUrl); }
+      catch { /* localStorage locked / sync unavailable — ignore */ }
+    })();
   }
   return { channels };
 }
@@ -202,8 +208,16 @@ interface AutoEpgSource { id: string; kind: string; title: string; sub: string; 
 // (id !== 'epg-auto-*'), the user is in charge — we don't touch it.
 // We also skip when our most recent auto entry already matches the
 // inferred URL, so a returning user doesn't churn their settings.
-function autoSyncEpgFromM3U(inferred: string) {
+async function autoSyncEpgFromM3U(inferred: string): Promise<void> {
   if (typeof window === 'undefined') return;
+  // The boot-time syncDown writes the server's snapshot of
+  // localStorage. If we make our own write before it completes, the
+  // syncDown response will overwrite us with stale data. Wait for it
+  // first so the user's manual EPG (if any) is on disk when we check.
+  try {
+    const { awaitInitialSyncDown } = await import('./serverSync');
+    await awaitInitialSyncDown();
+  } catch { /* offline / module unavailable — proceed anyway */ }
   const key = userKey('sources.epg');
   let list: AutoEpgSource[] = [];
   try {
