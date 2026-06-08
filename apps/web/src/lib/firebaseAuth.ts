@@ -172,6 +172,21 @@ export interface RefreshResult {
   user_id:       string;
   project_id:    string;
 }
+// Validate a password-reset oobCode without consuming it. Returns
+// the email the code was issued for so the UI can confirm "we're
+// resetting the password for X" before asking the user to type the
+// new one.
+export async function firebaseVerifyPasswordResetCode(oobCode: string): Promise<{ email: string; requestType?: string }> {
+  return call<{ email: string; requestType?: string }>('accounts:resetPassword', { oobCode });
+}
+
+// Consume the oobCode + set the new password. Firebase returns only
+// the email — no tokens — so the caller has to follow up with a
+// signInWithPassword to create a session.
+export async function firebaseConfirmPasswordReset(oobCode: string, newPassword: string): Promise<{ email: string; requestType?: string }> {
+  return call<{ email: string; requestType?: string }>('accounts:resetPassword', { oobCode, newPassword });
+}
+
 export async function firebaseExchangeRefreshToken(refreshToken: string): Promise<RefreshResult> {
   const url = `https://securetoken.googleapis.com/v1/token?key=${encodeURIComponent(apiKey())}`;
   const body = new URLSearchParams({
