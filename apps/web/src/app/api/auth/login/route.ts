@@ -24,8 +24,10 @@ import { createSession, setSessionCookieHeader } from '@/lib/auth/serverSession'
 import {
   firebaseSignin,
   firebaseSignup,
+  firebaseLookupByIdToken,
   FirebaseAuthError,
   FirebaseNotConfiguredError,
+  type FirebaseUser,
 } from '@/lib/firebaseAuth';
 
 export const runtime = 'edge';
@@ -42,30 +44,22 @@ export async function POST(req: NextRequest) {
   const password = typeof body.password === 'string' ? body.password : '';
   if (!email || !password) return NextResponse.json({ error: 'bad_request' }, { status: 400 });
 
-  let firebaseUid: string;
+  let firebaseUser: FirebaseUser | null = null;
+  let migratedLegacy = false;
   try {
-    const fbUser = await firebaseSignin(email, password);
-    firebaseUid = fbUser.localId;
+    firebaseUser = await firebaseSignin(email, password);
   } catch (e) {
     if (e instanceof FirebaseNotConfiguredError) {
       return NextResponse.json({ error: 'auth_unconfigured' }, { status: 503 });
     }
     if (e instanceof FirebaseAuthError) {
-      // Legacy migration: this user signed up before the Firebase
-      // switchover so there's no Firebase Auth record yet. If the KV
-      // password hash verifies, mint a Firebase user for them now
-      // with the same password — subsequent logins flow straight
-      // through Firebase, transparent to the user.
+      // Legacy migration: user pre-dates Firebase Auth — if the KV
+      // hash still matches, mint them a Firebase user now.
       if (/EMAIL_NOT_FOUND/.test(e.code)) {
-        const migrated = await migrateLegacyToFirebase(kv, email, password);
-        if (migrated) {
-          firebaseUid = migrated;
-        } else {
-          return NextResponse.json({ error: 'invalid_credentials' }, { status: 401 });
-        }
+        const fb = await migrateLegacyToFirebase(kv, email, password);
+        if (fb) { firebaseUser = fb; migratedLegacy = true; }
+        else    { return NextResponse.json({ error: 'invalid_credentials' }, { status: 401 }); }
       } else {
-        // INVALID_PASSWORD, INVALID_EMAIL, USER_DISABLED, etc. all
-        // collapse to a single 401 so attackers can't enumerate.
         return NextResponse.json({ error: 'invalid_credentials' }, { status: 401 });
       }
     } else {
@@ -73,19 +67,35 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Email-verification gate. New signups must click the link Firebase
+  // emailed them before they can sign in. Legacy migrated users skip
+  // the gate — they were active in Nova Stream before the Firebase
+  // switchover, so the address is implicitly trusted.
+  let emailVerified = false;
+  try {
+    const info = await firebaseLookupByIdToken(firebaseUser!.idToken);
+    emailVerified = info?.emailVerified === true;
+  } catch { /* network glitch — fall through; KV-marked legacy still passes */ }
+
   // Look up — or lazily create — our KV record. A Firebase account
-  // can pre-exist us (someone signed up via Firebase Console, or via a
-  // future password-reset that fires before signup); in that case we
-  // mint a KV row so the trial clock starts.
+  // can pre-exist us; in that case we mint a KV row so the trial
+  // clock starts.
   let user = await findUserByEmail(kv, email);
   if (!user) {
-    user = await createUserFromFirebase(kv, firebaseUid, email);
-  } else if (user.userId !== firebaseUid) {
-    // Migration housekeeping: align the legacy random userId with the
-    // Firebase UID so settings/history blobs use a single partition
-    // going forward.
-    user = { ...user, userId: firebaseUid, passwordHash: undefined };
+    user = await createUserFromFirebase(kv, firebaseUser!.localId, email);
+    if (migratedLegacy) {
+      user.legacyMigrated = true;
+      await kv.put(`user:${email}`, JSON.stringify(user));
+    }
+  } else if (user.userId !== firebaseUser!.localId) {
+    // Align the legacy random userId with the Firebase UID so future
+    // settings/history blobs share one partition.
+    user = { ...user, userId: firebaseUser!.localId, passwordHash: undefined, legacyMigrated: true };
     await kv.put(`user:${email}`, JSON.stringify(user));
+  }
+
+  if (!emailVerified && !user.legacyMigrated) {
+    return NextResponse.json({ error: 'email_not_verified', email }, { status: 403 });
   }
 
   await touchLastLogin(kv, user);
@@ -103,26 +113,23 @@ export async function POST(req: NextRequest) {
   });
 }
 
-// Returns the new Firebase UID when the legacy password matches and
-// Firebase signup succeeded, null otherwise (caller treats null as
-// "invalid credentials" so the migration path can't be used to probe
-// existing emails).
+// Migrates a pre-Firebase KV user into Firebase Auth using the
+// password they just submitted. Returns the freshly-minted Firebase
+// user on success, null on any mismatch or race (caller treats null
+// as "invalid credentials" so the migration path can't be used to
+// probe existing emails).
 async function migrateLegacyToFirebase(
   kv: import('@/lib/cfEnv').KVNamespace,
   email: string,
   password: string,
-): Promise<string | null> {
+): Promise<FirebaseUser | null> {
   const user = await findUserByEmail(kv, email);
   if (!user || !user.passwordHash) return null;
   const ok = await verifyPassword(password, user.passwordHash);
   if (!ok) return null;
   try {
-    const fb = await firebaseSignup(email, password);
-    return fb.localId;
+    return await firebaseSignup(email, password);
   } catch (e) {
-    // If Firebase says the email already exists (race with another
-    // tab) just give up — the next login attempt will try signin
-    // first and succeed.
     if (e instanceof FirebaseAuthError && /EMAIL_EXISTS/.test(e.code)) return null;
     throw e;
   }

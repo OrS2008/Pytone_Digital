@@ -24,6 +24,11 @@ export interface UserRecord {
    *  Firebase is the source of truth — but we keep the field so a
    *  one-shot login-time migration can read it. */
   passwordHash?: string;
+  /** Set on accounts that pre-date the Firebase Auth migration. Their
+   *  email is implicitly trusted (they were using the app before the
+   *  switchover) so the login route bypasses the Firebase
+   *  `emailVerified` gate for them. New signups never have this flag. */
+  legacyMigrated?: boolean;
   createdAt:     number;
   lastLoginAt?:  number;
   // Trial / subscription enforcement.

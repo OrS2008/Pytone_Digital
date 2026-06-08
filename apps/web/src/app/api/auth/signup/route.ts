@@ -1,22 +1,22 @@
 // POST /api/auth/signup
 //
 // Body: { email, password }
-// Response: 201 + { ok: true, email, emailSent } and Set-Cookie: ns_session=...
+// Response: 201 + { ok: true, email, requiresVerification: true }
+//
+// We deliberately do NOT issue a session cookie here. The user has to
+// open the verification link in the email Firebase just sent them and
+// come back through /tv/login. Until then the login route refuses
+// their credentials with `email_not_verified`. This is the "no
+// access until the address is proven" gate.
+//
 // Errors:
 //   400 — missing / malformed fields
 //   409 — email already registered
-//   503 — NOVA_KV binding not configured
-//
-// Firebase Authentication is the password store and email transport. We
-// also keep a KV record per user keyed by the Firebase UID — that's
-// where the trial / subscription / profile data lives. The KV row is
-// effectively a join key between Firebase Auth and the rest of Nova
-// Stream (settings, history, recordings).
+//   503 — NOVA_KV / FIREBASE_API_KEY not configured
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireKV } from '@/lib/cfEnv';
 import { createUserFromFirebase, findUserByEmail, normaliseEmail } from '@/lib/auth/users';
-import { createSession, setSessionCookieHeader } from '@/lib/auth/serverSession';
 import {
   firebaseSignup,
   firebaseSendOobCode,
@@ -77,8 +77,9 @@ export async function POST(req: NextRequest) {
     const user = await createUserFromFirebase(kv, firebaseUser.localId, email);
 
     // Trigger Firebase to email the verification link. `continueUrl`
-    // points back to our /tv/login so the user lands on a familiar
-    // screen after clicking through the Firebase action page.
+    // points back to /tv/login so the user lands on the sign-in
+    // screen after clicking through the Firebase action page; the
+    // `?verified=1` flag lets the page show a confirmation toast.
     let emailSent = true;
     try {
       await firebaseSendOobCode({
@@ -91,20 +92,13 @@ export async function POST(req: NextRequest) {
       console.warn('[auth/signup] verification email send failed', String(e));
     }
 
-    // Sign the user in immediately — they can use the app during the
-    // trial window before they click the verification link.
-    const sid = await createSession(kv, user.userId, user.email, {
-      userAgent: req.headers.get('user-agent') ?? undefined,
-      ip:        req.headers.get('cf-connecting-ip') ?? req.headers.get('x-forwarded-for') ?? undefined,
-    });
-
-    return new NextResponse(JSON.stringify({ ok: true, email: user.email, emailSent }), {
-      status: 201,
-      headers: {
-        'content-type': 'application/json',
-        'set-cookie':   setSessionCookieHeader(sid),
-      },
-    });
+    // No session cookie here on purpose — the user must verify the
+    // email first. /tv/signup redirects to a "check your inbox" page
+    // and /tv/login refuses the account until the address is proven.
+    return NextResponse.json(
+      { ok: true, email: user.email, emailSent, requiresVerification: true },
+      { status: 201 },
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: 'signup_failed', detail: message }, { status: 500 });

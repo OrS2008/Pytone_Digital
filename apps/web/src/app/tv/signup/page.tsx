@@ -1,9 +1,10 @@
 'use client';
 
-// Sign-up screen. Email + password; account is usable immediately
-// (the optional activation email is fire-and-forget). The 7-day trial
-// starts at the moment of signup — see lib/auth/users.ts createUser
-// which stamps trialStartedAt on the KV record.
+// Sign-up screen. Email + password; account is created in Firebase
+// Auth but stays SIGNED OUT until the user clicks the verification
+// link Firebase sent them. On success we redirect to /tv/check-email
+// instead of /tv. Google sign-in still goes straight through because
+// Google asserts `email_verified=true`.
 
 import Link from 'next/link';
 import { useState } from 'react';
@@ -65,13 +66,12 @@ export default function Signup() {
         setSending(false);
         return;
       }
-      setSessionEmail(email);
-      setActivated(true);
-      // The verification email is sent by Firebase Authentication as
-      // part of /api/auth/signup — no separate /api/email/activate
-      // call needed here. Account is usable immediately during the
-      // 7-day trial; the email just confirms the address.
-      window.location.href = '/tv';
+      // The account exists in Firebase Auth but is not signed in yet —
+      // the user has to click the verification link Firebase emailed
+      // before /api/auth/login will let them through. Park them on the
+      // "check your inbox" page; the email is preserved so the resend
+      // button on that page knows who to resend to.
+      window.location.href = `/tv/check-email?email=${encodeURIComponent(email)}`;
       return;
     } catch (err) {
       setError(`Sign-up failed: ${(err as Error).message}`);
