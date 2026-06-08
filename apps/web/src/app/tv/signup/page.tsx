@@ -152,7 +152,7 @@ export default function Signup() {
           {error && <div className="ah-err">{error}</div>}
 
           <button type="submit" className="ah-btn" disabled={sending}>
-            {sending ? 'Creating account…' : 'Create account & start trial'}
+            {sending ? 'Creating account…' : 'Create account'}
           </button>
         </form>
 
