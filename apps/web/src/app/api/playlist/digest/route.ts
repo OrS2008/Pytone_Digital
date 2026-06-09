@@ -66,7 +66,10 @@ async function fetchText(u: URL, maxBytes: number, tryGunzip: boolean): Promise<
   let r: Response;
   try {
     r = await fetch(u.toString(), {
-      headers: { 'user-agent': 'Nova Stream/1.0', 'accept-encoding': 'gzip, deflate' },
+      headers: {
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+        'accept-encoding': 'gzip, deflate',
+      },
       redirect: 'follow',
       signal: ac.signal,
     });

@@ -544,6 +544,8 @@ export default function LivePage() {
                     error={catchupError}
                     onReturnLive={() => setCatchupMs(0)}
                     diagnostic={activeCatchupUrl}
+                    streamUrl={active?.streamUrl}
+                    durationMin={catchupDurMin}
                   />
                 )}
               </div>
@@ -628,6 +630,8 @@ export default function LivePage() {
                 onReturnLive={() => setCatchupMs(0)}
                 fullscreen
                 diagnostic={activeCatchupUrl}
+                streamUrl={active?.streamUrl}
+                durationMin={catchupDurMin}
               />
             )}
             {active && !catchupError && (
@@ -679,19 +683,62 @@ export default function LivePage() {
 //                silently is what tripped users up before.
 //   - success  → small pill at the top showing the replay timestamp
 //                and a one-tap Return-to-live shortcut.
+interface ProbeResult {
+  candidate:   string;
+  status:      number | null;
+  contentType: string | null;
+  bodyPreview: string | null;
+  isManifest:  boolean;
+  hasSegments: boolean | null;
+  isVod:       boolean;
+  error:       string | null;
+  durationMs:  number;
+}
+interface ProbeResponse {
+  results: ProbeResult[];
+  verdict: { firstArchive: string | null; candidatesSilentLive: string[]; allFailed: boolean };
+}
+
 function CatchupBanner({
   startMs,
   error,
   onReturnLive,
   fullscreen,
   diagnostic,
+  streamUrl,
+  durationMin,
 }: {
   startMs: number;
   error: string | null;
   onReturnLive: () => void;
   fullscreen?: boolean;
   diagnostic?: { idx: number; total: number; url: string } | null;
+  streamUrl?: string;
+  durationMin?: number;
 }) {
+  const [probing, setProbing] = useState(false);
+  const [probe,   setProbe]   = useState<ProbeResponse | null>(null);
+
+  async function runProbe() {
+    if (!streamUrl || !startMs) return;
+    setProbing(true); setProbe(null);
+    try {
+      const r = await fetch('/api/auth/catchup-probe', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          streamUrl,
+          startUnix:   Math.floor(startMs / 1000),
+          durationMin: durationMin || 60,
+        }),
+      });
+      const body = await r.json().catch(() => null) as ProbeResponse | null;
+      setProbe(body);
+    } catch { /* show no results */ }
+    finally { setProbing(false); }
+  }
+
   const when = new Date(startMs);
   const label =
     `${String(when.getDate()).padStart(2, '0')}/${String(when.getMonth() + 1).padStart(2, '0')} ` +
@@ -766,7 +813,61 @@ function CatchupBanner({
             >
               ← Back to catch-up
             </Link>
+            {streamUrl && (
+              <button
+                onClick={runProbe}
+                disabled={probing}
+                style={{
+                  background: 'rgba(108,80,255,0.18)',
+                  color: '#B9AAFF',
+                  border: '1px solid rgba(108,80,255,0.4)',
+                  borderRadius: 10,
+                  padding: '10px 20px',
+                  fontWeight: 700, fontSize: 14,
+                  cursor: probing ? 'default' : 'pointer',
+                }}
+              >
+                {probing ? 'Diagnosing…' : '🔍 Diagnose'}
+              </button>
+            )}
           </div>
+
+          {probe && (
+            <div style={{
+              marginTop: 18,
+              textAlign: 'left',
+              maxHeight: 320,
+              overflow: 'auto',
+              background: 'rgba(0,0,0,0.35)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 10,
+              padding: 12,
+              fontSize: 11,
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#E9EBF1', marginBottom: 8 }}>
+                {probe.verdict.firstArchive
+                  ? `✓ Archive found — ${probe.results.findIndex((r) => r.candidate === probe.verdict.firstArchive) + 1} of ${probe.results.length}`
+                  : probe.verdict.candidatesSilentLive.length
+                    ? '⚠ Provider returns LIVE for every archive URL — DVR isn\'t actually enabled for this channel.'
+                    : '✗ Every URL failed — provider doesn\'t respond to any known catch-up pattern.'}
+              </div>
+              {probe.results.map((r, i) => (
+                <div key={i} style={{
+                  padding: '4px 0',
+                  borderBottom: i === probe.results.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.04)',
+                  color: r.status === 200 && r.isVod ? '#7DF9C6'
+                       : r.status === 200            ? '#FFB020'
+                       :                                '#FF6B7B',
+                }}>
+                  <strong>{i + 1}. {r.status ?? r.error}</strong>
+                  {r.isVod && ' · VOD ✓'}
+                  {r.status === 200 && !r.isVod && ' · live (silent)'}
+                  <div style={{ color: '#8B95A7', wordBreak: 'break-all' }}>{r.candidate}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );

@@ -230,28 +230,35 @@ function buildFlussonicCandidates(req: CatchupRequest, p: FlussonicParts): strin
     `${p.base}/${p.stream}/index-${utcStart}-${durSec}.m3u8`,
     // 2. Same shape with the stream's own playlist basename
     `${p.base}/${p.stream}/${p.playlist.replace(/\.m3u8$/i, '')}-${utcStart}-${durSec}.m3u8`,
-    // 3. Absolute single-segment timeshift (some Flussonic builds)
-    `${p.base}/${p.stream}/timeshift_abs-${utcStart}.m3u8`,
-    // 4. "archive-" prefix variant — official Flussonic Media Server
+    // 3. "archive-" prefix variant — official Flussonic Media Server
     //    URL since v4+
     `${p.base}/${p.stream}/archive-${utcStart}-${durSec}.m3u8`,
-    // 5. Relative-offset timeshift — what IPTV apps default to when
+    // 4. "dvr-" prefix variant — seen on smaller Flussonic forks
+    `${p.base}/${p.stream}/dvr-${utcStart}-${durSec}.m3u8`,
+    // 5. Nested /dvr/ path — used when DVR storage is on a separate
+    //    mount than live
+    `${p.base}/${p.stream}/dvr/index-${utcStart}-${durSec}.m3u8`,
+    // 6. /dvr/<stream>/ root variant — same idea, different layout
+    `${p.base}/dvr/${p.stream}/index-${utcStart}-${durSec}.m3u8`,
+    // 7. Absolute single-segment timeshift (some Flussonic builds)
+    `${p.base}/${p.stream}/timeshift_abs-${utcStart}.m3u8`,
+    // 8. Relative-offset timeshift — what IPTV apps default to when
     //    the M3U declares catchup="flussonic" without a source
     //    template. Offset is seconds back from now.
     `${p.base}/${p.stream}/timeshift_rel-${offset}.m3u8`,
-    // 6. Archive endpoint with from/to query params. Distinct
+    // 9. Archive endpoint with from/to query params. Distinct
     //    filename from the live playlist (archive.m3u8 vs
     //    video.m3u8 / index.m3u8) so it 404s cleanly when the
     //    endpoint isn't configured rather than serving live.
     `${p.base}/${p.stream}/archive.m3u8?from=${utcStart}&to=${utcEnd}`,
-    // 7. Same as #1 / #4 but without the signed /s/<token>/ prefix,
-    //    for panels where archive is served from the un-signed path.
-    //    Skipped (deduped by collectAllCandidates) when there was no
-    //    signed prefix to strip.
+    // 10. Same as #1 / #3 but without the signed /s/<token>/ prefix,
+    //     for panels where archive is served from the un-signed path.
+    //     Skipped (deduped by collectAllCandidates) when there was no
+    //     signed prefix to strip.
     `${unsignedBase}/${p.stream}/index-${utcStart}-${durSec}.m3u8`,
     `${unsignedBase}/${p.stream}/archive-${utcStart}-${durSec}.m3u8`,
-    // 8. Cloddy / Stalker convention — utc/lutc on the live URL.
-    //    Last because it's the only candidate that CAN succeed on
+    // 11. Cloddy / Stalker convention — utc/lutc on the live URL.
+    //     Last because it's the only candidate that CAN succeed on
     //    the live endpoint, so a panel that ignores the params will
     //    silently play live instead of the archive. We accept the
     //    trade-off only after every DVR-specific path has stalled.
@@ -346,18 +353,35 @@ function collectAllCandidates(req: CatchupRequest): string[] {
   const candidates: string[] = [];
   const push = (u: string) => { if (u && !candidates.includes(u)) candidates.push(u); };
 
-  // 1. Xtream candidates for /USER/PASS/SID-shaped live URLs —
+  // 1. The M3U's own catchup-source template — IF it's clearly a
+  //    DVR-specific URL (not the live URL plus query params). The
+  //    provider configured this on purpose, so it's our best bet.
+  //    A "DVR-specific" template references a placeholder in the
+  //    PATH (e.g. `.../video-${start}-${duration}.m3u8`); templates
+  //    that only put placeholders in the query string get demoted
+  //    to last (they often silently serve live).
+  if (ch.catchupSource) {
+    const expanded = expandTemplate(ch.catchupSource, req);
+    if (/\$\{|\?/.test(ch.catchupSource)) {
+      const hasPathPlaceholder = /\/[^?]*\$?\{[A-Za-z]/.test(ch.catchupSource);
+      if (hasPathPlaceholder) push(expanded);
+    }
+  }
+
+  // 2. Xtream candidates for /USER/PASS/SID-shaped live URLs —
   //    timeshift lives under /timeshift/, distinct path from live.
   const xt = parseXtreamLiveUrl(ch.streamUrl);
   if (xt) for (const u of buildXtreamCandidates(req, xt)) push(u);
 
-  // 2. Flussonic / Wowza candidates for /STREAM/video.m3u8 shapes.
+  // 3. Flussonic / Wowza candidates for /STREAM/video.m3u8 shapes.
   //    Path-based DVR filenames — 404 on a non-DVR server, never
   //    masquerade as live.
   const fl = parseFlussonicLiveUrl(ch.streamUrl);
   if (fl) for (const u of buildFlussonicCandidates(req, fl)) push(u);
 
-  // 3. The M3U's own catchup-source template, if it provided one.
+  // 4. The M3U's catchup-source as last resort (query-string-only
+  //    templates land here — they may work but can silently serve
+  //    live; the silent-live guard in /api/stream catches that).
   //    Last because many providers ship a template that reuses the
   //    live URL with query params — backends like Flussonic ignore
   //    unknown params and silently serve live. Only reached when

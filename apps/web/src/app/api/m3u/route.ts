@@ -94,7 +94,11 @@ export async function GET(req: NextRequest) {
     const to = setTimeout(() => ac.abort(), TIMEOUT_MS);
     try {
       upstream = await fetch(u.toString(), {
-        headers: { 'user-agent': 'Nova Stream/1.0' },
+        headers: {
+          // Mimic a real browser — some IPTV reseller panels gate
+          // playlist downloads to known user-agents.
+          'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+        },
         redirect: 'follow',
         signal: ac.signal,
       });

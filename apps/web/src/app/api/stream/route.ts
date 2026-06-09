@@ -184,7 +184,15 @@ export async function GET(req: NextRequest) {
   // through the proxy without re-downloading from the start.
   const range = req.headers.get('range');
   const ifNoneMatch = req.headers.get('if-none-match');
-  const headers: Record<string, string> = { 'user-agent': 'Nova Stream/1.0' };
+  // Several IPTV providers serve archive content only to user-agents
+  // they recognise as a real player — TiViMate, IPTV Smarters, Mozilla.
+  // Sending a custom "Nova Stream/1.0" string makes us look like a
+  // bot. Mimic a recent Chrome on the request to the provider's
+  // servers; the response still flows back to whatever client opened
+  // /api/stream.
+  const headers: Record<string, string> = {
+    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+  };
   if (range)        headers['range'] = range;
   if (ifNoneMatch)  headers['if-none-match'] = ifNoneMatch;
 
