@@ -208,21 +208,21 @@ export default function LivePage() {
     return { ...active, streamUrl: built.url, streamUrlAlts: built.fallbacks };
   }, [active, catchupMs, catchupDurMin]);
 
-  // Sync the catch-up error message based on whether buildCatchupUrl
-  // actually produced a URL. The old check (catchupKind/catchupSource
-  // attributes only) was wrong now that we infer catch-up from the
-  // Xtream URL pattern even without explicit attributes — the message
-  // would show "no catch-up support" while we were silently playing
-  // the catchup URL anyway.
+  // When the catchup builder can't produce a real archive URL (no
+  // catchup attributes, unrecognised provider shape) we silently fall
+  // back to live instead of staring at an error modal. The user
+  // experience is "the past programme didn't open — we're showing
+  // live now" rather than a wall of red.
   useEffect(() => {
     if (!active || !catchupMs) { setCatchupError(null); return; }
     if (playable && playable.streamUrl !== active.streamUrl) {
-      setCatchupError(null);          // we built a real catchup URL
+      setCatchupError(null);          // a real catchup URL was built
     } else {
-      setCatchupError(
-        "This channel doesn't expose a catch-up archive we can read. " +
-        "Ask your provider for a playlist with catchup-source attributes.",
-      );
+      // No archive URL → clear the catchup request entirely so the
+      // player binds to the live edge and the "Replaying from X"
+      // banner disappears.
+      setCatchupError(null);
+      setCatchupMs(0);
     }
   }, [active, catchupMs, playable]);
 
@@ -544,8 +544,6 @@ export default function LivePage() {
                     error={catchupError}
                     onReturnLive={() => setCatchupMs(0)}
                     diagnostic={activeCatchupUrl}
-                    streamUrl={active?.streamUrl}
-                    durationMin={catchupDurMin}
                   />
                 )}
               </div>
@@ -630,8 +628,6 @@ export default function LivePage() {
                 onReturnLive={() => setCatchupMs(0)}
                 fullscreen
                 diagnostic={activeCatchupUrl}
-                streamUrl={active?.streamUrl}
-                durationMin={catchupDurMin}
               />
             )}
             {active && !catchupError && (
@@ -683,195 +679,24 @@ export default function LivePage() {
 //                silently is what tripped users up before.
 //   - success  → small pill at the top showing the replay timestamp
 //                and a one-tap Return-to-live shortcut.
-interface ProbeResult {
-  candidate:   string;
-  status:      number | null;
-  contentType: string | null;
-  bodyPreview: string | null;
-  isManifest:  boolean;
-  hasSegments: boolean | null;
-  isVod:       boolean;
-  error:       string | null;
-  durationMs:  number;
-}
-interface ProbeResponse {
-  results: ProbeResult[];
-  verdict: { firstArchive: string | null; candidatesSilentLive: string[]; allFailed: boolean };
-}
-
 function CatchupBanner({
   startMs,
   error,
   onReturnLive,
   fullscreen,
   diagnostic,
-  streamUrl,
-  durationMin,
 }: {
   startMs: number;
   error: string | null;
   onReturnLive: () => void;
   fullscreen?: boolean;
   diagnostic?: { idx: number; total: number; url: string } | null;
-  streamUrl?: string;
-  durationMin?: number;
 }) {
-  const [probing, setProbing] = useState(false);
-  const [probe,   setProbe]   = useState<ProbeResponse | null>(null);
-
-  async function runProbe() {
-    if (!streamUrl || !startMs) return;
-    setProbing(true); setProbe(null);
-    try {
-      const r = await fetch('/api/auth/catchup-probe', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          streamUrl,
-          startUnix:   Math.floor(startMs / 1000),
-          durationMin: durationMin || 60,
-        }),
-      });
-      const body = await r.json().catch(() => null) as ProbeResponse | null;
-      setProbe(body);
-    } catch { /* show no results */ }
-    finally { setProbing(false); }
-  }
-
   const when = new Date(startMs);
   const label =
     `${String(when.getDate()).padStart(2, '0')}/${String(when.getMonth() + 1).padStart(2, '0')} ` +
     `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`;
 
-  if (error) {
-    return (
-      <div
-        role="alert"
-        style={{
-          position: 'absolute',
-          inset: fullscreen ? '0' : '0',
-          background: 'rgba(6, 7, 10, 0.78)',
-          backdropFilter: 'blur(6px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 24,
-          zIndex: 5,
-        }}
-      >
-        <div style={{
-          maxWidth: 520,
-          background: '#10131A',
-          border: '1px solid rgba(255,107,123,0.35)',
-          borderRadius: 16,
-          padding: '24px 26px',
-          color: '#E9EBF1',
-          textAlign: 'center',
-          boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
-        }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>⚠</div>
-          <h3 style={{
-            margin: '0 0 8px',
-            fontSize: 18,
-            fontWeight: 800,
-            color: '#FF6B7B',
-          }}>
-            Catch-up not available
-          </h3>
-          <p style={{ margin: '0 0 6px', fontSize: 14, color: '#E9EBF1', lineHeight: 1.5 }}>
-            You asked to replay from{' '}
-            <strong style={{ color: '#fff' }}>{label}</strong>, but this channel can&apos;t.
-          </p>
-          <p style={{ margin: '0 0 18px', fontSize: 13, color: '#B7BEC9', lineHeight: 1.5 }}>
-            {error}
-          </p>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button
-              onClick={onReturnLive}
-              style={{
-                background: '#FF3B6E', color: '#fff',
-                border: 0, borderRadius: 10,
-                padding: '10px 20px',
-                fontWeight: 700, fontSize: 14,
-                cursor: 'pointer',
-              }}
-            >
-              ▶ Watch live instead
-            </button>
-            <Link
-              href="/tv/catchup"
-              style={{
-                background: 'rgba(255,255,255,0.08)',
-                color: '#E9EBF1',
-                border: '1px solid rgba(255,255,255,0.12)',
-                borderRadius: 10,
-                padding: '10px 20px',
-                fontWeight: 700, fontSize: 14,
-                textDecoration: 'none',
-              }}
-            >
-              ← Back to catch-up
-            </Link>
-            {streamUrl && (
-              <button
-                onClick={runProbe}
-                disabled={probing}
-                style={{
-                  background: 'rgba(108,80,255,0.18)',
-                  color: '#B9AAFF',
-                  border: '1px solid rgba(108,80,255,0.4)',
-                  borderRadius: 10,
-                  padding: '10px 20px',
-                  fontWeight: 700, fontSize: 14,
-                  cursor: probing ? 'default' : 'pointer',
-                }}
-              >
-                {probing ? 'Diagnosing…' : '🔍 Diagnose'}
-              </button>
-            )}
-          </div>
-
-          {probe && (
-            <div style={{
-              marginTop: 18,
-              textAlign: 'left',
-              maxHeight: 320,
-              overflow: 'auto',
-              background: 'rgba(0,0,0,0.35)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 10,
-              padding: 12,
-              fontSize: 11,
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-            }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#E9EBF1', marginBottom: 8 }}>
-                {probe.verdict.firstArchive
-                  ? `✓ Archive found — ${probe.results.findIndex((r) => r.candidate === probe.verdict.firstArchive) + 1} of ${probe.results.length}`
-                  : probe.verdict.candidatesSilentLive.length
-                    ? '⚠ Provider returns LIVE for every archive URL — DVR isn\'t actually enabled for this channel.'
-                    : '✗ Every URL failed — provider doesn\'t respond to any known catch-up pattern.'}
-              </div>
-              {probe.results.map((r, i) => (
-                <div key={i} style={{
-                  padding: '4px 0',
-                  borderBottom: i === probe.results.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.04)',
-                  color: r.status === 200 && r.isVod ? '#7DF9C6'
-                       : r.status === 200            ? '#FFB020'
-                       :                                '#FF6B7B',
-                }}>
-                  <strong>{i + 1}. {r.status ?? r.error}</strong>
-                  {r.isVod && ' · VOD ✓'}
-                  {r.status === 200 && !r.isVod && ' · live (silent)'}
-                  <div style={{ color: '#8B95A7', wordBreak: 'break-all' }}>{r.candidate}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <>
