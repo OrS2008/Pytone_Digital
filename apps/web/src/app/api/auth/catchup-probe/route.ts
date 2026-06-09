@@ -61,6 +61,14 @@ function buildCandidates(startUnix: number, durationMin: number, p: FlussonicPar
   const offset  = Math.max(0, utcNow - startUnix);
   const unsigned = p.base.replace(/\/s\/[^/]+(?=$|\/)/, '');
   return [
+    // Flussonic info.json: returns DVR config + the canonical DVR URL
+    // template if the provider has DVR enabled. ClouDDy / TiViMate
+    // call this BEFORE the timeshift attempt so they know exactly
+    // which endpoint to hit. It's our best diagnostic too.
+    `${p.base}/${p.stream}/info.json`,
+    // Same on the unsigned base, in case DVR config sits behind a
+    // public path while live needs the token.
+    `${unsigned}/${p.stream}/info.json`,
     `${p.base}/${p.stream}/index-${startUnix}-${durSec}.m3u8`,
     `${p.base}/${p.stream}/${p.playlist.replace(/\.m3u8$/i, '')}-${startUnix}-${durSec}.m3u8`,
     `${p.base}/${p.stream}/archive-${startUnix}-${durSec}.m3u8`,
@@ -84,6 +92,16 @@ interface ProbeResult {
   isManifest:  boolean;
   hasSegments: boolean | null;
   isVod:       boolean;
+  /** Set when the URL is a Flussonic info.json — we read dvr_enabled
+   *  and the dvr window timestamps so the UI can tell the user
+   *  "DVR is enabled but only covers the last N hours" instead of
+   *  blanketing every result as "live silent". */
+  dvrInfo?: {
+    enabled:    boolean;
+    firstTs:    number | null;
+    lastTs:     number | null;
+    streamName: string | null;
+  };
   error:       string | null;
   durationMs:  number;
 }
@@ -127,6 +145,31 @@ async function probe(url: string): Promise<ProbeResult> {
     const isManifest  = /\.m3u8/i.test(url) || /mpegurl/i.test(contentType ?? '') || /^#EXTM3U/.test(text);
     const hasSegments = isManifest ? /#EXTINF/.test(text) : null;
     const isVod       = /#EXT-X-PLAYLIST-TYPE\s*:\s*VOD/i.test(text) || /#EXT-X-ENDLIST/i.test(text);
+
+    // Flussonic info.json detection — the response is JSON with
+    // `dvr_enabled` + the DVR window timestamps when DVR is on.
+    // Parse it so the UI can report a precise verdict ("DVR enabled
+    // · 7-day window") instead of just "200 OK".
+    let dvrInfo: ProbeResult['dvrInfo'];
+    if (/\/info\.json/i.test(url)) {
+      try {
+        const j = JSON.parse(text) as {
+          dvr_enabled?:  boolean;
+          dvr_first_ts?: number;
+          dvr_last_ts?:  number;
+          dvr?:          { enabled?: boolean; first_ts?: number; last_ts?: number };
+          name?:         string;
+        };
+        const enabled = j.dvr_enabled === true || j.dvr?.enabled === true;
+        dvrInfo = {
+          enabled,
+          firstTs:    j.dvr_first_ts ?? j.dvr?.first_ts ?? null,
+          lastTs:     j.dvr_last_ts  ?? j.dvr?.last_ts  ?? null,
+          streamName: j.name ?? null,
+        };
+      } catch { /* body wasn't JSON — skip */ }
+    }
+
     return {
       candidate:   url,
       status:      r.status,
@@ -135,6 +178,7 @@ async function probe(url: string): Promise<ProbeResult> {
       isManifest,
       hasSegments,
       isVod,
+      dvrInfo,
       error:       null,
       durationMs:  Date.now() - t0,
     };
@@ -190,6 +234,13 @@ export async function POST(req: NextRequest) {
   // live in response to archive — DVR isn't actually enabled".
   const archive = results.find((r) => r.status === 200 && r.isManifest && r.isVod);
   const live    = results.filter((r) => r.status === 200 && r.isManifest && !r.isVod);
+  // Flussonic info.json verdict — definitive answer to "does this
+  // provider have DVR enabled for this channel at all". If
+  // dvr_enabled is true but every timeshift URL serves live, the
+  // user knows the issue is provider-side IP gating, not Nova Stream
+  // generating wrong URLs.
+  const info = results.find((r) => r.dvrInfo);
+  const dvr  = info?.dvrInfo;
 
   return NextResponse.json({
     parsed:  fl,
@@ -198,6 +249,9 @@ export async function POST(req: NextRequest) {
       firstArchive:        archive ? archive.candidate : null,
       candidatesSilentLive: live.map((r) => r.candidate),
       allFailed:           !archive && live.length === 0,
+      dvrEnabledByProvider: dvr?.enabled ?? null,
+      dvrFirstTs:           dvr?.firstTs ?? null,
+      dvrLastTs:            dvr?.lastTs  ?? null,
     },
   }, { headers: { 'cache-control': 'no-store' } });
 }

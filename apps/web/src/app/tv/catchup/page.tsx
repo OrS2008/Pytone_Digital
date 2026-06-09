@@ -682,12 +682,20 @@ interface DiagProbeResult {
   isManifest:  boolean;
   hasSegments: boolean | null;
   isVod:       boolean;
+  dvrInfo?:    { enabled: boolean; firstTs: number | null; lastTs: number | null; streamName: string | null };
   error:       string | null;
   durationMs:  number;
 }
 interface DiagProbeResponse {
   results: DiagProbeResult[];
-  verdict: { firstArchive: string | null; candidatesSilentLive: string[]; allFailed: boolean };
+  verdict: {
+    firstArchive:         string | null;
+    candidatesSilentLive: string[];
+    allFailed:            boolean;
+    dvrEnabledByProvider: boolean | null;
+    dvrFirstTs:           number | null;
+    dvrLastTs:            number | null;
+  };
   error?:  string;
 }
 
@@ -868,11 +876,20 @@ function DiagnoseOverlay({ channels, onClose }: { channels: M3UChannel[]; onClos
             }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#E9EBF1', marginBottom: 12 }}>
                 {probe.verdict.firstArchive
-                  ? `✓ Archive found — ${probe.results.findIndex((r) => r.candidate === probe.verdict.firstArchive) + 1} of ${probe.results.length}`
-                  : probe.verdict.candidatesSilentLive.length
-                    ? `⚠ Provider returns LIVE for ${probe.verdict.candidatesSilentLive.length} archive URLs — DVR likely not enabled.`
-                    : '✗ Every URL failed — provider doesn\'t respond to any known catch-up pattern.'}
+                  ? `✓ Archive found — candidate ${probe.results.findIndex((r) => r.candidate === probe.verdict.firstArchive) + 1} of ${probe.results.length}`
+                  : probe.verdict.dvrEnabledByProvider === true
+                    ? `⚠ Provider says DVR IS enabled for this channel — but every timeshift URL serves live. Likely IP-gated to recognised players (ClouDDy / TiViMate IPs whitelisted, ours isn't).`
+                    : probe.verdict.dvrEnabledByProvider === false
+                      ? '✗ Provider info.json says DVR is OFF for this channel. Ask your provider to enable it, or pick a channel that has DVR.'
+                      : probe.verdict.candidatesSilentLive.length
+                        ? `⚠ Provider returns LIVE for ${probe.verdict.candidatesSilentLive.length} archive URLs — DVR likely not enabled.`
+                        : '✗ Every URL failed — provider doesn\'t respond to any known catch-up pattern.'}
               </div>
+              {probe.verdict.dvrFirstTs && probe.verdict.dvrLastTs && (
+                <div style={{ fontSize: 12, color: '#7DF9C6', marginBottom: 12 }}>
+                  DVR window: {new Date(probe.verdict.dvrFirstTs * 1000).toLocaleString()} → {new Date(probe.verdict.dvrLastTs * 1000).toLocaleString()}
+                </div>
+              )}
               <div style={{
                 display: 'grid', gap: 4,
                 fontFamily: 'ui-monospace, SFMono-Regular, monospace',
