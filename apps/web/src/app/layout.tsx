@@ -1,10 +1,21 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import './tv/themes.css';
 
 export const metadata: Metadata = {
   title: 'Nova Stream',
   description: 'The next generation of streaming.',
+};
+
+// Without an explicit viewport, mobile browsers render the page at
+// 980 px and shrink it to fit — defeating every responsive breakpoint
+// the codebase relies on. width=device-width + initial-scale=1 makes
+// CSS see the real device width.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: '#0F1116',
 };
 
 // Read the saved theme + locale before paint so the page never flashes
