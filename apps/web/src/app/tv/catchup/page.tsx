@@ -852,7 +852,24 @@ function DiagnoseOverlay({ channels, onClose }: { channels: M3UChannel[]; onClos
             </div>
             {selectedChannel && (
               <div style={{ fontSize: 12, color: '#8B95A7', fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>
-                {maskSourceUrl(selectedChannel.streamUrl)}
+                <div>Stream: {maskSourceUrl(selectedChannel.streamUrl)}</div>
+                {/* Surface every catchup-related attribute declared in
+                    the M3U for this channel. If the provider gave us a
+                    catchup-source template we should be using it — and
+                    seeing it here lets the user (and me) spot whether
+                    it's absent vs. malformed vs. ignored. */}
+                <div style={{ marginTop: 6, color: selectedChannel.catchupSource ? '#7DF9C6' : '#FFB020' }}>
+                  catchup kind: <strong>{selectedChannel.catchupKind ?? '(none)'}</strong>
+                  {' · '}
+                  catchup-source: <strong>{selectedChannel.catchupSource ? maskSourceUrl(selectedChannel.catchupSource) : '(none)'}</strong>
+                  {selectedChannel.catchupDays ? ` · catchup-days: ${selectedChannel.catchupDays}` : ''}
+                  {selectedChannel.catchupCorrection ? ` · correction: ${selectedChannel.catchupCorrection}m` : ''}
+                </div>
+                {!selectedChannel.catchupSource && (
+                  <div style={{ marginTop: 4, color: '#FFB020', fontFamily: 'inherit' }}>
+                    ⚠ The M3U doesn&apos;t declare a catchup-source for this channel. ClouDDy may be inferring DVR access from a separate Xtream API on the same host — ask your provider whether they also expose <code>/player_api.php</code> with the same credentials.
+                  </div>
+                )}
               </div>
             )}
           </div>
