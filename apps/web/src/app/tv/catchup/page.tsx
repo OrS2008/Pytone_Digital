@@ -79,6 +79,7 @@ export default function CatchupPage() {
   const [recs, setRecs] = useState<Recording[]>([]);
   const [selectedNum, setSelectedNum] = useState<number | null>(null);
   const [showRecordings, setShowRecordings] = useState(false);
+  const [showDiagnose,   setShowDiagnose]   = useState(false);
   const [q, setQ] = useState('');
   // EPG diagnostic — what we actually fetched, parsed and matched.
   // Lets the user see at a glance why catch-up has no programmes:
@@ -157,6 +158,16 @@ export default function CatchupPage() {
     const next = recs.filter((r) => r.id !== id);
     setRecs(next);
     try { localStorage.setItem(userKey('recordings'), JSON.stringify(next)); } catch { /* ignore */ }
+  }
+
+  // Diagnose overlay — runs the /api/auth/catchup-probe endpoint for
+  // a picked channel and surfaces what the provider returns for each
+  // of the candidate archive URLs. Takes precedence over everything
+  // else because it's a brief dialog-style detour.
+  if (showDiagnose) {
+    return (
+      <DiagnoseOverlay channels={channels} onClose={() => setShowDiagnose(false)} />
+    );
   }
 
   // Recordings overlay takes precedence over the channel detail view
@@ -268,12 +279,17 @@ export default function CatchupPage() {
                 Choose a channel, then browse the last 7 days hour by hour to re-watch what aired.
               </p>
             </div>
-            <button onClick={() => setShowRecordings(true)} style={pillBtnStyle}>
-              ● My recordings
-              {recs.length > 0 && (
-                <span style={{ marginInlineStart: 6, color: '#FF3B6E', fontWeight: 800 }}>{recs.length}</span>
-              )}
-            </button>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button onClick={() => setShowDiagnose(true)} style={diagnoseBtnStyle}>
+                🔍 Diagnose catch-up
+              </button>
+              <button onClick={() => setShowRecordings(true)} style={pillBtnStyle}>
+                ● My recordings
+                {recs.length > 0 && (
+                  <span style={{ marginInlineStart: 6, color: '#FF3B6E', fontWeight: 800 }}>{recs.length}</span>
+                )}
+              </button>
+            </div>
           </div>
         </header>
 
@@ -658,11 +674,260 @@ const searchStyle: React.CSSProperties = {
   color: '#E9EBF1', outline: 'none',
   fontFamily: 'Inter, system-ui, sans-serif',
 };
+interface DiagProbeResult {
+  candidate:   string;
+  status:      number | null;
+  contentType: string | null;
+  bodyPreview: string | null;
+  isManifest:  boolean;
+  hasSegments: boolean | null;
+  isVod:       boolean;
+  error:       string | null;
+  durationMs:  number;
+}
+interface DiagProbeResponse {
+  results: DiagProbeResult[];
+  verdict: { firstArchive: string | null; candidatesSilentLive: string[]; allFailed: boolean };
+  error?:  string;
+}
+
+// "Diagnose catch-up" modal — let the user pick a channel + how many
+// hours back, and we fan out the probe to every candidate URL the
+// catch-up builder would normally try. The result tells the user
+// (and us) whether the provider actually serves archive, and which
+// URL shape works — without having to attempt playback and wait for
+// the player to walk through 9 silent failures.
+function DiagnoseOverlay({ channels, onClose }: { channels: M3UChannel[]; onClose: () => void }) {
+  const [selected, setSelected] = useState<number | null>(channels[0]?.number ?? null);
+  const [hoursBack, setHoursBack] = useState<number>(2);
+  const [probing,  setProbing]  = useState(false);
+  const [probe,    setProbe]    = useState<DiagProbeResponse | null>(null);
+  const [err,      setErr]      = useState<string | null>(null);
+  const [q,        setQ]        = useState('');
+
+  const visible = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return channels
+      .filter((c) => !needle || c.name.toLowerCase().includes(needle) || String(c.number).includes(needle))
+      .slice(0, 50);
+  }, [channels, q]);
+
+  async function run() {
+    if (selected === null) return;
+    const ch = channels.find((c) => c.number === selected);
+    if (!ch || !ch.streamUrl) { setErr('Channel has no stream URL.'); return; }
+    setProbing(true); setProbe(null); setErr(null);
+    try {
+      const startMs   = Date.now() - hoursBack * 3_600_000;
+      const startUnix = Math.floor(startMs / 1000);
+      const r = await fetch('/api/auth/catchup-probe', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ streamUrl: ch.streamUrl, startUnix, durationMin: 30 }),
+      });
+      if (r.status === 400) {
+        const body = await r.json().catch(() => ({})) as { error?: string };
+        setErr(body.error === 'not_flussonic_shape'
+          ? 'This channel\'s live URL isn\'t Flussonic-shaped — the probe only handles Flussonic for now.'
+          : body.error || `Bad request (400).`);
+        return;
+      }
+      if (!r.ok) { setErr(`Probe failed (${r.status}).`); return; }
+      const body = await r.json() as DiagProbeResponse;
+      setProbe(body);
+    } catch (e) { setErr((e as Error).message); }
+    finally { setProbing(false); }
+  }
+
+  const selectedChannel = channels.find((c) => c.number === selected);
+
+  return (
+    <TvFocusProvider>
+      <main style={{ minHeight: '100vh' }}>
+        <div style={{ height: 100 }}><TvNav /></div>
+        <header style={{ padding: '24px 24px 12px', maxWidth: 1280, margin: '0 auto' }}>
+          <button onClick={onClose} style={backBtnStyle}>← Back to catch-up</button>
+          <h1 style={{ margin: '12px 0 4px', fontSize: 26, fontWeight: 800, color: '#E9EBF1' }}>
+            Catch-up diagnose
+          </h1>
+          <p style={{ margin: 0, color: '#B7BEC9', fontSize: 14, maxWidth: 720 }}>
+            Pick a channel and how far back you&apos;d like to replay. We&apos;ll ask the provider for
+            every candidate archive URL and show you which one (if any) actually serves the
+            recording.
+          </p>
+        </header>
+
+        <section style={{ padding: '0 24px 24px', maxWidth: 1280, margin: '0 auto', display: 'grid', gap: 16 }}>
+          {/* channel + window picker */}
+          <div style={{
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: 12,
+            padding: 16,
+            display: 'grid', gap: 12,
+          }}>
+            <input
+              type="search"
+              placeholder={`Filter ${channels.length} channels…`}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              style={searchStyle}
+            />
+            <div style={{
+              maxHeight: 200, overflow: 'auto',
+              display: 'grid', gap: 4,
+              padding: 4,
+            }}>
+              {visible.map((c) => (
+                <button
+                  key={c.id + '|' + c.number}
+                  onClick={() => setSelected(c.number)}
+                  style={{
+                    textAlign: 'start',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: 0,
+                    background: c.number === selected ? 'rgba(108,80,255,0.22)' : 'transparent',
+                    color: c.number === selected ? '#fff' : '#B7BEC9',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    display: 'flex', gap: 12, alignItems: 'center',
+                  }}
+                >
+                  <span style={{
+                    fontVariantNumeric: 'tabular-nums', minWidth: 32, textAlign: 'end',
+                    color: '#FF3B6E', fontWeight: 700,
+                  }}>{c.number}</span>
+                  <span style={{ flex: 1, fontSize: 13 }}>{c.name}</span>
+                </button>
+              ))}
+              {visible.length === 0 && (
+                <div style={{ padding: 12, color: '#8B95A7', fontSize: 13 }}>No channels match {q}.</div>
+              )}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <label style={{ fontSize: 13, color: '#B7BEC9' }}>Hours back:</label>
+              {[1, 2, 6, 12, 24, 48].map((h) => (
+                <button
+                  key={h}
+                  onClick={() => setHoursBack(h)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 999,
+                    border: 0,
+                    background: h === hoursBack ? '#FF3B6E' : 'rgba(255,255,255,0.06)',
+                    color: h === hoursBack ? '#fff' : '#B7BEC9',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >{h}h</button>
+              ))}
+              <button
+                onClick={run}
+                disabled={probing || selected === null}
+                style={{
+                  marginInlineStart: 'auto',
+                  padding: '10px 20px',
+                  borderRadius: 10,
+                  border: 0,
+                  background: '#FF3B6E', color: '#fff',
+                  fontWeight: 700, fontSize: 14,
+                  cursor: probing ? 'default' : 'pointer',
+                  fontFamily: 'inherit',
+                  opacity: probing || selected === null ? 0.5 : 1,
+                }}
+              >
+                {probing ? 'Probing…' : '▶ Run diagnose'}
+              </button>
+            </div>
+            {selectedChannel && (
+              <div style={{ fontSize: 12, color: '#8B95A7', fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>
+                {maskSourceUrl(selectedChannel.streamUrl)}
+              </div>
+            )}
+          </div>
+
+          {err && (
+            <div style={{
+              padding: 12,
+              background: 'rgba(255,107,123,0.10)',
+              border: '1px solid rgba(255,107,123,0.35)',
+              borderRadius: 10,
+              color: '#FF6B7B', fontSize: 13,
+            }}>{err}</div>
+          )}
+
+          {probe && (
+            <div style={{
+              background: 'rgba(0,0,0,0.35)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              borderRadius: 12,
+              padding: 16,
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#E9EBF1', marginBottom: 12 }}>
+                {probe.verdict.firstArchive
+                  ? `✓ Archive found — ${probe.results.findIndex((r) => r.candidate === probe.verdict.firstArchive) + 1} of ${probe.results.length}`
+                  : probe.verdict.candidatesSilentLive.length
+                    ? `⚠ Provider returns LIVE for ${probe.verdict.candidatesSilentLive.length} archive URLs — DVR likely not enabled.`
+                    : '✗ Every URL failed — provider doesn\'t respond to any known catch-up pattern.'}
+              </div>
+              <div style={{
+                display: 'grid', gap: 4,
+                fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                fontSize: 11,
+              }}>
+                {probe.results.map((r, i) => {
+                  const tone = r.status === 200 && r.isVod ? '#7DF9C6'
+                             : r.status === 200            ? '#FFB020'
+                             :                                '#FF6B7B';
+                  return (
+                    <div key={i} style={{
+                      padding: '6px 8px',
+                      borderRadius: 6,
+                      background: 'rgba(255,255,255,0.02)',
+                      borderInlineStart: `3px solid ${tone}`,
+                    }}>
+                      <div style={{ color: tone, fontWeight: 700 }}>
+                        {i + 1}. {r.status ?? r.error ?? 'failed'}
+                        {r.isVod && ' · VOD ✓'}
+                        {r.status === 200 && !r.isVod && r.isManifest && ' · live (silent)'}
+                        {r.durationMs && ` · ${r.durationMs}ms`}
+                      </div>
+                      <div style={{ color: '#8B95A7', wordBreak: 'break-all', marginTop: 2 }}>
+                        {r.candidate}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p style={{ marginTop: 12, fontSize: 12, color: '#8B95A7' }}>
+                Share this list with support if everything fails — it tells your IPTV provider
+                exactly which URL pattern their DVR speaks.
+              </p>
+            </div>
+          )}
+        </section>
+      </main>
+    </TvFocusProvider>
+  );
+}
+
 const pillBtnStyle: React.CSSProperties = {
   padding: '8px 16px',
   fontSize: 13, fontWeight: 600,
   borderRadius: 999, border: 0, cursor: 'pointer',
   background: 'rgba(255,255,255,0.05)', color: '#B7BEC9',
+  fontFamily: 'inherit',
+};
+const diagnoseBtnStyle: React.CSSProperties = {
+  padding: '8px 16px',
+  fontSize: 13, fontWeight: 700,
+  borderRadius: 999,
+  border: '1px solid rgba(108,80,255,0.4)',
+  cursor: 'pointer',
+  background: 'rgba(108,80,255,0.18)', color: '#B9AAFF',
   fontFamily: 'inherit',
 };
 const backBtnStyle: React.CSSProperties = {
