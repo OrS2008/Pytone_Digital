@@ -1,19 +1,24 @@
-// Sources — where the user adds M3U / Xtream playlists, XMLTV EPG sources,
-// and VOD libraries (Xtream / Jellyfin / Plex / SMB / NFS). Three tabs.
-// Each list maps to playlist-ingestion sources in the backend.
+// Sources — the user's IPTV connection. Two tabs:
+//   * Playlist — the M3U / Xtream URL or uploaded file the live channels
+//                + catch-up + guide all read from.
+//   * EPG      — the XMLTV URL whose programmes hydrate the guide.
+//
+// Earlier versions had a third "VOD" tab and a nested "Stalker portal"
+// sub-tab — both untruthful (no Stalker handshake; the "VOD" list was a
+// stub that didn't power /tv/vod). Trimmed so every field on the page
+// drives real behaviour.
 'use client';
 
 import { useEffect, useState } from 'react';
 import Shell from '../Shell';
-import ActionButton from '@/components/ui/ActionButton';
 import usePersisted from '@/lib/usePersisted';
 import { fetchAndCache, getUserSourceUrl, invalidateCache, localM3UKey } from '@/lib/channelCache';
 import { maskSourceUrl } from '@/lib/maskUrl';
 
-type Tab = 'live' | 'epg' | 'vod';
-type AddTab = 'm3u' | 'xtream' | 'stalker' | 'upload';
+type Tab = 'live' | 'epg';
+type AddTab = 'm3u' | 'upload';
 
-interface Source { id: string; kind: 'M3U' | 'XML' | 'VOD'; title: string; sub: string; stat: string; }
+interface Source { id: string; kind: 'M3U' | 'XML'; title: string; sub: string; stat: string; }
 
 // No seed sources. We used to ship a placeholder "My provider" row with
 // a masked URL, but users kept clicking Edit on it to paste their real
@@ -22,16 +27,14 @@ interface Source { id: string; kind: 'M3U' | 'XML' | 'VOD'; title: string; sub: 
 // initial state with a clear CTA is less confusing.
 const INITIAL_LIVE: Source[] = [];
 const INITIAL_EPG:  Source[] = [];
-const INITIAL_VOD:  Source[] = [];
 
 export default function Sources() {
-  // Initial tab honours ?tab=epg / ?tab=vod so the "add a programme
-  // guide" link on /tv/live drops the user straight onto the right
-  // panel instead of making them hunt for it.
+  // Initial tab honours ?tab=epg so "add a programme guide" links from
+  // other screens drop the user straight onto that panel.
   const [tab, setTab] = useState<Tab>(() => {
     if (typeof window === 'undefined') return 'live';
     const q = new URLSearchParams(window.location.search).get('tab');
-    return q === 'epg' || q === 'vod' ? q : 'live';
+    return q === 'epg' ? q : 'live';
   });
   const [addTab,   setAddTab]   = useState<AddTab>('m3u');
   const [name,     setName]     = useState('');
@@ -42,21 +45,14 @@ export default function Sources() {
   // real fetch + persist via the gateway.
   const [live,     setLive]     = usePersisted('sources.live', INITIAL_LIVE);
   const [epg,      setEpg]      = usePersisted('sources.epg',  INITIAL_EPG);
-  const [vod,      setVod]      = usePersisted('sources.vod',  INITIAL_VOD);
   // Streaming mode (proxy vs direct). See lib/streamProxy.ts. Stored
   // per-user so the choice syncs across devices.
   const [streamMode, setStreamMode] = usePersisted<'proxy' | 'direct'>('prefs.streamMode', 'proxy');
   const [epgUrl,   setEpgUrl]   = useState('');
-  const [vodHost,  setVodHost]  = useState('');
-  const [vodUser,  setVodUser]  = useState('');
-  const [vodPass,  setVodPass]  = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  // One-shot migration: drop the old `live-1` placeholder row (and the
-  // matching seeds for EPG / VOD) for users who carried it over from a
-  // previous visit. Until we did this, an "edited" placeholder still
-  // had id `live-1` and was being filtered out everywhere else — the
-  // root cause of "I added a playlist but the app shows demo channels".
+  // One-shot migration: drop the old `live-1` placeholder row and any
+  // legacy VOD entries from before the VOD tab was removed.
   useEffect(() => {
     setLive((prev) => {
       const cleaned = prev.filter((s) =>
@@ -65,7 +61,6 @@ export default function Sources() {
       return cleaned.length === prev.length ? prev : cleaned;
     });
     setEpg((prev) => prev.filter((s) => s.id !== 'epg-1'));
-    setVod((prev) => prev.filter((s) => s.id !== 'vod-1'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -121,17 +116,6 @@ export default function Sources() {
     }]);
     setEpgUrl('');
     flash('EPG feed queued.');
-  }
-  function addVod() {
-    if (!vodHost.startsWith('http')) return flash('Host must start with http:// or https://');
-    setVod([...vod, {
-      id: 'vod-' + Date.now(), kind: 'VOD',
-      title: 'Custom VOD · ' + new URL(vodHost).hostname,
-      sub: 'queued for first sync',
-      stat: '—',
-    }]);
-    setVodHost(''); setVodUser(''); setVodPass('');
-    flash('VOD library connected — first sync queued.');
   }
   async function refreshLive(id: string) {
     const s = live.find((x) => x.id === id);
@@ -212,32 +196,23 @@ export default function Sources() {
     flash('EPG feed updated — re-matching queued.');
   }
 
-  function editVod(id: string) {
-    const s = vod.find((x) => x.id === id);
-    if (!s) return;
-    const nextHost = typeof window !== 'undefined' ? window.prompt('New host URL', s.sub) : null;
-    if (!nextHost) return;
-    setVod(vod.map((x) => x.id === id ? { ...x, sub: nextHost, stat: 'queued for first sync' } : x));
-    flash('VOD library updated.');
-  }
-
   return (
     <Shell active="sources">
       <header className="ac-panel-head">
         <div className="ac-panel-eyebrow">Sources</div>
-        <h1 className="ac-panel-title">Playlists, EPG & VOD</h1>
+        <h1 className="ac-panel-title">Playlist & EPG</h1>
         <p className="ac-panel-sub">
-          Connect your IPTV provider. We support standard M3U / M3U8 playlists, the Xtream
-          Codes API, Stalker portals, XMLTV EPG, and VOD libraries from Jellyfin / Plex /
-          your own NAS.
+          Connect your IPTV provider. Paste the M3U / M3U8 link they gave you (the same
+          one ClouDDy, TiViMate, IPTV Smarters use), or upload a saved playlist file.
+          Add the XMLTV programme guide URL alongside it so the channel banner, guide
+          and catch-up can show what&apos;s on.
         </p>
         <ActiveSourceIndicator />
       </header>
 
       <div className="ac-source-tabs">
-        <button onClick={() => setTab('live')} className={`ac-source-tab ${tab==='live' ? 'ac-source-tab-active':''}`}>Live channels · M3U / Xtream</button>
-        <button onClick={() => setTab('epg')}  className={`ac-source-tab ${tab==='epg'  ? 'ac-source-tab-active':''}`}>EPG · XMLTV</button>
-        <button onClick={() => setTab('vod')}  className={`ac-source-tab ${tab==='vod'  ? 'ac-source-tab-active':''}`}>VOD · Movies & Series</button>
+        <button onClick={() => setTab('live')} className={`ac-source-tab ${tab==='live' ? 'ac-source-tab-active':''}`}>Playlist</button>
+        <button onClick={() => setTab('epg')}  className={`ac-source-tab ${tab==='epg'  ? 'ac-source-tab-active':''}`}>EPG (programme guide)</button>
       </div>
 
       {feedback && (
@@ -275,13 +250,13 @@ export default function Sources() {
             <div className="ac-card-title" style={{ marginBottom: 12 }}>Add a new source</div>
 
             <div className="ac-source-tabs" style={{ marginBottom: 18 }}>
-              {(['m3u', 'xtream', 'stalker', 'upload'] as AddTab[]).map((id) => (
+              {(['m3u', 'upload'] as AddTab[]).map((id) => (
                 <button
                   key={id}
                   onClick={() => setAddTab(id)}
                   className={`ac-source-tab ${addTab === id ? 'ac-source-tab-active' : ''}`}
                 >
-                  {id === 'm3u' ? 'M3U URL' : id === 'xtream' ? 'Xtream Codes' : id === 'stalker' ? 'Stalker portal' : 'Upload .m3u'}
+                  {id === 'm3u' ? 'Paste URL' : 'Upload a file'}
                 </button>
               ))}
             </div>
@@ -335,24 +310,9 @@ export default function Sources() {
                     : 'We fetch this URL on a schedule (every 6 hours by default) and never share it. Credentials in the URL are encrypted at rest with your account key.'}
                 </div>
               </div>
-              <div className="ac-source-add-grid">
-                <div className="ac-field">
-                  <label className="ac-field-label">Auto-refresh</label>
-                  <select className="ac-input" defaultValue="Every 6 hours (recommended)">
-                    <option>Every 6 hours (recommended)</option>
-                    <option>Every 12 hours</option>
-                    <option>Once a day</option>
-                    <option>Manual only</option>
-                  </select>
-                </div>
-                <div className="ac-field">
-                  <label className="ac-field-label">User-Agent (optional)</label>
-                  <input className="ac-input" placeholder="Default: Nova Stream / 1.0" />
-                </div>
-              </div>
               <div style={{ display: 'flex', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
-                <button type="submit" className="ac-btn ac-btn-primary">Add &amp; ingest</button>
-                <button type="button" className="ac-btn ac-btn-ghost" onClick={testUrl}>Test URL only</button>
+                <button type="submit" className="ac-btn ac-btn-primary">Add playlist</button>
+                <button type="button" className="ac-btn ac-btn-ghost" onClick={testUrl}>Test only</button>
               </div>
             </form>
           </div>
@@ -372,60 +332,19 @@ export default function Sources() {
               <div className="ac-source-stats"><div>{s.stat}</div></div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="ac-btn ac-btn-sm" onClick={() => editEpg(s.id)}>Edit</button>
-                <ActionButton doneLabel="Refreshed ✓">Refresh</ActionButton>
                 <button className="ac-btn ac-btn-sm ac-btn-danger" onClick={() => removeFrom(epg, setEpg)(s.id)}>Remove</button>
               </div>
             </div>
           ))}
           <form className="ac-add-source" style={{ marginTop: 18 }} onSubmit={(e) => { e.preventDefault(); addEpg(); }}>
             <input className="ac-input" placeholder="XMLTV URL (https://...)" value={epgUrl} onChange={(e) => setEpgUrl(e.target.value)} />
-            <select className="ac-input" defaultValue="Auto-merge with existing">
-              <option>Auto-merge with existing</option>
-              <option>Replace existing</option>
-              <option>Add as separate</option>
-            </select>
             <button type="submit" className="ac-btn ac-btn-primary">Add EPG</button>
           </form>
           <div className="ac-field-help" style={{ marginTop: 8 }}>
-            We auto-match XMLTV channels to your M3U by tvg-id, then by name with fuzzy matching.
-            If channels are unmatched you can re-map them manually below.
+            We match XMLTV channels to your playlist by tvg-id first, then by name as a
+            fallback. Channels that don&apos;t match show up without programme titles —
+            usually that means the EPG is from a different region than the playlist.
           </div>
-        </div>
-      )}
-
-      {tab === 'vod' && (
-        <div className="ac-card">
-          <div className="ac-card-title">VOD libraries · {vod.length}</div>
-          {vod.map((s) => (
-            <div key={s.id} className="ac-source">
-              <div className="ac-source-icon" style={{ background: 'rgba(139,92,246,0.14)', color: 'var(--ns-accent-2)' }}>{s.kind}</div>
-              <div className="ac-source-meta">
-                <div className="ac-source-title">{s.title}</div>
-                <div className="ac-source-url">{maskSourceUrl(s.sub)}</div>
-              </div>
-              <div className="ac-source-stats"><div>{s.stat}</div></div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="ac-btn ac-btn-sm" onClick={() => editVod(s.id)}>Edit</button>
-                <ActionButton doneLabel="Sync queued ✓">Refresh</ActionButton>
-                <button className="ac-btn ac-btn-sm ac-btn-danger" onClick={() => removeFrom(vod, setVod)(s.id)}>Remove</button>
-              </div>
-            </div>
-          ))}
-
-          <form onSubmit={(e) => { e.preventDefault(); addVod(); }}>
-            <div className="ac-source-tabs" style={{ marginTop: 20 }}>
-              <button type="button" className="ac-source-tab ac-source-tab-active">Xtream Codes VOD</button>
-              <button type="button" className="ac-source-tab">Jellyfin server</button>
-              <button type="button" className="ac-source-tab">Plex server</button>
-              <button type="button" className="ac-source-tab">SMB / NFS share</button>
-            </div>
-            <div className="ac-vod-add-grid">
-              <div className="ac-field"><label className="ac-field-label">Host</label><input className="ac-input" placeholder="https://provider.tv" value={vodHost} onChange={(e) => setVodHost(e.target.value)} /></div>
-              <div className="ac-field"><label className="ac-field-label">Username</label><input className="ac-input" value={vodUser} onChange={(e) => setVodUser(e.target.value)} /></div>
-              <div className="ac-field"><label className="ac-field-label">Password</label><input className="ac-input" type="password" value={vodPass} onChange={(e) => setVodPass(e.target.value)} /></div>
-            </div>
-            <button type="submit" className="ac-btn ac-btn-primary">Connect VOD library</button>
-          </form>
         </div>
       )}
     </Shell>

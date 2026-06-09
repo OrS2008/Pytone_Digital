@@ -293,6 +293,36 @@ export default function CatchupPage() {
           </div>
         </header>
 
+        {/* Permanent VPN / catch-up tip — visible above the channel
+            grid so a user who hasn't run Diagnose yet still sees the
+            free workaround when archive playback doesn't work. */}
+        <div style={{ padding: '0 24px 0', maxWidth: 1280, margin: '0 auto' }}>
+          <div style={{
+            padding: '12px 16px',
+            borderRadius: 12,
+            background: 'rgba(108,80,255,0.08)',
+            border: '1px solid rgba(108,80,255,0.25)',
+            color: '#B9AAFF',
+            fontSize: 13,
+            lineHeight: 1.55,
+            display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: 18, lineHeight: 1 }}>💡</span>
+            <div style={{ flex: 1, minWidth: 240 }}>
+              <strong style={{ color: '#fff' }}>Catch-up not playing?</strong> Many IPTV
+              providers serve archive only to known player IPs (ClouDDy / TiViMate). The
+              free workaround: install{' '}
+              <a href="https://windscribe.com/download" target="_blank" rel="noreferrer" style={{ color: '#67E8D2', fontWeight: 700 }}>Windscribe Free</a>{' '}
+              or{' '}
+              <a href="https://protonvpn.com/free-vpn" target="_blank" rel="noreferrer" style={{ color: '#67E8D2', fontWeight: 700 }}>ProtonVPN Free</a>{' '}
+              on your device, connect to any country, refresh this page.
+            </div>
+            <button onClick={() => setShowDiagnose(true)} style={diagnoseBtnStyle}>
+              🔍 Diagnose first
+            </button>
+          </div>
+        </div>
+
         <div style={{ padding: '12px 24px 0', maxWidth: 1280, margin: '0 auto' }}>
           <input
             type="search"
