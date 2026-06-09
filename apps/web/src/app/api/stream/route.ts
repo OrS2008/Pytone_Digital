@@ -193,6 +193,19 @@ export async function GET(req: NextRequest) {
   const headers: Record<string, string> = {
     'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
   };
+  // Forward the end-user's real IP so providers that IP-gate their
+  // DVR (Flussonic with allow_X_Forwarded_For; lots of IPTV reseller
+  // panels) can see the actual subscriber instead of Cloudflare's
+  // edge IP. Costs us nothing and won't make a misconfigured provider
+  // any worse — they'll just ignore an unknown header.
+  const realIp = req.headers.get('cf-connecting-ip')
+              || req.headers.get('x-forwarded-for')
+              || req.headers.get('x-real-ip');
+  if (realIp) {
+    headers['x-forwarded-for'] = realIp;
+    headers['x-real-ip']       = realIp;
+    headers['forwarded']       = `for=${realIp}`;
+  }
   if (range)        headers['range'] = range;
   if (ifNoneMatch)  headers['if-none-match'] = ifNoneMatch;
 

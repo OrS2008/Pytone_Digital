@@ -106,7 +106,7 @@ interface ProbeResult {
   durationMs:  number;
 }
 
-async function probe(url: string): Promise<ProbeResult> {
+async function probe(url: string, realIp: string | null): Promise<ProbeResult> {
   const t0 = Date.now();
   try {
     const u = new URL(url);
@@ -119,11 +119,20 @@ async function probe(url: string): Promise<ProbeResult> {
     const t = setTimeout(() => ac.abort(), 8_000);
     let r: Response;
     try {
+      const reqHeaders: Record<string, string> = {
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+      };
+      // Forward the caller's real IP — same trick /api/stream uses
+      // so a Flussonic with allow_X_Forwarded_For can see the
+      // subscriber instead of Cloudflare.
+      if (realIp) {
+        reqHeaders['x-forwarded-for'] = realIp;
+        reqHeaders['x-real-ip']       = realIp;
+        reqHeaders['forwarded']       = `for=${realIp}`;
+      }
       r = await fetch(url, {
         method: 'GET',
-        headers: {
-          'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-        },
+        headers: reqHeaders,
         redirect: 'follow',
         signal: ac.signal,
       });
@@ -226,7 +235,10 @@ export async function POST(req: NextRequest) {
 
   const candidates = buildCandidates(startUnix, durationMin, fl);
   const results: ProbeResult[] = [];
-  for (const c of candidates) results.push(await probe(c));
+  const realIp = req.headers.get('cf-connecting-ip')
+              || req.headers.get('x-forwarded-for')
+              || req.headers.get('x-real-ip');
+  for (const c of candidates) results.push(await probe(c, realIp));
 
   // The verdict picks the BEST result: a 200 manifest with VOD
   // markers wins; a 200 manifest without is "silent live" and gets
