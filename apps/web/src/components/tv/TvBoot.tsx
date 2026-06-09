@@ -40,6 +40,25 @@ export default function TvBoot() {
         document.documentElement.setAttribute('data-theme', saved);
         document.body.setAttribute('data-theme', saved);
       }
+      // Accessibility flags persisted by /tv/account/appearance.
+      // Mirror them onto <html> on first paint so themes.css picks
+      // them up before the user navigates to the appearance screen.
+      const a11y = {
+        'data-reduce-motion': localStorage.getItem('ns.a11y.reduceMotion'),
+        'data-bigger-text':   localStorage.getItem('ns.a11y.biggerText'),
+        'data-follow-system': localStorage.getItem('ns.a11y.followSystem'),
+      };
+      for (const [attr, val] of Object.entries(a11y)) {
+        if (val === '1') document.documentElement.setAttribute(attr, '1');
+      }
+      // "Follow system" overrides the saved theme using the OS
+      // preference at boot.
+      if (a11y['data-follow-system'] === '1') {
+        const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const themeForMode = dark ? 'apex' : 'mono';
+        document.documentElement.setAttribute('data-theme', themeForMode);
+        document.body.setAttribute('data-theme', themeForMode);
+      }
     } catch { /* localStorage may be locked */ }
 
     // Pull settings down from the server. If the user is logged in

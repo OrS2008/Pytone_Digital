@@ -260,15 +260,119 @@ export default function Parental() {
       </div>
 
       <div className="ac-card">
-        <div className="ac-card-title">PIN protection · planned</div>
-        <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, margin: 0 }}>
-          A PIN that the player asks for before unlocking content above your
-          rating cap, leaving a Kids profile, or opening Billing is on the
-          roadmap. Until it ships, the settings above act as filters in the
-          UI only — they hide content from the rail rather than block a
-          determined user from typing the channel into search.
-        </p>
+        <div className="ac-card-title">PIN protection</div>
+        <ParentalPin />
       </div>
     </Shell>
   );
+}
+
+// 4-digit PIN. Stored locally as a SHA-256 hash so a glance at devtools
+// can't reveal the number. The PIN check is enforced by the
+// useParentalPin hook (see lib/parental.ts) — any screen that wants to
+// gate access wraps itself with it. Clearing the PIN reverts to the
+// previous "filters only" behaviour.
+function ParentalPin() {
+  const [hasPin,  setHasPin]  = useState(false);
+  const [pin,     setPin]     = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [msg,     setMsg]     = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    try { setHasPin(!!localStorage.getItem('ns.parental.pinHash')); }
+    catch { /* ignore */ }
+  }, []);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setMsg(null);
+    if (!/^\d{4}$/.test(pin)) {
+      setMsg({ ok: false, text: 'PIN must be exactly 4 digits.' });
+      return;
+    }
+    if (pin !== confirm) {
+      setMsg({ ok: false, text: 'The two PINs don\'t match.' });
+      return;
+    }
+    const hash = await sha256Hex(pin);
+    try {
+      localStorage.setItem('ns.parental.pinHash', hash);
+      setHasPin(true);
+      setPin(''); setConfirm('');
+      setMsg({ ok: true, text: 'PIN saved. The app will now ask for it before showing blocked channels.' });
+    } catch {
+      setMsg({ ok: false, text: 'Couldn\'t save the PIN — browser storage may be locked.' });
+    }
+  }
+
+  function clear() {
+    if (!confirm && !window.confirm('Remove the PIN? Blocked channels will become hidden-only again.')) return;
+    try {
+      localStorage.removeItem('ns.parental.pinHash');
+      localStorage.removeItem('ns.parental.unlockedUntil');
+      setHasPin(false);
+      setMsg({ ok: true, text: 'PIN removed.' });
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <>
+      <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, margin: '0 0 16px' }}>
+        A 4-digit PIN the app asks for before unlocking blocked channels or
+        playing content above the rating cap. Stored as a SHA-256 hash on
+        this device only — never sent to our servers.
+      </p>
+      {hasPin ? (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ color: 'var(--ns-ok, #7DF9C6)', fontSize: 14, fontWeight: 600 }}>
+            ✓ PIN is set.
+          </span>
+          <button className="ac-btn ac-btn-sm" onClick={clear}>Remove PIN</button>
+        </div>
+      ) : (
+        <form onSubmit={save} style={{ display: 'grid', gap: 12, maxWidth: 320 }}>
+          <div className="ac-field">
+            <label className="ac-field-label">New 4-digit PIN</label>
+            <input
+              className="ac-input"
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              maxLength={4}
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+              placeholder="••••"
+            />
+          </div>
+          <div className="ac-field">
+            <label className="ac-field-label">Confirm</label>
+            <input
+              className="ac-input"
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              maxLength={4}
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value.replace(/\D/g, ''))}
+              placeholder="••••"
+            />
+          </div>
+          <button type="submit" className="ac-btn ac-btn-primary">Set PIN</button>
+        </form>
+      )}
+      {msg && (
+        <div style={{
+          marginTop: 12,
+          color: msg.ok ? 'var(--ns-ok, #7DF9C6)' : 'var(--ns-danger, #FF6B7B)',
+          fontSize: 13,
+        }}>{msg.text}</div>
+      )}
+    </>
+  );
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const buf = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }

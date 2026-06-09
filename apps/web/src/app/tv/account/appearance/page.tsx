@@ -98,18 +98,98 @@ export default function Appearance() {
         </div>
       </div>
 
-      <div className="ac-card">
-        <div className="ac-card-title">On the roadmap</div>
-        <p style={{ color: 'var(--ns-text-muted)', fontSize: 13.5, margin: '0 0 8px' }}>
-          Accessibility controls planned for this screen:
-        </p>
-        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, color: 'var(--ns-text-muted)', lineHeight: 1.8 }}>
-          <li>Follow the system dark/light preference</li>
-          <li>High-contrast variants of each theme</li>
-          <li>Reduce-motion (disable fade and scale animations)</li>
-          <li>Bigger text (+15 % body text size for far seating)</li>
-        </ul>
+      <div className="ac-card" style={{ marginTop: 22 }}>
+        <div className="ac-card-title">Accessibility</div>
+        <AccessibilityControls />
       </div>
     </Shell>
+  );
+}
+
+// Three accessibility toggles wired straight into <html> data
+// attributes so themes.css / globals.css can react with attribute
+// selectors. Persisted globally (not per-user) because the access
+// preferences belong to whoever is sitting in front of the device.
+function AccessibilityControls() {
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const [biggerText,   setBiggerText]   = useState(false);
+  const [followSystem, setFollowSystem] = useState(false);
+
+  useEffect(() => {
+    try {
+      setReduceMotion(localStorage.getItem('ns.a11y.reduceMotion') === '1');
+      setBiggerText(localStorage.getItem('ns.a11y.biggerText')     === '1');
+      setFollowSystem(localStorage.getItem('ns.a11y.followSystem') === '1');
+    } catch { /* ignore */ }
+  }, []);
+
+  function flip(
+    key: 'reduceMotion' | 'biggerText' | 'followSystem',
+    value: boolean,
+    setter: (v: boolean) => void,
+  ) {
+    setter(value);
+    try { localStorage.setItem(`ns.a11y.${key}`, value ? '1' : '0'); } catch { /* ignore */ }
+    // Mirror to <html> so CSS attribute selectors pick it up
+    // immediately without a reload.
+    const map = {
+      reduceMotion: 'data-reduce-motion',
+      biggerText:   'data-bigger-text',
+      followSystem: 'data-follow-system',
+    } as const;
+    document.documentElement.setAttribute(map[key], value ? '1' : '0');
+    // System-theme follow: pick light vs. dark off the media query
+    // and re-apply the matching theme.
+    if (key === 'followSystem' && value) {
+      const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const themeForMode = dark ? 'apex' : 'mono';
+      document.documentElement.setAttribute('data-theme', themeForMode);
+      document.body.setAttribute('data-theme', themeForMode);
+      try { localStorage.setItem('ns.theme', themeForMode); } catch { /* ignore */ }
+    }
+  }
+
+  return (
+    <>
+      <div className="ac-toggle-row">
+        <div>
+          <div className="ac-toggle-title">Follow system dark / light</div>
+          <div className="ac-toggle-desc">
+            Switch theme automatically to match the OS preference. Overrides
+            the picker above while turned on.
+          </div>
+        </div>
+        <label className="ac-toggle-switch">
+          <input type="checkbox" checked={followSystem} onChange={(e) => flip('followSystem', e.target.checked, setFollowSystem)} />
+          <span className="ac-toggle-track"><span className="ac-toggle-knob" /></span>
+        </label>
+      </div>
+      <div className="ac-toggle-row">
+        <div>
+          <div className="ac-toggle-title">Reduce motion</div>
+          <div className="ac-toggle-desc">
+            Disables fade and scale animations across the app. Helps with
+            motion-sensitivity and saves a sliver of GPU on low-power TVs.
+          </div>
+        </div>
+        <label className="ac-toggle-switch">
+          <input type="checkbox" checked={reduceMotion} onChange={(e) => flip('reduceMotion', e.target.checked, setReduceMotion)} />
+          <span className="ac-toggle-track"><span className="ac-toggle-knob" /></span>
+        </label>
+      </div>
+      <div className="ac-toggle-row">
+        <div>
+          <div className="ac-toggle-title">Bigger text</div>
+          <div className="ac-toggle-desc">
+            Bumps body text size by 15 %. Useful when watching from the
+            couch on a wall-mounted TV.
+          </div>
+        </div>
+        <label className="ac-toggle-switch">
+          <input type="checkbox" checked={biggerText} onChange={(e) => flip('biggerText', e.target.checked, setBiggerText)} />
+          <span className="ac-toggle-track"><span className="ac-toggle-knob" /></span>
+        </label>
+      </div>
+    </>
   );
 }

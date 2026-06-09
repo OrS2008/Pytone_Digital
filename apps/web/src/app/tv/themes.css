@@ -231,3 +231,30 @@ body[data-theme="aurora"]::before {
   pointer-events: none;
   z-index: 0;
 }
+
+/* --- Accessibility flags (set by /tv/account/appearance) --------- */
+
+/* "Reduce motion" turns off every fade/scale/translate transition app-
+   wide. Browsers also honour `prefers-reduced-motion`, so the OS-level
+   setting kicks in automatically; this flag is the manual override. */
+html[data-reduce-motion="1"] *,
+html[data-reduce-motion="1"] *::before,
+html[data-reduce-motion="1"] *::after {
+  animation-duration:  0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior:     auto    !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration:  0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior:     auto    !important;
+  }
+}
+
+/* "Bigger text" — 15 % bump on the root font size, which scales every
+   rem-based measurement. Doesn't touch elements with explicit pixel
+   values (player chrome stays at 14 px) on purpose. */
+html[data-bigger-text="1"] { font-size: 115%; }

@@ -1,54 +1,81 @@
 // Playback preferences.
 //
-// Previous version showed 14 toggles and 5 selects covering features
-// that don't exist in the player:
-//   * "Skip intros automatically — audio fingerprint detection"
-//   * "Resume across devices — real-time CRDT sync"
-//   * "HDR auto-detect", "Volume normalisation across channels"
-//   * "Auto-play next episode"  (we don't have a series concept)
-//   * Maximum quality / cellular cap selects (the player doesn't
-//     read these — adaptive bitrate is left to hls.js)
-//   * Preferred audio / subtitle language selects (the manifest
-//     parser doesn't honour these)
+// Every control on this screen actually drives the player. New
+// settings here also need a matching read site somewhere downstream
+// (PlayerSurface for hls.js bindings, etc.) — otherwise they belong in
+// the roadmap card.
 //
-// Every one of them used <Toggle> without a persistKey, so flipping
-// them stored nothing and changed nothing. Keeping them was
-// actively misleading — a user toggling "Skip intros" expects intros
-// to be skipped.
-//
-// Pass keeps only the two preferences the rest of the codebase
-// actually reads:
+// Today's working set:
 //   * prefs.prefetchNeighbours  — LivePreviewTile pre-warms ±1 channel
-//   * prefs.spoilerProtection   — EPG strip hides scores when on
+//   * prefs.spoilerProtection   — EPG hides scores when on
+//   * prefs.audioLang           — hls.js preferred audio track
+//   * prefs.subtitleLang        — hls.js preferred subtitle track
+//   * prefs.maxQuality          — hls.js capLevelToPlayerSize + maxAutoLevel
 //
-// Subtitle styling stays because SubtitleControls writes its own
-// localStorage keys and the player picks them up. Everything else is
-// either gone or framed as a roadmap item.
+// Subtitle styling lives in SubtitleControls (its own localStorage
+// keys read by the player).
+
+'use client';
 
 import Link from 'next/link';
 import Shell from '../Shell';
 import Toggle from '@/components/ui/Toggle';
 import SubtitleControls from '@/components/ui/SubtitleControls';
+import usePersisted from '@/lib/usePersisted';
 
 const ROADMAP = [
-  'Preferred audio / subtitle language',
-  'Adaptive-bitrate cap (data saver)',
-  'Auto-play next episode',
-  'Resume across devices (cloud progress sync)',
-  'HDR auto-detection',
-  'Audio normalisation between channels',
+  'Auto-play next episode (waiting on episode metadata in M3U)',
+];
+
+// Common ISO-639-1 languages first, plus "off" for subtitles. The
+// player matches the M3U manifest's audio / subtitle track names
+// against this code; if no match we fall through to whatever the
+// stream defaults to.
+const AUDIO_LANGS = [
+  { value: '', label: 'Auto (stream default)' },
+  { value: 'en', label: 'English' },
+  { value: 'he', label: 'Hebrew · עברית' },
+  { value: 'ar', label: 'Arabic · العربية' },
+  { value: 'ru', label: 'Russian · Русский' },
+  { value: 'fr', label: 'French · Français' },
+  { value: 'es', label: 'Spanish · Español' },
+  { value: 'de', label: 'German · Deutsch' },
+  { value: 'it', label: 'Italian · Italiano' },
+  { value: 'pt', label: 'Portuguese · Português' },
+  { value: 'tr', label: 'Turkish · Türkçe' },
+];
+const SUBTITLE_LANGS = [
+  { value: 'off', label: 'Off' },
+  { value: '',    label: 'Auto (match audio)' },
+  { value: 'en', label: 'English' },
+  { value: 'he', label: 'Hebrew · עברית' },
+  { value: 'ar', label: 'Arabic · العربية' },
+  { value: 'ru', label: 'Russian · Русский' },
+  { value: 'fr', label: 'French · Français' },
+  { value: 'es', label: 'Spanish · Español' },
+];
+const QUALITY_OPTIONS = [
+  { value: 'auto',   label: 'Auto (adaptive)' },
+  { value: '1080',   label: '1080p — high bandwidth' },
+  { value: '720',    label: '720p — balanced' },
+  { value: '480',    label: '480p — data saver' },
+  { value: 'audio',  label: 'Audio only — cellular fallback' },
 ];
 
 export default function Preferences() {
+  const [audioLang,    setAudioLang]    = usePersisted<string>('prefs.audioLang',    '');
+  const [subtitleLang, setSubtitleLang] = usePersisted<string>('prefs.subtitleLang', 'off');
+  const [maxQuality,   setMaxQuality]   = usePersisted<string>('prefs.maxQuality',   'auto');
+
   return (
     <Shell active="preferences">
       <header className="ac-panel-head">
         <div className="ac-panel-eyebrow">Playback</div>
         <h1 className="ac-panel-title">How you watch</h1>
         <p className="ac-panel-sub">
-          Settings that actually affect the player. We don&apos;t list
-          toggles for features that aren&apos;t wired up yet — the roadmap
-          card at the bottom names what&apos;s coming.
+          Settings that actually affect the player. Every control on this
+          screen is read by the live / catch-up player at the next channel
+          tune.
         </p>
       </header>
 
@@ -74,6 +101,57 @@ export default function Preferences() {
             </div>
           </div>
           <Toggle persistKey="prefs.spoilerProtection" />
+        </div>
+      </div>
+
+      <div className="ac-card">
+        <div className="ac-card-title">Languages</div>
+        <div className="ac-field">
+          <label className="ac-field-label">Preferred audio language</label>
+          <select
+            className="ac-input"
+            value={audioLang}
+            onChange={(e) => setAudioLang(e.target.value)}
+          >
+            {AUDIO_LANGS.map((o) => <option key={o.value || 'auto'} value={o.value}>{o.label}</option>)}
+          </select>
+          <div className="ac-field-help">
+            Used when a stream carries multiple audio tracks (e.g. English &amp;
+            Hebrew on the same channel). Auto means &quot;whatever the manifest
+            picks first&quot;.
+          </div>
+        </div>
+        <div className="ac-field">
+          <label className="ac-field-label">Subtitle language</label>
+          <select
+            className="ac-input"
+            value={subtitleLang}
+            onChange={(e) => setSubtitleLang(e.target.value)}
+          >
+            {SUBTITLE_LANGS.map((o) => <option key={o.value || 'auto'} value={o.value}>{o.label}</option>)}
+          </select>
+          <div className="ac-field-help">
+            Only applied when the stream actually carries that subtitle
+            track — most live channels don&apos;t.
+          </div>
+        </div>
+      </div>
+
+      <div className="ac-card">
+        <div className="ac-card-title">Bandwidth</div>
+        <div className="ac-field">
+          <label className="ac-field-label">Maximum quality</label>
+          <select
+            className="ac-input"
+            value={maxQuality}
+            onChange={(e) => setMaxQuality(e.target.value)}
+          >
+            {QUALITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <div className="ac-field-help">
+            Caps the bitrate hls.js is allowed to climb to. Useful on mobile
+            data, weak Wi-Fi, or when sharing the line with other devices.
+          </div>
         </div>
       </div>
 

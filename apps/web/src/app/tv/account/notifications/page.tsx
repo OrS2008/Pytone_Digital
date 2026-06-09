@@ -32,10 +32,6 @@ const PLANNED = [
     detail: 'When a new device signs into your account from an unfamiliar IP.',
   },
   {
-    title:  'Email · payment receipt',
-    detail: 'After each successful Stripe charge. Sent by Stripe directly, not us.',
-  },
-  {
     title:  'Email · trial ending in 24h',
     detail: 'A heads-up so you can subscribe before access cuts off.',
   },

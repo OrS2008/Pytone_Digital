@@ -213,7 +213,6 @@ export default function Plans() {
         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, color: 'var(--ns-text-muted)', lineHeight: 1.8 }}>
           <li>Cloud DVR — schedule recordings that play back from our servers</li>
           <li>Family profiles — per-profile favourites, history, and parental cap</li>
-          <li>Programme restart — jump to the beginning of the show that&apos;s on</li>
         </ul>
       </div>
 

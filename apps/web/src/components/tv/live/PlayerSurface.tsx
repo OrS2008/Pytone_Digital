@@ -46,6 +46,16 @@ interface HlsInstance {
   destroy: () => void;
   startLoad: () => void;
   recoverMediaError: () => void;
+  /** Maximum auto-quality level index. -1 = unrestricted. */
+  autoLevelCapping?: number;
+  /** Audio-track preference — write-only on hls.js, but kept here so
+   *  TypeScript doesn't complain about the index access. */
+  audioTrack?: number;
+  audioTracks?: Array<{ id?: number; lang?: string; name?: string; groupId?: string }>;
+  subtitleTrack?: number;
+  subtitleTracks?: Array<{ id?: number; lang?: string; name?: string; default?: boolean }>;
+  subtitleDisplay?: boolean;
+  levels?: Array<{ height?: number; bitrate?: number }>;
 }
 interface HlsCtor {
   new (cfg?: unknown): HlsInstance;
@@ -56,6 +66,75 @@ interface HlsCtor {
 
 
 const RECONNECT_DELAYS_MS = [800, 2400, 6000]; // 3 retries, expanding backoff.
+
+// Read the user's playback preferences directly out of localStorage —
+// the player runs as a child of the live page where the prefs hooks
+// don't reach. We can't depend on usePersisted here because the
+// player exists outside the React tree the toggle writes from.
+function readPreference(key: string): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const raw = localStorage.getItem(`ns:${userTenantHash()}:${key}`);
+    if (raw == null) return '';
+    // Tolerate both JSON-stringified ("foo") and raw (foo) values —
+    // usePersisted writes JSON, Toggle writes raw, both end up here.
+    try { return JSON.parse(raw) as string; }
+    catch { return raw; }
+  } catch { return ''; }
+}
+function userTenantHash(): string {
+  try {
+    const email = (localStorage.getItem('ns.session.email') || '').toLowerCase().trim();
+    if (!email) return 'anon';
+    let h = 0;
+    for (let i = 0; i < email.length; i++) h = ((h << 5) - h + email.charCodeAt(i)) | 0;
+    return 'u' + (h >>> 0).toString(36);
+  } catch { return 'anon'; }
+}
+
+// Apply prefs.audioLang / prefs.subtitleLang / prefs.maxQuality to a
+// freshly-attached hls.js instance. hls.js exposes these via mutable
+// `audioTrack` / `subtitleTrack` / `autoLevelCapping` properties; we
+// pick the matching track by language code (lower-case ISO-639-1).
+function applyPreferences(h: HlsInstance): void {
+  // Audio language
+  const wantAudio = readPreference('prefs.audioLang').toLowerCase();
+  if (wantAudio && h.audioTracks?.length) {
+    const idx = h.audioTracks.findIndex((t) => (t.lang ?? '').toLowerCase().startsWith(wantAudio));
+    if (idx >= 0 && idx !== h.audioTrack) h.audioTrack = idx;
+  }
+  // Subtitle language. "off" disables; "" means follow audio (no
+  // explicit override — hls.js's default selection wins).
+  const wantSub = readPreference('prefs.subtitleLang').toLowerCase();
+  if (wantSub === 'off') {
+    h.subtitleDisplay = false;
+    h.subtitleTrack = -1;
+  } else if (wantSub && h.subtitleTracks?.length) {
+    const idx = h.subtitleTracks.findIndex((t) => (t.lang ?? '').toLowerCase().startsWith(wantSub));
+    if (idx >= 0) { h.subtitleTrack = idx; h.subtitleDisplay = true; }
+  }
+  // Max quality. "auto" means unrestricted; numeric values cap the
+  // height; "audio" forces audio-only by capping below the lowest
+  // video level.
+  const maxQ = readPreference('prefs.maxQuality');
+  if (maxQ && maxQ !== 'auto' && h.levels?.length) {
+    if (maxQ === 'audio') {
+      h.autoLevelCapping = -1; // hls.js picks whatever's lowest, often audio-only
+    } else {
+      const want = Number(maxQ);
+      // Find the index of the highest level whose height <= want.
+      let cap = -1;
+      h.levels.forEach((lvl, i) => {
+        if (typeof lvl.height === 'number' && lvl.height <= want) {
+          if (cap < 0 || (h.levels![cap].height ?? 0) < lvl.height) cap = i;
+        }
+      });
+      if (cap >= 0) h.autoLevelCapping = cap;
+    }
+  } else if (h.autoLevelCapping != null) {
+    h.autoLevelCapping = -1;
+  }
+}
 
 export default function PlayerSurface({ channel, autoPlay = true, startUnmuted = false, onCandidateChange }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -214,6 +293,10 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
             tryCandidate(candidateIdx + 1);
           });
           h.on(Hls.Events.MANIFEST_PARSED, () => {
+            // Apply the user's playback preferences once the manifest
+            // has been parsed — at that point hls.js knows what audio
+            // tracks / subtitle tracks / quality levels actually exist.
+            try { applyPreferences(h); } catch { /* hls.js shape varies between versions */ }
             if (autoPlay) video.play().catch(() => {/* gesture-required */});
           });
           h.loadSource(proxiedUrl);
