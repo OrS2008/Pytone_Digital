@@ -940,6 +940,44 @@ function DiagnoseOverlay({ channels, onClose }: { channels: M3UChannel[]; onClos
                 Share this list with support if everything fails — it tells your IPTV provider
                 exactly which URL pattern their DVR speaks.
               </p>
+              {/* When every candidate came back as silent-live AND
+                  the M3U declares a catchup mode, the most common
+                  fix is OS-level VPN: the provider has IP-gated DVR
+                  to ClouDDy / TiViMate. Surfacing the recommendation
+                  inline avoids the user having to figure that out. */}
+              {probe.verdict.candidatesSilentLive.length >= probe.results.length - 2 && (
+                <div style={{
+                  marginTop: 14,
+                  padding: 14,
+                  borderRadius: 10,
+                  background: 'rgba(255,176,32,0.08)',
+                  border: '1px solid rgba(255,176,32,0.30)',
+                  color: '#FFD89C',
+                  fontSize: 13,
+                  lineHeight: 1.55,
+                }}>
+                  <strong style={{ color: '#FFB020' }}>💡 Free fix to try — install a VPN on your device.</strong>
+                  <br />
+                  Your IPTV provider almost certainly IP-gates the DVR to recognised
+                  player apps (ClouDDy, TiViMate). When the request comes from a known
+                  player they serve archive; from Cloudflare&apos;s IP they serve live.
+                  The free fix is to make the request come from your <em>device&apos;s</em>
+                  IP instead.
+                  <ol style={{ margin: '8px 0 0', paddingInlineStart: 20 }}>
+                    <li>Install a free VPN client on your device — try{' '}
+                      <a href="https://windscribe.com/download" target="_blank" rel="noreferrer" style={{ color: '#FFB020', fontWeight: 700 }}>Windscribe Free</a>{' '}
+                      (10 countries, 10 GB/month) or{' '}
+                      <a href="https://protonvpn.com/free-vpn" target="_blank" rel="noreferrer" style={{ color: '#FFB020', fontWeight: 700 }}>ProtonVPN Free</a>{' '}
+                      (3 countries, unlimited data).
+                    </li>
+                    <li>Connect the VPN to a country (any country works as long as it&apos;s not your real one — the provider just needs a non-Cloudflare IP).</li>
+                    <li>Reload Nova Stream and try catch-up again.</li>
+                  </ol>
+                  We aren&apos;t affiliated with either VPN. We don&apos;t see or store
+                  any VPN credentials — this is just a recommendation for a free tool
+                  that runs on your device.
+                </div>
+              )}
             </div>
           )}
         </section>
