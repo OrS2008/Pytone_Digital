@@ -2,7 +2,6 @@ const en: Record<string, string> = {
   'nav.live':      'Live',
   'nav.home':      'Home',
   'nav.sports':    'Sports',
-  'nav.movies':    'Movies',
   'nav.guide':     'TV Guide',
   'nav.catchup':   'Catch-up',
   'nav.search':    'Search',
@@ -45,14 +44,6 @@ const en: Record<string, string> = {
   'hero.liveNowCategory':'Live now',
   'hero.playNow':        'Play',
   'hero.browseAll':      'Browse all channels',
-
-  'vod.featured':        'Movies & cinema',
-  'vod.entertainment':   'Entertainment',
-  'vod.documentaries':   'Documentaries',
-  'vod.kids':            'Kids & family',
-  'vod.empty.title':     'No movies yet',
-  'vod.empty.sub':       'Add a VOD library (M3U / Jellyfin / Plex / your own NAS) in Sources and your movies appear here.',
-  'vod.empty.cta':       'Add a VOD source',
 
   'sports.liveNow':      'Sports — live now',
   'sports.newsTalk':     'Sports news & talk',

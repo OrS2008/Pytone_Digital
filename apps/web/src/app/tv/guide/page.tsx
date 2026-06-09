@@ -37,12 +37,31 @@ import type { EpgProgramme } from '@/lib/epg';
 import type { M3UChannel } from '@/lib/m3u';
 import type { DigestChannel } from '@/lib/digest';
 
-const PX_PER_MIN = 4;
-const PX_PER_HOUR = PX_PER_MIN * 60;
-const DAY_WIDTH_PX = PX_PER_HOUR * 24;
-const ROW_HEIGHT = 64;
-const RAIL_WIDTH = 200;
-const HEADER_HEIGHT = 56;
+// Default dimensions for desktop / TV. The component reads viewport
+// width on mount and shrinks them on phones (see useLayout below) so
+// the grid is usable on a 360 px screen as well as a 4 K living-room TV.
+const DESKTOP_LAYOUT = {
+  pxPerMin:    4,
+  rowHeight:   64,
+  railWidth:   200,
+  headerHeight: 56,
+};
+const MOBILE_LAYOUT = {
+  pxPerMin:    2.5,   // 150 px / hour → 4 hours visible on a 600 px viewport
+  rowHeight:   56,
+  railWidth:   116,
+  headerHeight: 44,
+};
+function useLayout() {
+  const [layout, setLayout] = useState(DESKTOP_LAYOUT);
+  useEffect(() => {
+    const pick = () => setLayout(window.innerWidth < 720 ? MOBILE_LAYOUT : DESKTOP_LAYOUT);
+    pick();
+    window.addEventListener('resize', pick);
+    return () => window.removeEventListener('resize', pick);
+  }, []);
+  return layout;
+}
 
 function startOfDay(ms: number): number {
   const d = new Date(ms);
@@ -95,6 +114,14 @@ function digestToRowData(digestChannels: DigestChannel[]): RowData[] {
 }
 
 export default function GuidePage() {
+  const layout = useLayout();
+  const PX_PER_MIN   = layout.pxPerMin;
+  const PX_PER_HOUR  = PX_PER_MIN * 60;
+  const DAY_WIDTH_PX = PX_PER_HOUR * 24;
+  const ROW_HEIGHT   = layout.rowHeight;
+  const RAIL_WIDTH   = layout.railWidth;
+  const HEADER_HEIGHT = layout.headerHeight;
+
   const [channels, setChannels] = useState<M3UChannel[]>(
     (typeof window !== 'undefined' ? getCachedChannels() : null) ?? [],
   );
@@ -365,6 +392,7 @@ export default function GuidePage() {
                 dayStart={dayStart}
                 dayEnd={dayEnd}
                 now={now}
+                layout={layout}
               />
             ))}
           </div>
@@ -374,12 +402,16 @@ export default function GuidePage() {
   );
 }
 
-function GuideRow({ row, dayStart, dayEnd, now }: {
+function GuideRow({ row, dayStart, dayEnd, now, layout }: {
   row: RowData;
   dayStart: number;
   dayEnd: number;
   now: number;
+  layout: typeof DESKTOP_LAYOUT;
 }) {
+  const PX_PER_MIN = layout.pxPerMin;
+  const ROW_HEIGHT = layout.rowHeight;
+  const RAIL_WIDTH = layout.railWidth;
   const { channel, programmes } = row;
   const catchupDays = channel.catchupDays ?? 7;
   const earliestCatchup = now - catchupDays * 86_400_000;

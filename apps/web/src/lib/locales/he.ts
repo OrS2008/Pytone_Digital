@@ -2,7 +2,6 @@ const he: Record<string, string> = {
   'nav.live':      'שידור חי',
   'nav.home':      'בית',
   'nav.sports':    'ספורט',
-  'nav.movies':    'סרטים',
   'nav.guide':     'מדריך תוכניות',
   'nav.catchup':   'צפייה חוזרת',
   'nav.search':    'חיפוש',
@@ -45,14 +44,6 @@ const he: Record<string, string> = {
   'hero.liveNowCategory':'משדרים עכשיו',
   'hero.playNow':        'נגן',
   'hero.browseAll':      'דפדף בכל הערוצים',
-
-  'vod.featured':        'סרטים וקולנוע',
-  'vod.entertainment':   'בידור',
-  'vod.documentaries':   'דוקומנטרי',
-  'vod.kids':            'ילדים ומשפחה',
-  'vod.empty.title':     'אין סרטים עדיין',
-  'vod.empty.sub':       'הוסף ספריית VOD (M3U / Jellyfin / Plex / NAS משלך) ב-Sources והסרטים שלך יופיעו כאן.',
-  'vod.empty.cta':       'הוסף מקור VOD',
 
   'sports.liveNow':      'ספורט — משדרים עכשיו',
   'sports.newsTalk':     'חדשות ספורט',
