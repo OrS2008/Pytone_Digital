@@ -1,9 +1,35 @@
 // Design exploration index. Five complete visual directions for the
-// Live TV screen, all rendering the same mock channels + EPG so the user
-// can compare apples-to-apples. Each variant is a self-contained tsx +
-// css pair under /tv/design/{variant}/.
+// Live TV screen, all rendering the same mock channels + EPG so the
+// designer can compare apples-to-apples. Each variant is a self-
+// contained tsx + css pair under /tv/design/{variant}/.
+//
+// Operator-only — the audit flagged this page as visible to end users
+// who confused it for a feature. The DesignGate wrapper below checks
+// /api/admin/whoami and redirects non-admins to /tv so the URL
+// quietly stops working for civilians while remaining a useful tool
+// internally.
 
-export const dynamic = 'force-static';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+
+function DesignGate({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const [allowed, setAllowed] = useState<boolean | null>(null);
+  useEffect(() => {
+    fetch('/api/admin/whoami', { cache: 'no-store', credentials: 'include' })
+      .then((r) => r.json())
+      .then((d: { ok?: boolean }) => {
+        if (d.ok) { setAllowed(true); }
+        else      { setAllowed(false); router.replace('/tv'); }
+      })
+      .catch(() => { setAllowed(false); router.replace('/tv'); });
+  }, [router]);
+  if (allowed === null) return <main style={{ padding: 32, color: '#8B95A7' }}>Loading…</main>;
+  if (!allowed)         return null;
+  return <>{children}</>;
+}
 
 const VARIANTS = [
   { id: 'apex',     name: 'Apex Dark',         tagline: 'Refined signature. Deep black + magenta. Apple TV / Disney+ inspired.' },
@@ -14,6 +40,14 @@ const VARIANTS = [
 ];
 
 export default function DesignIndex() {
+  return (
+    <DesignGate>
+      <DesignBody />
+    </DesignGate>
+  );
+}
+
+function DesignBody() {
   return (
     <main style={{
       padding: 64,

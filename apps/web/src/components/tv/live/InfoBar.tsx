@@ -199,7 +199,11 @@ export default function InfoBar(p: Props) {
   function doRecord() {
     if (!p.channel) return;
     addRecording(p.channel);
-    flash(`${t('live.record')} · ${p.channel.now?.title ?? p.channel.name}`);
+    // Recordings are saved in this device's local storage only — there
+    // is no DVR backend yet, so the entry is a reminder, not a real
+    // scheduled record. The toast wording reflects that so the user
+    // doesn't think a remote DVR is grabbing the programme.
+    flash(`Bookmarked · ${p.channel.now?.title ?? p.channel.name} (saved on this device)`);
   }
   function toggleMute() {
     const v = videoEl();
@@ -313,10 +317,10 @@ export default function InfoBar(p: Props) {
               className={`infobar-btn ${focused === 2 ? 'focused' : ''}`}
               disabled={!ch.now}
               onClick={doRecord}
-              title={ch.now ? `Record "${ch.now.title}"` : 'No programme to record'}
+              title={ch.now ? `Bookmark "${ch.now.title}" on this device (no remote DVR yet)` : 'No programme to bookmark'}
             >
-              <span className="infobar-btn-icon" style={{ color: '#FF3B6E' }}>●</span>
-              <span>{t('live.record')}</span>
+              <span className="infobar-btn-icon" style={{ color: '#FFB020' }}>☆</span>
+              <span>Bookmark</span>
             </button>
             <button
               className={`infobar-btn ${focused === 3 ? 'focused' : ''}`}
@@ -366,7 +370,7 @@ export default function InfoBar(p: Props) {
             )}
             {ch.now?.description && <p className="infobar-modal-desc">{ch.now.description}</p>}
             <div className="infobar-modal-actions">
-              <button className="infobar-btn primary" onClick={() => { setCard(false); doRecord(); }}>● {t('live.record')}</button>
+              <button className="infobar-btn primary" onClick={() => { setCard(false); doRecord(); }}>☆ Bookmark</button>
               <button className="infobar-btn"          onClick={() => setCard(false)}>Close</button>
             </div>
           </div>

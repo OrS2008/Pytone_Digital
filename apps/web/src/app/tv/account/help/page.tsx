@@ -9,10 +9,6 @@ import { signOut } from '@/lib/session';
 const LEGAL = [
   { label: 'Terms of service',     href: '/legal/terms'   },
   { label: 'Privacy policy',       href: '/legal/privacy' },
-  { label: 'Cookies & tracking',   href: '/legal/privacy' },
-  { label: 'Acceptable use',       href: '/legal/terms'   },
-  { label: 'Open-source licences', href: '/legal/terms'   },
-  { label: 'Refund policy',        href: '/legal/terms'   },
 ];
 
 export default function Help() {

@@ -21,6 +21,7 @@
 
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import Shell from '../Shell';
 import { useAccess } from '@/lib/useAccess';
@@ -32,6 +33,29 @@ function fmtDate(ms: number | undefined | null): string {
 
 export default function Subscription() {
   const access = useAccess();
+  const [portalBusy,  setPortalBusy]  = useState(false);
+  const [portalError, setPortalError] = useState<string | null>(null);
+
+  // Open the Stripe Customer Portal in a new tab. The endpoint mints
+  // a one-shot URL from the user's Stripe customer id (looked up via
+  // the session cookie) — we don't have the URL up-front because
+  // Stripe wants it minted per session for security.
+  async function openPortal() {
+    setPortalBusy(true); setPortalError(null);
+    try {
+      const r = await fetch('/api/billing/portal', { method: 'POST', credentials: 'include' });
+      if (r.status === 401) { setPortalError('Sign in again to manage your subscription.'); return; }
+      if (r.status === 404) { setPortalError('No Stripe customer yet — start a paid plan first.'); return; }
+      if (!r.ok)            { setPortalError(`Stripe portal unavailable (${r.status}).`); return; }
+      const body = await r.json() as { url?: string };
+      if (body.url) window.location.href = body.url;
+      else          setPortalError('Stripe portal returned no URL.');
+    } catch (e) {
+      setPortalError(`Couldn't open portal: ${(e as Error).message}`);
+    } finally {
+      setPortalBusy(false);
+    }
+  }
 
   return (
     <Shell active="subscription">
@@ -129,9 +153,23 @@ export default function Subscription() {
         <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, marginTop: 0 }}>
           Paid subscriptions are processed by Stripe. We don&apos;t see or store your card —
           Stripe holds the payment method and emails you a receipt after every successful
-          charge. You can view your full payment history from the Stripe customer portal
-          once a subscription has started.
+          charge. Open the customer portal below to view payment history, change card,
+          download invoices, or cancel the subscription.
         </p>
+        <div style={{ marginTop: 12, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            type="button"
+            className="ac-btn"
+            onClick={openPortal}
+            disabled={portalBusy || access.status !== 'subscribed'}
+            title={access.status === 'subscribed' ? 'Open Stripe customer portal' : 'Start a paid plan first'}
+          >
+            {portalBusy ? 'Opening…' : 'Manage subscription in Stripe →'}
+          </button>
+          {portalError && (
+            <span style={{ color: 'var(--ns-danger, #FF6B7B)', fontSize: 13 }}>{portalError}</span>
+          )}
+        </div>
       </div>
     </Shell>
   );
