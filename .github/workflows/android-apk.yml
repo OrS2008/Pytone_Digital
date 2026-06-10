@@ -85,29 +85,28 @@ jobs:
           cp -rv android-overrides/app/src/main/. android/app/src/main/
 
           # Patch namespace + applicationId + versionCode/Name into the
-          # scaffolded build.gradle. Capacitor's default leaves these
-          # as io.ionic.starter — we want tv.novastream.app.
+          # scaffolded build.gradle. Capacitor already derives these
+          # from appId, so these are mostly no-ops — but they ensure
+          # the values match what we expect if the upstream template
+          # changes.
           BG=android/app/build.gradle
           sed -i 's|namespace ".*"|namespace "tv.novastream.app"|'              "$BG"
           sed -i 's|applicationId ".*"|applicationId "tv.novastream.app"|'      "$BG"
-          sed -i 's|versionCode [0-9]*|versionCode 1|'                          "$BG"
+          # Use [0-9]\+ (one-or-more) not [0-9]* (zero-or-more): the
+          # latter happily matches an empty string and would corrupt
+          # `versionCode rootProject.ext.versionCode` into
+          # `versionCode 1rootProject.ext.versionCode`. Capacitor's
+          # template uses literal digits here, but be defensive.
+          sed -i 's|versionCode [0-9]\+|versionCode 1|'                         "$BG"
           sed -i 's|versionName ".*"|versionName "1.0.0"|'                      "$BG"
-          # minSdk lifted to 24 — Android 7+, covers >99% of in-use
-          # devices and unlocks modern WebView features we rely on for
-          # HLS. In Capacitor 6 the value lives in android/variables.gradle
-          # (referenced from app/build.gradle via rootProject.ext), so
-          # patch both places to be safe.
-          sed -i 's|minSdkVersion [0-9]*|minSdkVersion 24|'                     "$BG"
+          # minSdk lives in android/variables.gradle in Capacitor 6
+          # (referenced from app/build.gradle as `rootProject.ext.minSdkVersion`).
+          # Patching app/build.gradle would corrupt that reference, so
+          # only patch variables.gradle.
           if [ -f android/variables.gradle ]; then
-            sed -i 's|minSdkVersion = [0-9]*|minSdkVersion = 24|'                android/variables.gradle
-          fi
-
-          # Make sure androidx.core is available for WindowCompat in
-          # MainActivity.java — Capacitor 6 already declares it, but
-          # we add an explicit dep so the build doesn't break if a
-          # transitive shifts.
-          if ! grep -q 'androidx.core:core' "$BG"; then
-            sed -i '/dependencies {/a\    implementation "androidx.core:core:1.13.1"' "$BG"
+            sed -i 's|minSdkVersion = [0-9]\+|minSdkVersion = 24|'               android/variables.gradle
+            echo "--- patched variables.gradle ---"
+            cat android/variables.gradle
           fi
 
           echo "--- patched build.gradle ---"
