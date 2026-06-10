@@ -18,6 +18,7 @@
 import { NextRequest } from 'next/server';
 import { getKV } from '@/lib/cfEnv';
 import { buildDigest, digestCacheKey, type PlaylistDigest } from '@/lib/digest';
+import { validateUpstreamUrl, safeFetch } from '@/lib/ssrfGuard';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -28,25 +29,9 @@ const MAX_CACHEABLE_BYTES = 24 * 1024 * 1024; // KV value cap is 25 MB — keep 
 const CACHE_TTL_S = 30 * 60;
 const FETCH_TIMEOUT_MS = 30_000;
 
-const PRIVATE_HOST = [
-  /^localhost$/i,
-  /^127\./, /^10\./, /^169\.254\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^192\.168\./,
-  /^0\.0\.0\.0$/,
-  /^metadata\./i, /^instance-data\./i, /^metadata\.google\.internal$/i,
-  /^\[?::1\]?$/, /^\[?fc[0-9a-f]{2}:/i, /^\[?fe80:/i, /^\[?::ffff:/i,
-];
-const BAD_PORTS = new Set([22, 23, 25, 53, 110, 143, 465, 587, 993, 995, 1433, 3306, 3389, 5432, 6379, 9200, 11211, 27017]);
-
 function validUrl(target: string): URL | null {
-  let u: URL;
-  try { u = new URL(target); } catch { return null; }
-  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
-  if (PRIVATE_HOST.some((rx) => rx.test(u.hostname))) return null;
-  const port = u.port ? Number(u.port) : (u.protocol === 'https:' ? 443 : 80);
-  if (BAD_PORTS.has(port)) return null;
-  return u;
+  const check = validateUpstreamUrl(target);
+  return 'reason' in check ? null : check.url;
 }
 
 function isAllowedCaller(req: NextRequest): boolean {
@@ -65,14 +50,12 @@ async function fetchText(u: URL, maxBytes: number, tryGunzip: boolean): Promise<
   const to = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
   let r: Response;
   try {
-    r = await fetch(u.toString(), {
+    r = await safeFetch(u.toString(), {
       headers: {
         'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
         'accept-encoding': 'gzip, deflate',
       },
-      redirect: 'follow',
-      signal: ac.signal,
-    });
+    }, { maxRedirects: 4, signal: ac.signal });
   } finally { clearTimeout(to); }
 
   if (!r.ok || !r.body) throw new Error(`upstream ${r.status}`);

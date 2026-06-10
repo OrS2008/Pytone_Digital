@@ -109,6 +109,7 @@ export default function GoogleButton({ onSuccess, onError }: Props) {
         try {
           const r = await fetch('/api/auth/google', {
             method: 'POST',
+            credentials: 'include',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ credential: response.credential }),
           });

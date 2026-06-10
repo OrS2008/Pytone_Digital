@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireKV } from '@/lib/cfEnv';
-import { readSession, readSessionCookie } from '@/lib/auth/serverSession';
+import { readSession, readSessionCookie, listSessionsForUser, destroySession } from '@/lib/auth/serverSession';
 import {
   firebaseSignin,
   firebaseChangePassword,
@@ -65,6 +65,15 @@ export async function POST(req: NextRequest) {
     }
     throw e;
   }
+
+  // A password change usually means "I think my account was
+  // compromised". Revoke every OTHER session so a thief who still has
+  // a live cookie on another device is kicked out. We keep the current
+  // session (the device doing the change) alive.
+  try {
+    const ids = await listSessionsForUser(kv, session.userId);
+    await Promise.allSettled(ids.filter((id) => id !== sid).map((id) => destroySession(kv, id)));
+  } catch { /* best-effort — don't fail the password change on cleanup */ }
 
   return NextResponse.json({ ok: true, changedAt: new Date().toISOString() });
 }

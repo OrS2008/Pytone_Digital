@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireKV } from '@/lib/cfEnv';
 import { createUserFromFirebase, findUserByEmail, normaliseEmail } from '@/lib/auth/users';
 import { createPreverifyHandle, setPreverifyCookieHeader } from '@/lib/auth/preverify';
+import { rateLimit, callerIp, tooManyRequests } from '@/lib/rateLimit';
 import {
   firebaseSignup,
   firebaseSendOobCode,
@@ -39,6 +40,10 @@ export async function POST(req: NextRequest) {
   try {
     const kv = requireKV();
     if (kv instanceof Response) return kv;
+
+    // Throttle signup spam: 5 new accounts / hour per IP.
+    const rl = await rateLimit(kv, 'signup', callerIp(req), 5, 3600);
+    if (!rl.ok) return tooManyRequests(rl.retryAfter);
 
     let body: { email?: unknown; password?: unknown };
     try { body = await req.json(); }
@@ -136,7 +141,9 @@ export async function POST(req: NextRequest) {
       },
     );
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: 'signup_failed', detail: message }, { status: 500 });
+    // Log the real reason on the server; return a generic error to the
+    // client so KV / runtime internals don't leak to the browser.
+    console.error('[auth/signup]', err instanceof Error ? err.message : String(err));
+    return NextResponse.json({ error: 'signup_failed' }, { status: 500 });
   }
 }

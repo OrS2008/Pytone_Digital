@@ -4,38 +4,27 @@
 // card, switch between Single and Multi, view invoices and cancel,
 // all without us writing a single payment-management screen.
 //
-// Body: { email: string }
-//
-// We resolve the Stripe customer by email and create a portal session.
-// The portal needs a return_url — we send the user back to the
-// subscription page.
+// The customer email is taken from the SERVER SESSION, never from the
+// request body. An earlier version trusted a client-supplied `email`,
+// which let anyone who knew a victim's address open that victim's
+// billing portal (view invoices, last-4, cancel their plan). The
+// session cookie is now the only source of identity.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, baseUrl, BillingNotConfiguredError } from '@/lib/stripe';
+import { getKV } from '@/lib/cfEnv';
+import { readSession, readSessionCookie } from '@/lib/auth/serverSession';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-function allowedCaller(req: NextRequest): boolean {
-  const ref = req.headers.get('origin') || req.headers.get('referer') || '';
-  if (!ref) return false;
-  let refHost: string;
-  try { refHost = new URL(ref).host; } catch { return false; }
-  if (refHost === (req.headers.get('host') || '')) return true;
-  const extra = (process.env.ALLOWED_HOSTS || '').split(',').map((s) => s.trim()).filter(Boolean);
-  return extra.includes(refHost);
-}
-
 export async function POST(req: NextRequest) {
-  if (!allowedCaller(req)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
-
-  let body: { email?: string };
-  try { body = await req.json(); } catch { return NextResponse.json({ error: 'Body must be JSON.' }, { status: 400 }); }
-
-  const { email } = body;
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return NextResponse.json({ error: 'Valid email required.' }, { status: 400 });
-  }
+  const kv = getKV();
+  if (!kv) return NextResponse.json({ error: 'storage_unconfigured' }, { status: 503 });
+  const sid = readSessionCookie(req);
+  const session = sid ? await readSession(kv, sid) : null;
+  if (!session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const email = session.email;
 
   try {
     const s = stripe();

@@ -96,8 +96,10 @@ export default function Plans() {
     try {
       const resp = await fetch('/api/billing/checkout', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ plan, cycle, email: access.email }),
+        // email is derived server-side from the session cookie now
+        body: JSON.stringify({ plan, cycle }),
       });
       const data = await resp.json();
       if (!resp.ok) {

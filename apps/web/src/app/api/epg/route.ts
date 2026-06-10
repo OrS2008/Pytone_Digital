@@ -4,25 +4,13 @@
 // bigger response body and a longer browser cache window.
 
 import { NextRequest } from 'next/server';
+import { validateUpstreamUrl, safeFetch, SsrfBlocked } from '@/lib/ssrfGuard';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const MAX_BYTES = 96 * 1024 * 1024; // 96 MB — large country guides exist
 const TIMEOUT_MS = 30_000;
-
-const PRIVATE_HOST = [
-  /^localhost$/i,
-  /^127\./, /^10\./, /^169\.254\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^192\.168\./,
-  /^0\.0\.0\.0$/,
-  /^metadata\./i, /^instance-data\./i, /^metadata\.google\.internal$/i,
-  /^\[?::1\]?$/, /^\[?fc[0-9a-f]{2}:/i, /^\[?fe80:/i, /^\[?::ffff:/i,
-];
-function isHostBlocked(host: string): boolean {
-  return PRIVATE_HOST.some((rx) => rx.test(host));
-}
 
 function isAllowedCaller(req: NextRequest): boolean {
   const ref = req.headers.get('origin') || req.headers.get('referer') || '';
@@ -40,24 +28,16 @@ export async function GET(req: NextRequest) {
   const target = req.nextUrl.searchParams.get('url');
   if (!target) return new Response('missing ?url=', { status: 400 });
 
-  let u: URL;
-  try { u = new URL(target); } catch { return new Response('invalid url', { status: 400 }); }
-  if (u.protocol !== 'http:' && u.protocol !== 'https:') {
-    return new Response('only http / https allowed', { status: 400 });
-  }
-  if (isHostBlocked(u.hostname)) {
-    return new Response('refused: private / metadata host', { status: 400 });
-  }
-  const port = u.port ? Number(u.port) : (u.protocol === 'https:' ? 443 : 80);
-  const BAD_PORTS = new Set([22, 23, 25, 53, 110, 143, 465, 587, 993, 995, 1433, 3306, 3389, 5432, 6379, 9200, 11211, 27017]);
-  if (BAD_PORTS.has(port)) return new Response('refused: blocked port', { status: 400 });
+  const check = validateUpstreamUrl(target);
+  if ('reason' in check) return new Response(check.reason, { status: 400 });
+  const u = check.url;
 
   let upstream: Response;
   try {
     const ac = new AbortController();
     const to = setTimeout(() => ac.abort(), TIMEOUT_MS);
     try {
-      upstream = await fetch(u.toString(), {
+      upstream = await safeFetch(u.toString(), {
         // accept gzip so a typical 80 MB XMLTV ships in ~6 MB and
         // streams much faster across the wire. The runtime
         // auto-decompresses HTTP transport encoding, so by the time
@@ -66,11 +46,10 @@ export async function GET(req: NextRequest) {
           'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
           'accept-encoding': 'gzip, deflate',
         },
-        redirect: 'follow',
-        signal: ac.signal,
-      });
+      }, { maxRedirects: 4, signal: ac.signal });
     } finally { clearTimeout(to); }
   } catch (e) {
+    if (e instanceof SsrfBlocked) return new Response(e.reason, { status: 400 });
     return new Response(`upstream fetch failed: ${(e as Error).message}`, { status: 502 });
   }
   if (!upstream.ok || !upstream.body) {

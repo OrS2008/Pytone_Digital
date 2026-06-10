@@ -5,7 +5,12 @@
 // or cancel Stripe sends them back to /tv/account/subscription with a
 // query flag we read on the success page.
 //
-// Body: { plan: 'single' | 'multi', email: string }
+// Body: { plan: 'single' | 'multi', cycle?: 'monthly' | 'yearly' }
+//
+// The customer email is taken from the SERVER SESSION, not the body —
+// so a checkout always attaches to the signed-in user's own Stripe
+// customer and nobody can spin up a subscription against someone
+// else's address.
 //
 // Stripe Checkout (rather than Elements) is the right choice here:
 //   - Card data never touches our origin → PCI scope is SAQ A.
@@ -17,44 +22,33 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, priceFor, baseUrl, findOrCreateCustomer, BillingNotConfiguredError, type Cycle } from '@/lib/stripe';
+import { getKV } from '@/lib/cfEnv';
+import { readSession, readSessionCookie } from '@/lib/auth/serverSession';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-// Same-origin gate. Self-detects the deploy host by comparing the
-// caller's Origin/Referer with the host header on this request; an
-// extra-hosts allowlist via ALLOWED_HOSTS env covers CDN/custom-domain
-// setups. Hard-coding any one hostname here would silently break on
-// every other platform.
-function allowedCaller(req: NextRequest): boolean {
-  const ref = req.headers.get('origin') || req.headers.get('referer') || '';
-  if (!ref) return false;
-  let refHost: string;
-  try { refHost = new URL(ref).host; } catch { return false; }
-  if (refHost === (req.headers.get('host') || '')) return true;
-  const extra = (process.env.ALLOWED_HOSTS || '').split(',').map((s) => s.trim()).filter(Boolean);
-  return extra.includes(refHost);
-}
-
 export async function POST(req: NextRequest) {
-  if (!allowedCaller(req)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  const kv = getKV();
+  if (!kv) return NextResponse.json({ error: 'storage_unconfigured' }, { status: 503 });
+  const sid = readSessionCookie(req);
+  const session = sid ? await readSession(kv, sid) : null;
+  if (!session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const email = session.email;
 
-  let body: { plan?: string; cycle?: string; email?: string };
+  let body: { plan?: string; cycle?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'Body must be JSON.' }, { status: 400 });
   }
-  const { plan, email } = body;
+  const { plan } = body;
   // Default to monthly when the caller omits cycle so older clients
   // (and the legacy "Start Single" button without a toggle) keep working.
   const cycle: Cycle = body.cycle === 'yearly' ? 'yearly' : 'monthly';
 
   if (plan !== 'single' && plan !== 'multi') {
     return NextResponse.json({ error: 'plan must be "single" or "multi".' }, { status: 400 });
-  }
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return NextResponse.json({ error: 'Valid email required.' }, { status: 400 });
   }
 
   try {

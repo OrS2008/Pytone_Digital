@@ -10,7 +10,9 @@
 // is registered, so the response cannot be used to enumerate accounts.
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getKV } from '@/lib/cfEnv';
 import { normaliseEmail } from '@/lib/auth/users';
+import { rateLimit, callerIp, tooManyRequests } from '@/lib/rateLimit';
 import {
   firebaseSendOobCode,
   FirebaseAuthError,
@@ -29,6 +31,15 @@ function originUrl(req: NextRequest): string {
 }
 
 export async function POST(req: NextRequest) {
+  // Throttle reset-email bombing: 5 requests / 15 min per IP. Best-
+  // effort — if KV isn't bound we skip the limit rather than break the
+  // flow.
+  const kv = getKV();
+  if (kv) {
+    const rl = await rateLimit(kv, 'forgot', callerIp(req), 5, 900);
+    if (!rl.ok) return tooManyRequests(rl.retryAfter);
+  }
+
   let body: { email?: unknown };
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }); }

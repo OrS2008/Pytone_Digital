@@ -1,22 +1,29 @@
-// GET /api/billing/status?email=...
+// GET /api/billing/status
 //
-// Returns the current subscription state for the email. The frontend
-// uses this on the subscription page so the user sees real plan / next
-// invoice / status rather than the mocked "Free Trial" copy when they
-// actually have an active sub.
+// Returns the current subscription state for the SIGNED-IN user. The
+// frontend uses this on the subscription page so the user sees real
+// plan / next invoice / status rather than the mocked "Free Trial"
+// copy when they actually have an active sub.
 //
-// Without a local DB Stripe is the source of truth: look up the customer
-// by email, fetch their subscriptions, return a flattened summary.
+// The email comes from the server session, never a query param — an
+// earlier `?email=` version let anyone read another account's
+// subscription + Stripe customer id.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, BillingNotConfiguredError } from '@/lib/stripe';
+import { getKV } from '@/lib/cfEnv';
+import { readSession, readSessionCookie } from '@/lib/auth/serverSession';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const email = req.nextUrl.searchParams.get('email');
-  if (!email) return NextResponse.json({ error: 'email query required.' }, { status: 400 });
+  const kv = getKV();
+  if (!kv) return NextResponse.json({ error: 'storage_unconfigured' }, { status: 503 });
+  const sid = readSessionCookie(req);
+  const session = sid ? await readSession(kv, sid) : null;
+  if (!session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const email = session.email;
 
   try {
     const s = stripe();

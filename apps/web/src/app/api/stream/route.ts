@@ -26,27 +26,12 @@
 // hostnames refused, dangerous ports blocked, scheme restricted.
 
 import { NextRequest } from 'next/server';
+import { validateUpstreamUrl, safeFetch, SsrfBlocked } from '@/lib/ssrfGuard';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const TIMEOUT_MS = 30_000;
-
-const PRIVATE_HOST = [
-  /^localhost$/i,
-  /^127\./, /^10\./, /^169\.254\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^192\.168\./,
-  /^0\.0\.0\.0$/,
-  /^metadata\./i, /^instance-data\./i, /^metadata\.google\.internal$/i,
-  /^\[?::1\]?$/, /^\[?fc[0-9a-f]{2}:/i, /^\[?fe80:/i, /^\[?::ffff:/i,
-];
-
-function isHostBlocked(host: string): boolean {
-  return PRIVATE_HOST.some((rx) => rx.test(host));
-}
-
-const BAD_PORTS = new Set([22, 23, 25, 53, 110, 143, 465, 587, 993, 995, 1433, 3306, 3389, 5432, 6379, 9200, 11211, 27017]);
 
 function isAllowedCaller(req: NextRequest): boolean {
   const ref = req.headers.get('origin') || req.headers.get('referer') || '';
@@ -169,16 +154,9 @@ export async function GET(req: NextRequest) {
   const target = req.nextUrl.searchParams.get('url');
   if (!target) return new Response('missing ?url=', { status: 400 });
 
-  let u: URL;
-  try { u = new URL(target); } catch { return new Response('invalid url', { status: 400 }); }
-  if (u.protocol !== 'http:' && u.protocol !== 'https:') {
-    return new Response('only http / https allowed', { status: 400 });
-  }
-  if (isHostBlocked(u.hostname)) {
-    return new Response('refused: private / metadata host', { status: 400 });
-  }
-  const port = u.port ? Number(u.port) : (u.protocol === 'https:' ? 443 : 80);
-  if (BAD_PORTS.has(port)) return new Response('refused: blocked port', { status: 400 });
+  const check = validateUpstreamUrl(target);
+  if ('reason' in check) return new Response(check.reason, { status: 400 });
+  const u = check.url;
 
   // Forward Range so the browser can seek into long segments / MP4s
   // through the proxy without re-downloading from the start.
@@ -196,11 +174,10 @@ export async function GET(req: NextRequest) {
   // Forward the end-user's real IP so providers that IP-gate their
   // DVR (Flussonic with allow_X_Forwarded_For; lots of IPTV reseller
   // panels) can see the actual subscriber instead of Cloudflare's
-  // edge IP. Costs us nothing and won't make a misconfigured provider
-  // any worse — they'll just ignore an unknown header.
-  const realIp = req.headers.get('cf-connecting-ip')
-              || req.headers.get('x-forwarded-for')
-              || req.headers.get('x-real-ip');
+  // edge IP. We ONLY trust cf-connecting-ip (set by Cloudflare's edge);
+  // a client-supplied x-forwarded-for is NOT honoured, so a caller
+  // can't forge an arbitrary source IP to the upstream.
+  const realIp = req.headers.get('cf-connecting-ip');
   if (realIp) {
     headers['x-forwarded-for'] = realIp;
     headers['x-real-ip']       = realIp;
@@ -214,9 +191,10 @@ export async function GET(req: NextRequest) {
     const ac = new AbortController();
     const to = setTimeout(() => ac.abort(), TIMEOUT_MS);
     try {
-      upstream = await fetch(u.toString(), { headers, redirect: 'follow', signal: ac.signal });
+      upstream = await safeFetch(u.toString(), { headers }, { maxRedirects: 4, signal: ac.signal });
     } finally { clearTimeout(to); }
   } catch (e) {
+    if (e instanceof SsrfBlocked) return new Response(e.reason, { status: 400 });
     return new Response(`upstream fetch failed: ${(e as Error).message}`, { status: 502 });
   }
   if (!upstream.ok && upstream.status !== 206 && upstream.status !== 304) {

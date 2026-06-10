@@ -37,11 +37,17 @@ import {
   type FirebaseUser,
 } from '@/lib/firebaseAuth';
 
+import { rateLimit, callerIp, tooManyRequests } from '@/lib/rateLimit';
+
 export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
   const kv = requireKV();
   if (kv instanceof Response) return kv;
+
+  // Throttle online password brute force: 10 attempts / 5 min per IP.
+  const rl = await rateLimit(kv, 'login', callerIp(req), 10, 300);
+  if (!rl.ok) return tooManyRequests(rl.retryAfter);
 
   let body: { email?: unknown; password?: unknown };
   try { body = await req.json(); }

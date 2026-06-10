@@ -21,26 +21,13 @@
 //   port that over when the backend is wired up.
 
 import { NextRequest } from 'next/server';
+import { validateUpstreamUrl, safeFetch, SsrfBlocked } from '@/lib/ssrfGuard';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const MAX_BYTES = 16 * 1024 * 1024;
 const TIMEOUT_MS = 20_000;
-
-const PRIVATE_HOST = [
-  /^localhost$/i,
-  /^127\./, /^10\./, /^169\.254\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^192\.168\./,
-  /^0\.0\.0\.0$/,
-  /^metadata\./i, /^instance-data\./i, /^metadata\.google\.internal$/i,
-  /^\[?::1\]?$/, /^\[?fc[0-9a-f]{2}:/i, /^\[?fe80:/i, /^\[?::ffff:/i,
-];
-
-function isHostBlocked(host: string): boolean {
-  return PRIVATE_HOST.some((rx) => rx.test(host));
-}
 
 // Same-origin gate. The proxy is for our own users' M3U fetches, not
 // for anyone-on-the-internet abuse of our edge function. We allow
@@ -70,40 +57,25 @@ export async function GET(req: NextRequest) {
   const target = req.nextUrl.searchParams.get('url');
   if (!target) return new Response('missing ?url=', { status: 400 });
 
-  let u: URL;
-  try { u = new URL(target); } catch { return new Response('invalid url', { status: 400 }); }
-  if (u.protocol !== 'http:' && u.protocol !== 'https:') {
-    return new Response('only http / https allowed', { status: 400 });
-  }
-  if (isHostBlocked(u.hostname)) {
-    return new Response('refused: private / metadata host', { status: 400 });
-  }
-  // Block unusual ports — IPTV providers use 80, 443, sometimes 8080
-  // and a few custom ones. Anything below 1024 outside http/https,
-  // or anything looking like an internal service port (22, 25, 3306,
-  // 5432, 6379…) is refused.
-  const port = u.port ? Number(u.port) : (u.protocol === 'https:' ? 443 : 80);
-  const BAD_PORTS = new Set([22, 23, 25, 53, 110, 143, 465, 587, 993, 995, 1433, 3306, 3389, 5432, 6379, 9200, 11211, 27017]);
-  if (BAD_PORTS.has(port)) {
-    return new Response('refused: blocked port', { status: 400 });
-  }
+  const check = validateUpstreamUrl(target);
+  if ('reason' in check) return new Response(check.reason, { status: 400 });
+  const u = check.url;
 
   let upstream: Response;
   try {
     const ac = new AbortController();
     const to = setTimeout(() => ac.abort(), TIMEOUT_MS);
     try {
-      upstream = await fetch(u.toString(), {
+      upstream = await safeFetch(u.toString(), {
         headers: {
           // Mimic a real browser — some IPTV reseller panels gate
           // playlist downloads to known user-agents.
           'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
         },
-        redirect: 'follow',
-        signal: ac.signal,
-      });
+      }, { maxRedirects: 4, signal: ac.signal });
     } finally { clearTimeout(to); }
   } catch (e) {
+    if (e instanceof SsrfBlocked) return new Response(e.reason, { status: 400 });
     return new Response(`upstream fetch failed: ${(e as Error).message}`, { status: 502 });
   }
   if (!upstream.ok || !upstream.body) {

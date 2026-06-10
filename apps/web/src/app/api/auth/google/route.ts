@@ -17,6 +17,9 @@
 //   7. We return the email so the frontend can call setSessionEmail.
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getKV } from '@/lib/cfEnv';
+import { findUserByEmail, createUserFromFirebase, normaliseEmail, touchLastLogin } from '@/lib/auth/users';
+import { createSession, setSessionCookieHeader } from '@/lib/auth/serverSession';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -94,9 +97,44 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Google did not confirm this email.' }, { status: 401 });
   }
 
-  return NextResponse.json({
-    email:   info.email,
-    name:    info.name ?? info.given_name ?? null,
-    picture: info.picture ?? null,
+  // Google verified the address — mint a real server session so the
+  // user is trusted by every session-gated route (settings, billing,
+  // privacy). Without this, Google users had only a client-side
+  // localStorage "session" and silently got 401s from the API.
+  const email = normaliseEmail(info.email);
+  const kv = getKV();
+  if (!kv) {
+    // No KV bound — we can still return the profile so the SPA renders,
+    // but synced/billing features will be unavailable until KV exists.
+    return NextResponse.json({
+      email, name: info.name ?? info.given_name ?? null, picture: info.picture ?? null,
+    });
+  }
+
+  // `sub` is Google's stable account id — use it as the userId for a
+  // brand-new Google account so the partition key is consistent.
+  let user = await findUserByEmail(kv, email);
+  if (!user) {
+    user = await createUserFromFirebase(kv, `google:${info.sub ?? email}`, email);
+  }
+  await touchLastLogin(kv, user);
+  const sid = await createSession(kv, user.userId, user.email, {
+    userAgent: req.headers.get('user-agent') ?? undefined,
+    ip:        req.headers.get('cf-connecting-ip') ?? undefined,
   });
+
+  return new NextResponse(
+    JSON.stringify({
+      email,
+      name:    info.name ?? info.given_name ?? null,
+      picture: info.picture ?? null,
+    }),
+    {
+      status: 200,
+      headers: {
+        'content-type': 'application/json',
+        'set-cookie':   setSessionCookieHeader(sid),
+      },
+    },
+  );
 }
