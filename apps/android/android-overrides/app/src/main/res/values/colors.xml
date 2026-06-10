@@ -5,5 +5,7 @@
     <color name="colorAccent">#2DD4BF</color>
     <color name="background">#0F1116</color>
     <color name="splashBackground">#0F1116</color>
-    <color name="ic_launcher_background">#0F1116</color>
+    <!-- ic_launcher_background is defined by Capacitor's scaffolded
+         res/values/ic_launcher_background.xml; the workflow overwrites
+         it to our brand value so we don't duplicate it here. -->
 </resources>

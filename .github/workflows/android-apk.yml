@@ -84,6 +84,16 @@ jobs:
           # the right path under android/app/src/main/...
           cp -rv android-overrides/app/src/main/. android/app/src/main/
 
+          # Capacitor ships res/values/ic_launcher_background.xml with
+          # the default Ionic purple. Overwrite with our brand bg so
+          # the adaptive icon matches the rest of the app.
+          cat > android/app/src/main/res/values/ic_launcher_background.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="ic_launcher_background">#0F1116</color>
+          </resources>
+          XML
+
           # Patch namespace + applicationId + versionCode/Name into the
           # scaffolded build.gradle. Capacitor already derives these
           # from appId, so these are mostly no-ops — but they ensure
