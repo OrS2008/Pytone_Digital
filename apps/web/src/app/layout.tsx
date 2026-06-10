@@ -5,6 +5,22 @@ import './tv/themes.css';
 export const metadata: Metadata = {
   title: 'Nova Stream',
   description: 'The next generation of streaming.',
+  // Installable-app metadata. Next auto-links the manifest from
+  // app/manifest.ts; here we add the iOS home-screen icon + standalone
+  // hints so "Add to Home Screen" gives a real app shell on iPhone too.
+  applicationName: 'Nova Stream',
+  appleWebApp: {
+    capable: true,
+    title: 'Nova Stream',
+    statusBarStyle: 'black-translucent',
+  },
+  icons: {
+    icon: [
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+  },
 };
 
 // Without an explicit viewport, mobile browsers render the page at
