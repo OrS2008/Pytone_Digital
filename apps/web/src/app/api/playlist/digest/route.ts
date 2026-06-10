@@ -50,12 +50,12 @@ async function fetchText(u: URL, maxBytes: number, tryGunzip: boolean): Promise<
   const to = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
   let r: Response;
   try {
-    r = await safeFetch(u.toString(), {
+    r = (await safeFetch(u.toString(), {
       headers: {
         'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
         'accept-encoding': 'gzip, deflate',
       },
-    }, { maxRedirects: 4, signal: ac.signal });
+    }, { maxRedirects: 4, signal: ac.signal })).response;
   } finally { clearTimeout(to); }
 
   if (!r.ok || !r.body) throw new Error(`upstream ${r.status}`);

@@ -187,11 +187,14 @@ export async function GET(req: NextRequest) {
   if (ifNoneMatch)  headers['if-none-match'] = ifNoneMatch;
 
   let upstream: Response;
+  let finalUrl: string;
   try {
     const ac = new AbortController();
     const to = setTimeout(() => ac.abort(), TIMEOUT_MS);
     try {
-      upstream = await safeFetch(u.toString(), { headers }, { maxRedirects: 4, signal: ac.signal });
+      const r = await safeFetch(u.toString(), { headers }, { maxRedirects: 4, signal: ac.signal });
+      upstream = r.response;
+      finalUrl = r.finalUrl;
     } finally { clearTimeout(to); }
   } catch (e) {
     if (e instanceof SsrfBlocked) return new Response(e.reason, { status: 400 });
@@ -201,8 +204,14 @@ export async function GET(req: NextRequest) {
     return new Response(`upstream returned ${upstream.status}`, { status: 502 });
   }
 
+  // Classify against the FINAL URL (after redirects) — a short-link
+  // like jmp2.uk/x.m3u8 may 302 to a CDN path with a different
+  // extension, and vice-versa.
+  let finalPath = u.pathname;
+  try { finalPath = new URL(finalUrl).pathname; } catch { /* keep original */ }
   const ct = (upstream.headers.get('content-type') || '').toLowerCase();
   const looksLikeManifest =
+    /\.m3u8(\?|$)/i.test(finalPath) ||
     /\.m3u8(\?|$)/i.test(u.pathname) ||
     ct.includes('mpegurl') ||
     ct.includes('vnd.apple.mpegurl');
@@ -229,7 +238,12 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const rewritten = rewriteManifest(text, u.toString(), mode);
+    // Rewrite relative segment / variant URLs against the FINAL URL
+    // (where the manifest actually came from), not the original
+    // request URL — otherwise redirect-based streams (short links,
+    // load-balancers) resolve every segment against the wrong host
+    // and nothing plays.
+    const rewritten = rewriteManifest(text, finalUrl, mode);
     return new Response(rewritten, {
       status: 200,
       headers: {

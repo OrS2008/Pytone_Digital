@@ -173,23 +173,39 @@ export function validateUpstreamUrl(target: string): { url: URL } | { reason: st
 // catches static private-IP DNS records outright and narrows a true
 // rebinding attack to a small TOCTOU window. Best-effort: a DoH failure
 // does NOT block the request, it falls back to the literal check.
+// Per-host verdict cache. An HLS stream pulls many segments through
+// /api/stream, each of which re-enters safeFetch; without caching we'd
+// DoH-resolve the same CDN host on every segment and tank playback
+// latency. 60 s TTL is short enough that a rebinding flip is still
+// caught on the next window but long enough to keep streaming smooth.
+const dohCache = new Map<string, { private: boolean; at: number }>();
+const DOH_TTL_MS = 60_000;
+
 async function dohResolvesToPrivate(hostname: string): Promise<boolean> {
   if (/^[\d.]+$/.test(hostname) || hostname.includes(':')) return false; // IP literal — already checked
-  for (const type of ['A', 'AAAA']) {
-    try {
+
+  const cached = dohCache.get(hostname);
+  if (cached && Date.now() - cached.at < DOH_TTL_MS) return cached.private;
+
+  let isPriv = false;
+  try {
+    // Resolve A + AAAA in parallel — serial doubled the latency.
+    const [a, aaaa] = await Promise.all(['A', 'AAAA'].map(async (type) => {
       const r = await fetch(
         `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=${type}`,
         { headers: { accept: 'application/dns-json' }, signal: AbortSignal.timeout(2500) },
       );
-      if (!r.ok) continue;
+      if (!r.ok) return [] as Array<{ type: number; data: string }>;
       const j = await r.json() as { Answer?: Array<{ type: number; data: string }> };
-      for (const ans of j.Answer ?? []) {
-        if (ans.type === 1  && isPrivateIPv4(ans.data)) return true; // A
-        if (ans.type === 28 && isPrivateIPv6(ans.data)) return true; // AAAA
-      }
-    } catch { /* DoH failed — don't block */ }
-  }
-  return false;
+      return j.Answer ?? [];
+    }));
+    for (const ans of [...a, ...aaaa]) {
+      if (ans.type === 1  && isPrivateIPv4(ans.data)) { isPriv = true; break; } // A
+      if (ans.type === 28 && isPrivateIPv6(ans.data)) { isPriv = true; break; } // AAAA
+    }
+    dohCache.set(hostname, { private: isPriv, at: Date.now() });
+  } catch { /* DoH failed — don't block, don't cache */ }
+  return isPriv;
 }
 
 // fetch() that follows redirects MANUALLY, re-validating each hop so a
@@ -200,11 +216,20 @@ export class SsrfBlocked extends Error {
   constructor(public reason: string) { super(`SSRF blocked: ${reason}`); this.name = 'SsrfBlocked'; }
 }
 
+export interface SafeFetchResult {
+  response: Response;
+  /** The URL of the FINAL hop after following redirects. Callers that
+   *  rewrite a manifest must use this as the base — relative segment
+   *  URLs resolve against where the body actually came from, not the
+   *  original request URL. */
+  finalUrl: string;
+}
+
 export async function safeFetch(
   initialUrl: string,
   init: RequestInit,
   opts: { maxRedirects?: number; signal?: AbortSignal } = {},
-): Promise<Response> {
+): Promise<SafeFetchResult> {
   const max = opts.maxRedirects ?? 4;
   let current = initialUrl;
   for (let hop = 0; hop <= max; hop++) {
@@ -225,12 +250,12 @@ export async function safeFetch(
     // 3xx with a Location → validate the next hop ourselves.
     if (res.status >= 300 && res.status < 400) {
       const loc = res.headers.get('location');
-      if (!loc) return res; // redirect with no target — hand back as-is
+      if (!loc) return { response: res, finalUrl: check.url.toString() };
       // Resolve relative redirects against the current URL.
       current = new URL(loc, check.url).toString();
       continue;
     }
-    return res;
+    return { response: res, finalUrl: check.url.toString() };
   }
   throw new SsrfBlocked('too many redirects');
 }

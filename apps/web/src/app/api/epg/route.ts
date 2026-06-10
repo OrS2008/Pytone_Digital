@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     const ac = new AbortController();
     const to = setTimeout(() => ac.abort(), TIMEOUT_MS);
     try {
-      upstream = await safeFetch(u.toString(), {
+      upstream = (await safeFetch(u.toString(), {
         // accept gzip so a typical 80 MB XMLTV ships in ~6 MB and
         // streams much faster across the wire. The runtime
         // auto-decompresses HTTP transport encoding, so by the time
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
           'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
           'accept-encoding': 'gzip, deflate',
         },
-      }, { maxRedirects: 4, signal: ac.signal });
+      }, { maxRedirects: 4, signal: ac.signal })).response;
     } finally { clearTimeout(to); }
   } catch (e) {
     if (e instanceof SsrfBlocked) return new Response(e.reason, { status: 400 });
