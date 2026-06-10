@@ -164,8 +164,37 @@ export function validateUpstreamUrl(target: string): { url: URL } | { reason: st
   return { url: u };
 }
 
+// DNS-rebinding mitigation. validateUpstreamUrl() can only classify IP
+// LITERALS — a hostname like evil.com that resolves to 169.254.169.254
+// passes the string check, then fetch() dials the private IP. The
+// Workers runtime won't let us pin fetch to a pre-resolved IP, but we
+// CAN resolve the name ourselves via Cloudflare's DNS-over-HTTPS JSON
+// API and refuse when any answer is a private / reserved address. This
+// catches static private-IP DNS records outright and narrows a true
+// rebinding attack to a small TOCTOU window. Best-effort: a DoH failure
+// does NOT block the request, it falls back to the literal check.
+async function dohResolvesToPrivate(hostname: string): Promise<boolean> {
+  if (/^[\d.]+$/.test(hostname) || hostname.includes(':')) return false; // IP literal — already checked
+  for (const type of ['A', 'AAAA']) {
+    try {
+      const r = await fetch(
+        `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=${type}`,
+        { headers: { accept: 'application/dns-json' }, signal: AbortSignal.timeout(2500) },
+      );
+      if (!r.ok) continue;
+      const j = await r.json() as { Answer?: Array<{ type: number; data: string }> };
+      for (const ans of j.Answer ?? []) {
+        if (ans.type === 1  && isPrivateIPv4(ans.data)) return true; // A
+        if (ans.type === 28 && isPrivateIPv6(ans.data)) return true; // AAAA
+      }
+    } catch { /* DoH failed — don't block */ }
+  }
+  return false;
+}
+
 // fetch() that follows redirects MANUALLY, re-validating each hop so a
-// 3xx to an internal host can't smuggle past the initial check. Throws
+// 3xx to an internal host can't smuggle past the initial check, and
+// DoH-resolving each hostname to catch DNS rebinding. Throws
 // SsrfBlocked when any hop is refused.
 export class SsrfBlocked extends Error {
   constructor(public reason: string) { super(`SSRF blocked: ${reason}`); this.name = 'SsrfBlocked'; }
@@ -181,6 +210,11 @@ export async function safeFetch(
   for (let hop = 0; hop <= max; hop++) {
     const check = validateUpstreamUrl(current);
     if ('reason' in check) throw new SsrfBlocked(check.reason);
+
+    // DNS-rebinding check on the (named) host before we dial it.
+    if (await dohResolvesToPrivate(check.url.hostname)) {
+      throw new SsrfBlocked('refused: hostname resolves to a private address');
+    }
 
     const res = await fetch(check.url.toString(), {
       ...init,

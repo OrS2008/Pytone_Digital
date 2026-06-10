@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getKV } from '@/lib/cfEnv';
 import { normaliseEmail } from '@/lib/auth/users';
 import { rateLimit, callerIp, tooManyRequests } from '@/lib/rateLimit';
+import { canonicalOrigin } from '@/lib/publicUrl';
 import {
   firebaseSendOobCode,
   FirebaseAuthError,
@@ -23,12 +24,6 @@ export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function originUrl(req: NextRequest): string {
-  const proto = req.headers.get('x-forwarded-proto') || 'https';
-  const host  = req.headers.get('x-forwarded-host')  || req.headers.get('host');
-  return host ? `${proto}://${host}` : new URL(req.url).origin;
-}
 
 export async function POST(req: NextRequest) {
   // Throttle reset-email bombing: 5 requests / 15 min per IP. Best-
@@ -59,7 +54,7 @@ export async function POST(req: NextRequest) {
     await firebaseSendOobCode({
       requestType: 'PASSWORD_RESET',
       email,
-      continueUrl: `${originUrl(req)}/tv/login`,
+      continueUrl: `${canonicalOrigin(req)}/tv/login`,
     });
   } catch (e) {
     if (e instanceof FirebaseNotConfiguredError) {

@@ -18,6 +18,13 @@ FIREBASE_API_KEY     = "AIzaSyDQnISrsyATFS5w7_fRMy-pSlRC741HIms"
 FIREBASE_AUTH_DOMAIN = "nova-stream-4ee03.firebaseapp.com"
 FIREBASE_PROJECT_ID  = "nova-stream-4ee03"
 
+# Canonical public origin used to build email links (verification /
+# password-reset continueUrl). Pin it so the link can never be forged
+# via a spoofed x-forwarded-host header. Set to the production origin.
+# If omitted, links fall back to the platform-set `host` header (still
+# not the client-controlled x-forwarded-host).
+PUBLIC_BASE_URL = "https://nova-stream-cce.pages.dev"
+
 # Admin panel identity. The password hash + session secret are stored
 # in the Cloudflare Pages dashboard as encrypted Secrets (not here)
 # because wrangler.toml is committed to the repo. Only the public

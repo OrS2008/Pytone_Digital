@@ -15,6 +15,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireKV } from '@/lib/cfEnv';
+import { canonicalOrigin } from '@/lib/publicUrl';
 import {
   readPreverifyCookie,
   readPreverifyHandle,
@@ -29,12 +30,6 @@ import {
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
-
-function originUrl(req: NextRequest): string {
-  const proto = req.headers.get('x-forwarded-proto') || 'https';
-  const host  = req.headers.get('x-forwarded-host')  || req.headers.get('host');
-  return host ? `${proto}://${host}` : new URL(req.url).origin;
-}
 
 export async function POST(req: NextRequest) {
   const kv = requireKV();
@@ -80,7 +75,7 @@ export async function POST(req: NextRequest) {
     await firebaseSendOobCode({
       requestType: 'VERIFY_EMAIL',
       idToken,
-      continueUrl: `${originUrl(req)}/tv/auth-action`,
+      continueUrl: `${canonicalOrigin(req)}/tv/auth-action`,
     });
     return NextResponse.json({ ok: true });
   } catch (e) {

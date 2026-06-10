@@ -19,6 +19,7 @@ import { requireKV } from '@/lib/cfEnv';
 import { createUserFromFirebase, findUserByEmail, normaliseEmail } from '@/lib/auth/users';
 import { createPreverifyHandle, setPreverifyCookieHeader } from '@/lib/auth/preverify';
 import { rateLimit, callerIp, tooManyRequests } from '@/lib/rateLimit';
+import { canonicalOrigin } from '@/lib/publicUrl';
 import {
   firebaseSignup,
   firebaseSendOobCode,
@@ -29,12 +30,6 @@ import {
 export const runtime = 'edge';
 
 const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function originUrl(req: NextRequest): string {
-  const proto = req.headers.get('x-forwarded-proto') || 'https';
-  const host  = req.headers.get('x-forwarded-host')  || req.headers.get('host');
-  return host ? `${proto}://${host}` : new URL(req.url).origin;
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -94,7 +89,7 @@ export async function POST(req: NextRequest) {
       await firebaseSendOobCode({
         requestType: 'VERIFY_EMAIL',
         idToken:     firebaseUser.idToken,
-        continueUrl: `${originUrl(req)}/tv/auth-action`,
+        continueUrl: `${canonicalOrigin(req)}/tv/auth-action`,
       });
       emailSent = true;
     } catch (e) {
