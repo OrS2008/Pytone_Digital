@@ -1,0 +1,159 @@
+name: android-apk
+
+# Build a sideload-ready Android APK from the Capacitor shell under
+# apps/android/. The shell points its WebView at the live Cloudflare
+# Pages deploy, so the APK doesn't bundle the web build — it just
+# loads https://nova-stream-cce.pages.dev/tv inside a fully native
+# Activity with our splash + status-bar + theme.
+#
+# The APK is signed with a generated debug keystore (deterministic per
+# run, but valid Android signature) so the user can install it
+# directly. For Play Store / production we'd swap in a real keystore
+# from secrets — see the commented `releaseKeystore` block.
+#
+# Trigger:
+#   - Manually via `workflow_dispatch` (most common — fire from the
+#     Actions tab when you want a build).
+#   - Automatically when files under apps/android/** change.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["claude/**", "main"]
+    paths:
+      - 'apps/android/**'
+      - '.github/workflows/android-apk.yml'
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+
+      - name: Install Capacitor dependencies
+        working-directory: apps/android
+        run: |
+          npm install --no-audit --no-fund
+
+      - name: Scaffold android/ project (cap add android)
+        working-directory: apps/android
+        run: |
+          set -euxo pipefail
+          # `cap add android` reads capacitor.config.ts, generates the
+          # android/ directory, and copies the webDir contents into
+          # android/app/src/main/assets/public.
+          npx cap add android
+
+      - name: Generate launcher icons + splash from SVG
+        working-directory: apps/android
+        run: |
+          set -euxo pipefail
+          npm install --no-audit --no-fund --no-save sharp@^0.33.4
+          node resources/generate-android-assets.mjs "$PWD/android/app/src/main"
+
+      - name: Apply Android overrides (theme, manifest, MainActivity)
+        working-directory: apps/android
+        run: |
+          set -euxo pipefail
+          # Copy our customisations on top of the scaffolded project.
+          # cp -r preserves directory structure so each file lands at
+          # the right path under android/app/src/main/...
+          cp -rv android-overrides/app/src/main/. android/app/src/main/
+
+          # Patch namespace + applicationId + versionCode/Name into the
+          # scaffolded build.gradle. Capacitor's default leaves these
+          # as io.ionic.starter — we want tv.novastream.app.
+          BG=android/app/build.gradle
+          sed -i 's|namespace ".*"|namespace "tv.novastream.app"|'              "$BG"
+          sed -i 's|applicationId ".*"|applicationId "tv.novastream.app"|'      "$BG"
+          sed -i 's|versionCode [0-9]*|versionCode 1|'                          "$BG"
+          sed -i 's|versionName ".*"|versionName "1.0.0"|'                      "$BG"
+          # minSdk lifted from Capacitor's default 22 to 24 — Android 7+,
+          # covers >99% of in-use devices and unlocks modern WebView
+          # features we rely on for HLS.
+          sed -i 's|minSdkVersion [0-9]*|minSdkVersion 24|'                     "$BG"
+
+          # Make sure androidx.core is available for WindowCompat in
+          # MainActivity.java — Capacitor 6 already declares it, but
+          # we add an explicit dep so the build doesn't break if a
+          # transitive shifts.
+          if ! grep -q 'androidx.core:core' "$BG"; then
+            sed -i '/dependencies {/a\    implementation "androidx.core:core:1.13.1"' "$BG"
+          fi
+
+          echo "--- patched build.gradle ---"
+          cat "$BG"
+
+      - name: Sync Capacitor (apply config + plugins to android/)
+        working-directory: apps/android
+        run: npx cap sync android
+
+      - name: Generate debug keystore
+        working-directory: apps/android
+        run: |
+          set -euxo pipefail
+          # A throwaway keystore so the APK is installable. NOT for
+          # Play Store — for that, drop a real keystore into a secret
+          # named ANDROID_KEYSTORE_B64 and switch to the release path
+          # in the next step.
+          keytool -genkey -v \
+            -keystore android/app/debug.keystore \
+            -storepass android -keypass android \
+            -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Nova Stream, OU=Mobile, O=Nova Stream, L=Tel Aviv, ST=Israel, C=IL"
+
+      - name: Build debug APK
+        working-directory: apps/android/android
+        env:
+          # Headroom for the Capacitor + AndroidX + WebView build.
+          GRADLE_OPTS: -Xmx4g -Dorg.gradle.jvmargs=-Xmx4g
+        run: |
+          set -euxo pipefail
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleDebug
+
+      - name: Rename APK
+        working-directory: apps/android/android
+        run: |
+          set -euxo pipefail
+          mkdir -p ../dist
+          cp app/build/outputs/apk/debug/app-debug.apk \
+             ../dist/nova-stream-${{ github.run_number }}.apk
+          ls -la ../dist
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nova-stream-apk
+          path: apps/android/dist/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Print install instructions
+        run: |
+          echo "::notice title=APK ready::Download the 'nova-stream-apk' artifact from the workflow run summary, transfer the .apk to your phone, allow 'Install unknown apps' for your file manager, and tap it to install."

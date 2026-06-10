@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2732 2732">
+  <defs>
+    <radialGradient id="bg" cx="0.5" cy="0.45" r="0.7">
+      <stop offset="0" stop-color="#161A24"/>
+      <stop offset="1" stop-color="#0F1116"/>
+    </radialGradient>
+    <linearGradient id="play" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5EEAD4"/>
+      <stop offset="1" stop-color="#14B8A6"/>
+    </linearGradient>
+  </defs>
+  <rect width="2732" height="2732" fill="url(#bg)"/>
+  <g transform="translate(1366 1200)">
+    <circle r="240" fill="none" stroke="#1F2937" stroke-width="6"/>
+    <path d="M -84 -110 L -84 110 L 110 0 Z" fill="url(#play)"/>
+  </g>
+  <text x="1366" y="1620" font-family="Inter, -apple-system, Segoe UI, Roboto, sans-serif" font-weight="800" font-size="148" text-anchor="middle" letter-spacing="22" fill="#E5E7EB">NOVA STREAM</text>
+</svg>

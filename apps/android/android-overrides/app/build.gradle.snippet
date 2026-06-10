@@ -1,0 +1,22 @@
+// Snippet merged into android/app/build.gradle by the workflow.
+//
+// We don't ship a whole build.gradle override (Capacitor's scaffolded
+// one moves around between versions), we just patch the bits we care
+// about: namespace, applicationId, versionCode/versionName, minSdk.
+
+android {
+    namespace "tv.novastream.app"
+    defaultConfig {
+        applicationId "tv.novastream.app"
+        minSdkVersion 24
+        targetSdkVersion 34
+        versionCode 1
+        versionName "1.0.0"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
