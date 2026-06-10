@@ -92,10 +92,15 @@ jobs:
           sed -i 's|applicationId ".*"|applicationId "tv.novastream.app"|'      "$BG"
           sed -i 's|versionCode [0-9]*|versionCode 1|'                          "$BG"
           sed -i 's|versionName ".*"|versionName "1.0.0"|'                      "$BG"
-          # minSdk lifted from Capacitor's default 22 to 24 — Android 7+,
-          # covers >99% of in-use devices and unlocks modern WebView
-          # features we rely on for HLS.
+          # minSdk lifted to 24 — Android 7+, covers >99% of in-use
+          # devices and unlocks modern WebView features we rely on for
+          # HLS. In Capacitor 6 the value lives in android/variables.gradle
+          # (referenced from app/build.gradle via rootProject.ext), so
+          # patch both places to be safe.
           sed -i 's|minSdkVersion [0-9]*|minSdkVersion 24|'                     "$BG"
+          if [ -f android/variables.gradle ]; then
+            sed -i 's|minSdkVersion = [0-9]*|minSdkVersion = 24|'                android/variables.gradle
+          fi
 
           # Make sure androidx.core is available for WindowCompat in
           # MainActivity.java — Capacitor 6 already declares it, but
