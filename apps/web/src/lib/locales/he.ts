@@ -18,6 +18,9 @@ const he: Record<string, string> = {
   'auth.signingIn':      'מתחבר…',
   'auth.signOut':        'התנתק',
   'auth.or':             'או',
+  'auth.passwordPh':     'לפחות 8 תווים',
+  'auth.newHere':        'חדש כאן?',
+  'auth.freeTrial':      '7 ימים חינם',
 
   'guide.title':       'לוח שידורים',
   'guide.needEpg':     'לוח השידורים צריך מקור EPG ‏(XMLTV) כדי להציג מה משודר.',
@@ -39,6 +42,17 @@ const he: Record<string, string> = {
   'search.try':      'נסה:',
   'search.loading':  'טוען את הערוצים שלך…',
   'search.toSearch': 'כדי לחפש בין הערוצים שלך.',
+
+  'gate.signInTitle':    'התחבר כדי לגשת לחשבון שלך',
+  'gate.signInSub':      'המנוי, המכשירים, הפלייליסטים וההעדפות שלך מאחורי ההתחברות. זה לוקח רק רגע.',
+  'gate.signIn':         'התחברות',
+  'gate.createAccount':  'יצירת חשבון',
+  'gate.activateTitle':  'הפעל קודם את החשבון',
+  'gate.activateSubA':   'שלחנו קישור הפעלה אל',
+  'gate.activateSubB':   'לחץ עליו כדי לאמת את האימייל, ואז החשבון שלך נפתח.',
+  'gate.activateCta':    'לחצתי על הקישור · פתח את החשבון',
+  'gate.differentEmail': 'השתמש באימייל אחר',
+  'gate.noEmail':        'לא קיבלת אימייל? בדוק תיקיית ספאם, או הירשם שוב מ-',
 
   'home.greet.morning':  'בוקר טוב',
   'home.greet.afternoon':'צהריים טובים',

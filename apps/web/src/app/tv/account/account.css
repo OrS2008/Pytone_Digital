@@ -360,7 +360,7 @@
 .cycle-toggle-btn.active {
   background: var(--ns-accent, #FF3B6E);
   color: #fff;
-  box-shadow: 0 4px 14px rgba(255, 59, 110, 0.35);
+  box-shadow: var(--ns-accent-glow, 0 4px 14px rgba(255, 59, 110, 0.35));
 }
 .cycle-toggle-save {
   font-size: 11px;
@@ -536,7 +536,7 @@
 
 /* Per-theme preview swatches. Each is a miniature of the actual look. */
 .ac-tp-apex    { background: #06070A; position: relative; }
-.ac-tp-apex::after { content: ''; position: absolute; left: 12%; right: 12%; top: 40%; height: 6px; background: linear-gradient(90deg, #FF3B6E, #8B5CF6); border-radius: 3px; }
+.ac-tp-apex::after { content: ''; position: absolute; left: 12%; right: 12%; top: 40%; height: 6px; background: linear-gradient(90deg, var(--ns-accent, #FF3B6E), #8B5CF6); border-radius: 3px; }
 .ac-tp-aurora  {
   background:
     radial-gradient(circle at 10% 90%, #7DF9C6 0%, transparent 50%),

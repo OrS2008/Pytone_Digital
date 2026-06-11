@@ -52,7 +52,7 @@
   text-align: center;
   font-weight: 800; font-size: 13px;
   letter-spacing: 6px;
-  color: #2DD4BF;
+  color: var(--ns-accent, #2DD4BF);
   margin-bottom: 22px;
 }
 .ah-title {
@@ -93,7 +93,7 @@
 .ah-input::placeholder { color: #4F5868; }
 .ah-input:focus {
   outline: none;
-  border-color: #2DD4BF;
+  border-color: var(--ns-accent, #2DD4BF);
   box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.18);
 }
 .ah-field-help {
@@ -117,7 +117,7 @@
 .ah-check input[type="checkbox"] {
   margin-top: 2px;
   width: 16px; height: 16px;
-  accent-color: #2DD4BF;
+  accent-color: var(--ns-accent, #2DD4BF);
   cursor: pointer;
 }
 
@@ -137,7 +137,7 @@
   width: 100%;
   display: inline-flex; align-items: center; justify-content: center;
   padding: 14px 18px;
-  background: linear-gradient(180deg, #34E5C2, #2DD4BF);
+  background: linear-gradient(180deg, var(--ns-accent-2, #34E5C2), var(--ns-accent, #2DD4BF));
   color: #04060B;
   border: 0;
   border-radius: 12px;
@@ -149,17 +149,17 @@
   box-shadow: 0 10px 32px rgba(45, 212, 191, 0.40);
   transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
 }
-.ah-btn:hover:not(:disabled)  { transform: translateY(-1px); box-shadow: 0 14px 40px rgba(45, 212, 191, 0.55); }
+.ah-btn:hover:not(:disabled)  { transform: translateY(-1px); box-shadow: 0 14px 40px rgba(45, 212, 191, 0.30); }
 .ah-btn:disabled              { opacity: 0.6; cursor: default; }
 
 /* Links --------------------------------------------------------------- */
 .ah-link {
-  color: #2DD4BF;
+  color: var(--ns-accent, #2DD4BF);
   text-decoration: none;
   font-weight: 600;
   transition: color 120ms ease;
 }
-.ah-link:hover { color: #67E8D2; text-decoration: underline; }
+.ah-link:hover { color: var(--ns-accent-2, #67E8D2); text-decoration: underline; }
 .ah-bottom {
   margin-top: 24px;
   text-align: center;

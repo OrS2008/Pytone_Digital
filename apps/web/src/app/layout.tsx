@@ -58,10 +58,25 @@ const THEME_BOOT = `
     location.replace(location.protocol + '//' + m[2] + location.pathname + location.search + location.hash);
     return;
   }
-  var t=localStorage.getItem('ns.theme');
-  if(t && ['apex','aurora','mono','cyber','premium'].indexOf(t)>=0){
-    document.documentElement.setAttribute('data-theme',t);
-    document.body && document.body.setAttribute('data-theme',t);
+  // Theme selection — runs before paint so the page never flashes the
+  // wrong palette. Priority: saved choice > phone default (sage) > apex.
+  // "sage" is the neutral palette the Android APK ships with; we apply
+  // it pre-paint on any phone-sized Android/iPhone WebView so the whole
+  // /tv tree (including pages that bypass TvBoot) starts in the right
+  // colours.
+  var t = localStorage.getItem('ns.theme');
+  var allowed = ['apex','aurora','mono','cyber','premium','sage'];
+  var pick = (t && allowed.indexOf(t) >= 0) ? t : null;
+  if (!pick) {
+    var ua = navigator.userAgent || '';
+    var isTV = /webOS|Web0S|SmartTV|Tizen|HbbTV|CrKey|AppleTV/i.test(ua);
+    var isPhone = !isTV && /Android|iPhone|iPad|Mobile/i.test(ua) &&
+                  (window.innerWidth || screen.width || 0) <= 820;
+    if (isPhone) pick = 'sage';
+  }
+  if (pick) {
+    document.documentElement.setAttribute('data-theme', pick);
+    document.body && document.body.setAttribute('data-theme', pick);
   }
   var l=localStorage.getItem('ns.locale');
   if(!l){

@@ -379,7 +379,7 @@ export default function LivePreviewTile({ channel, staticOnly, className }: Prop
       <div style={{
         position: 'absolute', top: 10, left: 10,
         padding: '3px 8px', borderRadius: 4,
-        background: showLive && livePlaying ? '#FF3B6E' : 'rgba(255,59,110,0.55)',
+        background: showLive && livePlaying ? 'var(--ns-accent, #FF3B6E)' : 'rgba(255,59,110,0.55)',
         color: '#fff',
         fontSize: 10, fontWeight: 800, letterSpacing: 1,
         display: 'flex', alignItems: 'center', gap: 4,

@@ -13,9 +13,11 @@ import { useEffect, useState } from 'react';
 import { setSessionEmail, setActivated } from '@/lib/session';
 import { syncDown } from '@/lib/serverSync';
 import GoogleSection from '@/components/auth/GoogleSection';
+import { useT } from '@/lib/i18n';
 import '../auth/auth.css';
 
 export default function Login() {
+  const { t } = useT();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -94,8 +96,8 @@ export default function Login() {
 
       <div className="ah-card">
         <div className="ah-wm">NOVA STREAM</div>
-        <h1 className="ah-title">Welcome back</h1>
-        <p className="ah-sub">Sign in to keep watching where you left off.</p>
+        <h1 className="ah-title">{t('auth.welcomeBack')}</h1>
+        <p className="ah-sub">{t('auth.signInSub')}</p>
 
         {verifiedBanner && (
           <div style={{
@@ -115,7 +117,7 @@ export default function Login() {
 
         <form onSubmit={submit}>
           <div className="ah-field">
-            <label className="ah-label">Email</label>
+            <label className="ah-label">{t('auth.email')}</label>
             <input
               className="ah-input"
               type="email"
@@ -126,13 +128,13 @@ export default function Login() {
           </div>
           <div className="ah-field">
             <div className="ah-row">
-              <label className="ah-label">Password</label>
-              <Link href="/tv/forgot-password" className="ah-link" style={{ fontSize: 12 }}>Forgot?</Link>
+              <label className="ah-label">{t('auth.password')}</label>
+              <Link href="/tv/forgot-password" className="ah-link" style={{ fontSize: 12 }}>{t('auth.forgot')}</Link>
             </div>
             <input
               className="ah-input"
               type="password"
-              placeholder="At least 8 characters"
+              placeholder={t('auth.passwordPh')}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -141,12 +143,12 @@ export default function Login() {
           {error && <div className="ah-err">{error}</div>}
 
           <button type="submit" disabled={busy} className="ah-btn">
-            {busy ? 'Signing in…' : 'Sign in'}
+            {busy ? t('auth.signingIn') : t('auth.signIn')}
           </button>
         </form>
 
         <div className="ah-bottom">
-          New here? <Link href="/tv/signup" className="ah-link">Create an account</Link> · 7 days free
+          {t('auth.newHere')} <Link href="/tv/signup" className="ah-link">{t('gate.createAccount')}</Link> · {t('auth.freeTrial')}
         </div>
       </div>
     </main>

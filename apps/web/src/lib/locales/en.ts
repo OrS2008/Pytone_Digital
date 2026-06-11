@@ -18,6 +18,9 @@ const en: Record<string, string> = {
   'auth.signingIn':      'Signing in…',
   'auth.signOut':        'Sign out',
   'auth.or':             'or',
+  'auth.passwordPh':     'At least 8 characters',
+  'auth.newHere':        'New here?',
+  'auth.freeTrial':      '7 days free',
 
   'guide.title':       'TV Guide',
   'guide.needEpg':     "The Programme Guide needs an XMLTV EPG feed to show what's on.",
@@ -39,6 +42,17 @@ const en: Record<string, string> = {
   'search.try':      'Try:',
   'search.loading':  'Loading your channels…',
   'search.toSearch': 'to search across your channels.',
+
+  'gate.signInTitle':    'Sign in to access your account',
+  'gate.signInSub':      'Your subscription, devices, playlists and preferences live behind sign-in. It only takes a moment.',
+  'gate.signIn':         'Sign in',
+  'gate.createAccount':  'Create an account',
+  'gate.activateTitle':  'Activate your account first',
+  'gate.activateSubA':   'We sent an activation link to',
+  'gate.activateSubB':   "Click it to verify your email, then your account opens.",
+  'gate.activateCta':    'I clicked the link · open my account',
+  'gate.differentEmail': 'Use a different email',
+  'gate.noEmail':        "Didn't get the email? Check spam, or sign up again from",
 
   'home.greet.morning':  'Good morning',
   'home.greet.afternoon':'Good afternoon',

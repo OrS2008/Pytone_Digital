@@ -11,10 +11,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { getSessionEmail, isActivated } from '@/lib/session';
+import { useT } from '@/lib/i18n';
 
 type State = 'loading' | 'no-session' | 'unactivated' | 'ok';
 
 export default function AccountGate({ children }: { children: ReactNode }) {
+  const { t } = useT();
   const [state, setState] = useState<State>('loading');
   const [email, setEmail] = useState<string | null>(null);
 
@@ -37,29 +39,25 @@ export default function AccountGate({ children }: { children: ReactNode }) {
         <div className="ac-gate-icon">✉</div>
         {state === 'no-session' ? (
           <>
-            <h1 className="ac-gate-title">Sign in to access your account</h1>
-            <p className="ac-gate-sub">
-              Your subscription, devices, playlists and preferences live behind sign-in.
-              It only takes a moment.
-            </p>
+            <h1 className="ac-gate-title">{t('gate.signInTitle')}</h1>
+            <p className="ac-gate-sub">{t('gate.signInSub')}</p>
             <div className="ac-gate-actions">
-              <Link href="/tv/login"  className="ac-btn ac-btn-primary">Sign in</Link>
-              <Link href="/tv/signup" className="ac-btn">Create an account</Link>
+              <Link href="/tv/login"  className="ac-btn ac-btn-primary">{t('gate.signIn')}</Link>
+              <Link href="/tv/signup" className="ac-btn">{t('gate.createAccount')}</Link>
             </div>
           </>
         ) : (
           <>
-            <h1 className="ac-gate-title">Activate your account first</h1>
+            <h1 className="ac-gate-title">{t('gate.activateTitle')}</h1>
             <p className="ac-gate-sub">
-              We sent an activation link to <b>{email}</b>. Click it to verify your email,
-              then your account opens.
+              {t('gate.activateSubA')} <b>{email}</b>. {t('gate.activateSubB')}
             </p>
             <div className="ac-gate-actions">
-              <Link href="/tv/activate" className="ac-btn ac-btn-primary">I clicked the link · open my account</Link>
-              <Link href="/tv/signup"   className="ac-btn">Use a different email</Link>
+              <Link href="/tv/activate" className="ac-btn ac-btn-primary">{t('gate.activateCta')}</Link>
+              <Link href="/tv/signup"   className="ac-btn">{t('gate.differentEmail')}</Link>
             </div>
             <p className="ac-gate-hint">
-              Didn&apos;t get the email? Check spam, or sign up again from{' '}
+              {t('gate.noEmail')}{' '}
               <Link href="/tv/signup" className="ac-auth-link">/tv/signup</Link>.
             </p>
           </>
