@@ -20,7 +20,7 @@
    layout is preserved because TVs always render at the viewport size. */
 .nova-tv-root {
   min-height: 100vh;
-  background: #06070A;
+  background: var(--ns-bg, #06070A);
   color: #E9EBF1;
   font-family: 'Inter', 'LG Smart UI', 'Helvetica Neue', sans-serif;
   -webkit-tap-highlight-color: transparent;
@@ -81,8 +81,8 @@
    non-button elements. */
 .tv-tile.focused {
   transform: scale(1.06);
-  border-color: #FF3B6E;
-  box-shadow: 0 0 0 1px #FF3B6E, 0 0 48px rgba(255, 59, 110, 0.45);
+  border-color: var(--ns-accent, #FF3B6E);
+  box-shadow: 0 0 0 1px var(--ns-accent, #FF3B6E), 0 0 48px rgba(255, 59, 110, 0.45);
 }
 
 .tv-row {
@@ -272,7 +272,7 @@ html[dir="rtl"] .tv-scroll-arrow-right > span { margin-right: 3px; margin-left: 
   max-width: 720px;
 }
 .tv-hero-eyebrow {
-  color: #FF3B6E;
+  color: var(--ns-accent, #FF3B6E);
   font-size: 14px;
   font-weight: 800;
   letter-spacing: 6px;
@@ -307,7 +307,7 @@ html[dir="rtl"] .tv-scroll-arrow-right > span { margin-right: 3px; margin-left: 
   cursor: pointer;
 }
 .tv-btn-primary {
-  background: #FF3B6E;
+  background: var(--ns-accent, #FF3B6E);
   color: #fff;
 }
 .tv-btn.focused {
@@ -377,7 +377,7 @@ html[dir="rtl"] .tv-scroll-arrow-right > span { margin-right: 3px; margin-left: 
   padding: 36px 64px 28px;
 }
 .tv-nav-wordmark {
-  color: #FF3B6E;
+  color: var(--ns-accent, #FF3B6E);
   font-weight: 800;
   font-size: 22px;
   letter-spacing: 6px;
@@ -394,7 +394,7 @@ html[dir="rtl"] .tv-scroll-arrow-right > span { margin-right: 3px; margin-left: 
 }
 .tv-nav-link.focused {
   color: #fff;
-  border-color: #FF3B6E;
+  border-color: var(--ns-accent, #FF3B6E);
 }
 /* Active route — underlined accent so the user always knows which
    section they're on (the focused state is for keyboard navigation
@@ -402,7 +402,7 @@ html[dir="rtl"] .tv-scroll-arrow-right > span { margin-right: 3px; margin-left: 
 .tv-nav-link.active {
   color: #fff;
   text-decoration: underline;
-  text-decoration-color: #FF3B6E;
+  text-decoration-color: var(--ns-accent, #FF3B6E);
   text-decoration-thickness: 3px;
   text-underline-offset: 8px;
 }
@@ -413,7 +413,7 @@ html[dir="rtl"] .tv-scroll-arrow-right > span { margin-right: 3px; margin-left: 
   margin-left: auto;
   width: 40px; height: 40px; border-radius: 999px;
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, #FF3B6E, #8B5CF6);
+  background: var(--ns-accent-grad, linear-gradient(135deg, var(--ns-accent, #FF3B6E), #8B5CF6));
   color: #fff;
   font-weight: 800; font-size: 14px; letter-spacing: 1px;
   text-decoration: none;

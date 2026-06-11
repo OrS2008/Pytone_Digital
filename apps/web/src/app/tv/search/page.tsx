@@ -16,6 +16,7 @@ import TvNav from '@/components/tv/TvNav';
 import { TvFocusProvider } from '@/components/tv/TvFocus';
 import { getCachedChannels, loadChannels } from '@/lib/channelCache';
 import type { M3UChannel } from '@/lib/m3u';
+import { useT } from '@/lib/i18n';
 
 interface SpeechRecognitionResult { transcript: string }
 interface SpeechRecognitionEvent { results: { 0: { 0: SpeechRecognitionResult } } & ArrayLike<unknown> }
@@ -34,6 +35,7 @@ declare global {
 }
 
 export default function SearchHome() {
+  const { t } = useT();
   const [q, setQ] = useState('');
   // Hydrate synchronously from the shared cache so the channel grid
   // appears instantly when the user comes back from another tab.
@@ -106,7 +108,7 @@ export default function SearchHome() {
               autoFocus
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search channels, films, sports, shows…"
+              placeholder={t('search.ph')}
               style={{
                 width: '100%',
                 fontSize: 24,
@@ -129,7 +131,7 @@ export default function SearchHome() {
                 right: 10, top: '50%', transform: 'translateY(-50%)',
                 width: 44, height: 44, borderRadius: 999,
                 border: 0,
-                background: listening ? '#FF3B6E' : 'rgba(255,255,255,0.08)',
+                background: listening ? 'var(--ns-accent, #FF3B6E)' : 'rgba(255,255,255,0.08)',
                 color: '#fff', fontSize: 20, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 boxShadow: listening ? '0 0 0 6px rgba(255,59,110,0.18)' : 'none',
@@ -148,7 +150,7 @@ export default function SearchHome() {
             display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 16,
             color: '#B7BEC9', fontFamily: 'Inter, system-ui, sans-serif',
           }}>
-            <span style={{ opacity: 0.6, alignSelf: 'center', marginRight: 6 }}>Try:</span>
+            <span style={{ opacity: 0.6, alignSelf: 'center', marginInlineEnd: 6 }}>{t('search.try')}</span>
             {['News', 'Sports', 'Movies', 'Kids', 'HD'].map((s) => (
               <button
                 key={s}
@@ -167,12 +169,12 @@ export default function SearchHome() {
 
         {/* Results */}
         <div style={{ padding: '0 24px 64px', maxWidth: 1280, margin: '0 auto' }}>
-          {loading && <p style={{ color: '#B7BEC9' }}>Loading your channels…</p>}
+          {loading && <p style={{ color: '#B7BEC9' }}>{t('search.loading')}</p>}
           {!loading && channels.length === 0 && (
             <p style={{ color: '#B7BEC9' }}>
-              Add your playlist in{' '}
-              <Link href="/tv/account/sources" style={{ color: 'var(--ns-accent, #FF3B6E)' }}>Playlists &amp; EPG</Link>{' '}
-              to search across your channels.
+              {t('catchup.addPlaylist')}{' '}
+              <Link href="/tv/account/sources" style={{ color: 'var(--ns-accent, #FF3B6E)' }}>{t('catchup.sourcesLink')}</Link>{' '}
+              {t('search.toSearch')}
             </p>
           )}
           {!loading && channels.length > 0 && (

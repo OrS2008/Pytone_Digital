@@ -61,3 +61,26 @@
      floating tab bar. */
   .nova-tv-root { padding-bottom: 6rem; }
 }
+
+@media (max-width: 819px) {
+  /* The account section's top nav row duplicates the bottom tab bar —
+     hide it; the wordmark + account chip row above it stays. */
+  .ac-nav-links { display: none !important; }
+}
+
+@media (max-width: 819px) {
+  /* Pages wrap TvNav in a fixed 100px spacer div. With the nav hidden
+     on phones the spacer leaves a hole at the top — collapse it.
+     (:has() is fine here: this branch only runs on phone WebViews,
+     which are modern Chromium; old webOS TVs never match the media
+     query.) */
+  div:has(> .tv-nav) { height: auto !important; }
+}
+
+@media (max-width: 819px) {
+  /* The account sidebar becomes a horizontal strip on phones; without
+     this the active item stretches to the tallest section and looks
+     like a giant pill. */
+  .ac-sidebar { align-items: center; }
+  .ac-sb-item { height: auto; }
+}

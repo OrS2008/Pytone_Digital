@@ -724,7 +724,7 @@ function CatchupBanner({
         <button
           onClick={onReturnLive}
           style={{
-            background: '#FF3B6E', color: '#fff',
+            background: 'var(--ns-accent, #FF3B6E)', color: 'var(--ns-accent-text-on, #fff)',
             border: 0, borderRadius: 999,
             padding: '6px 14px', fontWeight: 700, fontSize: 12,
             cursor: 'pointer',

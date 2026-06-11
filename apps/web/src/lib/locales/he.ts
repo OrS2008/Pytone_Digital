@@ -19,6 +19,27 @@ const he: Record<string, string> = {
   'auth.signOut':        'התנתק',
   'auth.or':             'או',
 
+  'guide.title':       'לוח שידורים',
+  'guide.needEpg':     'לוח השידורים צריך מקור EPG ‏(XMLTV) כדי להציג מה משודר.',
+  'guide.addEpg':      'הוסף מקור EPG',
+  'guide.loading':     'טוען לוח שידורים…',
+
+  'catchup.title':       'בחר ערוץ',
+  'catchup.sub':         'בחר ערוץ ועיין בשבעת הימים האחרונים, שעה אחר שעה, כדי לצפות שוב במה ששודר.',
+  'catchup.recordings':  'ההקלטות שלי',
+  'catchup.filterPh':    'סינון ערוצים…',
+  'catchup.noEpgTitle':  'לא הוגדר לוח שידורים.',
+  'catchup.noEpgBody':   'צפייה חוזרת צריכה EPG ‏(XMLTV) כדי לדעת מה שודר ומתי.',
+  'catchup.addOne':      'הוסף אחד ←',
+  'catchup.addPlaylist': 'הוסף את הפלייליסט שלך ב-',
+  'catchup.toUse':       'כדי להשתמש בצפייה חוזרת.',
+  'catchup.sourcesLink': 'פלייליסטים ו-EPG',
+
+  'search.ph':       'חיפוש ערוצים, סרטים, ספורט וסדרות…',
+  'search.try':      'נסה:',
+  'search.loading':  'טוען את הערוצים שלך…',
+  'search.toSearch': 'כדי לחפש בין הערוצים שלך.',
+
   'home.greet.morning':  'בוקר טוב',
   'home.greet.afternoon':'צהריים טובים',
   'home.greet.evening':  'ערב טוב',

@@ -36,6 +36,7 @@ import { loadDigest } from '@/lib/digestClient';
 import type { EpgProgramme } from '@/lib/epg';
 import type { M3UChannel } from '@/lib/m3u';
 import type { DigestChannel } from '@/lib/digest';
+import { useT } from '@/lib/i18n';
 
 // Default dimensions for desktop / TV. The component reads viewport
 // width on mount and shrinks them on phones (see useLayout below) so
@@ -114,6 +115,7 @@ function digestToRowData(digestChannels: DigestChannel[]): RowData[] {
 }
 
 export default function GuidePage() {
+  const { t } = useT();
   const layout = useLayout();
   const PX_PER_MIN   = layout.pxPerMin;
   const PX_PER_HOUR  = PX_PER_MIN * 60;
@@ -240,13 +242,13 @@ export default function GuidePage() {
         <main style={{ minHeight: '100vh' }}>
           <div style={{ height: 100 }}><TvNav /></div>
           <div style={{ padding: 48, textAlign: 'center', color: '#B7BEC9' }}>
-            <h1 style={{ margin: '0 0 12px', color: '#E9EBF1' }}>TV Guide</h1>
-            <p>The Programme Guide needs an XMLTV EPG feed to show what's on.</p>
+            <h1 style={{ margin: '0 0 12px', color: '#E9EBF1' }}>{t('guide.title')}</h1>
+            <p>{t('guide.needEpg')}</p>
             <Link href="/tv/account/sources" style={{
               display: 'inline-block', marginTop: 16, padding: '10px 18px',
-              background: '#FF3B6E', color: '#fff', borderRadius: 10,
+              background: 'var(--ns-accent, #FF3B6E)', color: 'var(--ns-accent-text-on, #fff)', borderRadius: 10,
               textDecoration: 'none', fontWeight: 700,
-            }}>Add an EPG source</Link>
+            }}>{t('guide.addEpg')}</Link>
           </div>
         </main>
       </TvFocusProvider>
@@ -257,7 +259,7 @@ export default function GuidePage() {
       <TvFocusProvider>
         <main style={{ minHeight: '100vh' }}>
           <div style={{ height: 100 }}><TvNav /></div>
-          <div style={{ padding: 48, textAlign: 'center', color: '#B7BEC9' }}>Loading guide…</div>
+          <div style={{ padding: 48, textAlign: 'center', color: '#B7BEC9' }}>{t('guide.loading')}</div>
         </main>
       </TvFocusProvider>
     );
@@ -274,7 +276,7 @@ export default function GuidePage() {
           display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
           maxWidth: 1600, margin: '0 auto',
         }}>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: '#E9EBF1' }}>TV Guide</h1>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: '#E9EBF1' }}>{t('guide.title')}</h1>
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', flex: 1, minWidth: 0 }}>
             {[-7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7].map((off) => (
               <button
@@ -282,8 +284,8 @@ export default function GuidePage() {
                 onClick={() => setDayOffset(off)}
                 style={{
                   padding: '8px 14px', borderRadius: 10, border: 'none',
-                  background: off === dayOffset ? '#FF3B6E' : 'rgba(255,255,255,0.06)',
-                  color: off === dayOffset ? '#fff' : '#B7BEC9',
+                  background: off === dayOffset ? 'var(--ns-accent, #FF3B6E)' : 'rgba(255,255,255,0.06)',
+                  color: off === dayOffset ? 'var(--ns-accent-text-on, #fff)' : '#B7BEC9',
                   fontWeight: 700, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
                 }}
               >
@@ -364,7 +366,7 @@ export default function GuidePage() {
                   top: HEADER_HEIGHT,
                   width: 2,
                   height: rows.length * ROW_HEIGHT,
-                  background: '#FF3B6E',
+                  background: 'var(--ns-accent, #FF3B6E)',
                   zIndex: 2,
                   pointerEvents: 'none',
                   boxShadow: '0 0 8px rgba(255,59,110,0.6)',
@@ -434,7 +436,7 @@ function GuideRow({ row, dayStart, dayEnd, now, layout }: {
       }}>
         <span style={{
           fontVariantNumeric: 'tabular-nums', fontSize: 14, fontWeight: 800,
-          color: '#FF3B6E', minWidth: 28, textAlign: 'end',
+          color: 'var(--ns-accent, #FF3B6E)', minWidth: 28, textAlign: 'end',
         }}>{channel.number}</span>
         {channel.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -476,7 +478,7 @@ function GuideRow({ row, dayStart, dayEnd, now, layout }: {
             : `/tv/live?ch=${channel.number}`;
 
           const bg = isCurrent
-            ? 'linear-gradient(180deg,#FF3B6E,#C42154)'
+            ? 'linear-gradient(180deg,var(--ns-accent, #FF3B6E),#C42154)'
             : inPast
               ? (reachable ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)')
               : 'rgba(255,255,255,0.08)';

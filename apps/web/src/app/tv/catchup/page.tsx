@@ -35,6 +35,7 @@ import { maskSourceUrl } from '@/lib/maskUrl';
 import type { EpgProgramme } from '@/lib/epg';
 import { userKey } from '@/lib/session';
 import type { M3UChannel } from '@/lib/m3u';
+import { useT, t as tGlobal } from '@/lib/i18n';
 
 interface Recording {
   id:        string;
@@ -69,6 +70,7 @@ function startOfDay(d: Date): number {
 }
 
 export default function CatchupPage() {
+  const { t } = useT();
   const [channels, setChannels] = useState<M3UChannel[]>(
     (typeof window !== 'undefined' ? getCachedChannels() : null) ?? [],
   );
@@ -199,7 +201,7 @@ export default function CatchupPage() {
                   }}>
                     <div style={{
                       fontVariantNumeric: 'tabular-nums',
-                      fontWeight: 800, fontSize: 22, color: '#FF3B6E', textAlign: 'center',
+                      fontWeight: 800, fontSize: 22, color: 'var(--ns-accent, #FF3B6E)', textAlign: 'center',
                     }}>{r.number}</div>
                     <div>
                       <div style={{ fontSize: 15, fontWeight: 700, color: '#E9EBF1' }}>{r.title}</div>
@@ -262,16 +264,16 @@ export default function CatchupPage() {
             <div>
               <div style={{ fontSize: 11, letterSpacing: 3, color: '#6E7480', textTransform: 'uppercase' }}>Catch-up</div>
               <h1 style={{ margin: '6px 0 4px', fontSize: 28, fontWeight: 800, color: '#E9EBF1' }}>
-                Pick a channel
+                {t('catchup.title')}
               </h1>
               <p style={{ margin: 0, color: '#B7BEC9', fontSize: 14, maxWidth: 720 }}>
-                Choose a channel, then browse the last 7 days hour by hour to re-watch what aired.
+                {t('catchup.sub')}
               </p>
             </div>
             <button onClick={() => setShowRecordings(true)} style={pillBtnStyle}>
-              ● My recordings
+              ● {t('catchup.recordings')}
               {recs.length > 0 && (
-                <span style={{ marginInlineStart: 6, color: '#FF3B6E', fontWeight: 800 }}>{recs.length}</span>
+                <span style={{ marginInlineStart: 6, color: 'var(--ns-accent, #FF3B6E)', fontWeight: 800 }}>{recs.length}</span>
               )}
             </button>
           </div>
@@ -282,7 +284,7 @@ export default function CatchupPage() {
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={`Filter ${channels.length.toLocaleString()} channels…`}
+            placeholder={t('catchup.filterPh')}
             style={searchStyle}
           />
         </div>
@@ -292,9 +294,9 @@ export default function CatchupPage() {
         <section style={{ padding: '20px 24px 64px', maxWidth: 1280, margin: '0 auto' }}>
           {channels.length === 0 ? (
             <div style={emptyStateStyle}>
-              Add your playlist in{' '}
-              <Link href="/tv/account/sources" style={{ color: '#FF3B6E' }}>Playlists &amp; EPG</Link>{' '}
-              to use catch-up.
+              {t('catchup.addPlaylist')}{' '}
+              <Link href="/tv/account/sources" style={{ color: 'var(--ns-accent, #FF3B6E)' }}>{t('catchup.sourcesLink')}</Link>{' '}
+              {t('catchup.toUse')}
             </div>
           ) : (
             <>
@@ -433,8 +435,8 @@ function ChannelDetail({ channel, epgIndex, epgState, onBack }: DetailProps) {
               onClick={() => setSelectedDay(i)}
               style={{
                 ...pillBtnStyle,
-                background: selectedDay === i ? '#FF3B6E' : 'rgba(255,255,255,0.05)',
-                color:      selectedDay === i ? '#fff'    : '#B7BEC9',
+                background: selectedDay === i ? 'var(--ns-accent, #FF3B6E)' : 'rgba(255,255,255,0.05)',
+                color:      selectedDay === i ? 'var(--ns-accent-text-on, #fff)' : '#B7BEC9',
                 whiteSpace: 'nowrap',
               }}
             >
@@ -455,7 +457,7 @@ function ChannelDetail({ channel, epgIndex, epgState, onBack }: DetailProps) {
               No programme guide for this channel.{' '}
               {epgState === 'none' ? (
                 <>
-                  <Link href="/tv/account/sources?tab=epg" style={{ color: '#FF3B6E' }}>
+                  <Link href="/tv/account/sources?tab=epg" style={{ color: 'var(--ns-accent, #FF3B6E)' }}>
                     Add an XMLTV EPG source
                   </Link>{' '}
                   to see catch-up programmes here.
@@ -497,7 +499,7 @@ function ChannelDetail({ channel, epgIndex, epgState, onBack }: DetailProps) {
                     )}
                   </div>
                   <div style={{
-                    background: '#FF3B6E', color: '#fff',
+                    background: 'var(--ns-accent, #FF3B6E)', color: 'var(--ns-accent-text-on, #fff)',
                     padding: '8px 14px', borderRadius: 10,
                     fontSize: 13, fontWeight: 700,
                   }}>▶ Watch</div>
@@ -535,7 +537,7 @@ const tileLogoStyle: React.CSSProperties = {
   background: '#0E1218', borderRadius: 8,
 };
 const tileNumStyle: React.CSSProperties = {
-  fontSize: 11, color: '#FF3B6E', fontWeight: 800, letterSpacing: 1,
+  fontSize: 11, color: 'var(--ns-accent, #FF3B6E)', fontWeight: 800, letterSpacing: 1,
   marginTop: 4,
 };
 const tileNameStyle: React.CSSProperties = {
@@ -568,10 +570,10 @@ function EpgStatusBanner({
   if (diag.fetchStatus === 'idle' && !diag.url) {
     return (
       <div style={epgBannerStyle('mut')}>
-        <strong>No programme guide configured.</strong>{' '}
-        Catch-up needs an XMLTV EPG to know what aired and when.{' '}
-        <Link href="/tv/account/sources?tab=epg" style={{ color: '#FF3B6E' }}>
-          Add one →
+        <strong>{tGlobal('catchup.noEpgTitle')}</strong>{' '}
+        {tGlobal('catchup.noEpgBody')}{' '}
+        <Link href="/tv/account/sources?tab=epg" style={{ color: 'var(--ns-accent, #FF3B6E)' }}>
+          {tGlobal('catchup.addOne')}
         </Link>
       </div>
     );
@@ -589,7 +591,7 @@ function EpgStatusBanner({
         <strong>Couldn&apos;t fetch your EPG ({diag.fetchError}).</strong>{' '}
         URL: <code style={epgUrlStyle}>{maskSourceUrl(diag.url || '')}</code>
         {' · '}
-        <Link href="/tv/account/sources?tab=epg" style={{ color: '#FF3B6E' }}>Edit URL →</Link>
+        <Link href="/tv/account/sources?tab=epg" style={{ color: 'var(--ns-accent, #FF3B6E)' }}>Edit URL →</Link>
       </div>
     );
   }
@@ -674,7 +676,7 @@ const backBtnStyle: React.CSSProperties = {
   fontFamily: 'inherit',
 };
 const primaryBtnStyle: React.CSSProperties = {
-  background: '#FF3B6E', color: '#fff',
+  background: 'var(--ns-accent, #FF3B6E)', color: 'var(--ns-accent-text-on, #fff)',
   padding: '10px 18px', borderRadius: 10,
   textDecoration: 'none', fontWeight: 700, fontSize: 13,
   whiteSpace: 'nowrap',

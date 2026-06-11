@@ -19,6 +19,27 @@ const en: Record<string, string> = {
   'auth.signOut':        'Sign out',
   'auth.or':             'or',
 
+  'guide.title':       'TV Guide',
+  'guide.needEpg':     "The Programme Guide needs an XMLTV EPG feed to show what's on.",
+  'guide.addEpg':      'Add an EPG source',
+  'guide.loading':     'Loading guide…',
+
+  'catchup.title':       'Pick a channel',
+  'catchup.sub':         'Choose a channel, then browse the last 7 days hour by hour to re-watch what aired.',
+  'catchup.recordings':  'My recordings',
+  'catchup.filterPh':    'Filter channels…',
+  'catchup.noEpgTitle':  'No programme guide configured.',
+  'catchup.noEpgBody':   'Catch-up needs an XMLTV EPG to know what aired and when.',
+  'catchup.addOne':      'Add one →',
+  'catchup.addPlaylist': 'Add your playlist in',
+  'catchup.toUse':       'to use catch-up.',
+  'catchup.sourcesLink': 'Playlists & EPG',
+
+  'search.ph':       'Search channels, films, sports, shows…',
+  'search.try':      'Try:',
+  'search.loading':  'Loading your channels…',
+  'search.toSearch': 'to search across your channels.',
+
   'home.greet.morning':  'Good morning',
   'home.greet.afternoon':'Good afternoon',
   'home.greet.evening':  'Good evening',
