@@ -20,7 +20,9 @@ const config: CapacitorConfig = {
   appName: 'Nova Stream',
   webDir: 'www',
   server: {
-    url: 'https://nova-stream-cce.pages.dev',
+    // Lands directly on the new mobile-optimised home page. Same live
+    // deploy as before — the URL just points at /tv/home instead of /.
+    url: 'https://nova-stream-cce.pages.dev/tv/home',
     androidScheme: 'https',
     cleartext: false,
   },
@@ -28,25 +30,25 @@ const config: CapacitorConfig = {
     allowMixedContent: false,
     captureInput: true,
     webContentsDebuggingEnabled: false,
-    backgroundColor: '#0F1116',
+    backgroundColor: '#0F1212',
   },
   plugins: {
     SplashScreen: {
       launchShowDuration: 1800,
       launchAutoHide: true,
       launchFadeOutDuration: 400,
-      backgroundColor: '#0F1116',
+      backgroundColor: '#0F1212',
       androidSplashResourceName: 'splash',
       androidScaleType: 'CENTER',
       showSpinner: true,
       androidSpinnerStyle: 'small',
-      spinnerColor: '#2DD4BF',
+      spinnerColor: '#9DC2B8',
       splashFullScreen: true,
       splashImmersive: true,
     },
     StatusBar: {
       style: 'DARK',
-      backgroundColor: '#0F1116',
+      backgroundColor: '#0F1212',
       overlaysWebView: false,
     },
   },

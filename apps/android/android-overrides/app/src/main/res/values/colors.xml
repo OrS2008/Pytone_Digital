@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#0F1116</color>
-    <color name="colorPrimaryDark">#0B0D12</color>
-    <color name="colorAccent">#2DD4BF</color>
-    <color name="background">#0F1116</color>
-    <color name="splashBackground">#0F1116</color>
+    <!-- Sage Calm neutral palette — calm, content-first, not branded-loud. -->
+    <color name="colorPrimary">#0F1212</color>
+    <color name="colorPrimaryDark">#0A0D0D</color>
+    <color name="colorAccent">#9DC2B8</color>
+    <color name="background">#0F1212</color>
+    <color name="splashBackground">#0F1212</color>
     <!-- ic_launcher_background is defined by Capacitor's scaffolded
          res/values/ic_launcher_background.xml; the workflow overwrites
          it to our brand value so we don't duplicate it here. -->
