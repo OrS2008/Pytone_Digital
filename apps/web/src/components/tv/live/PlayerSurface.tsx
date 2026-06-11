@@ -376,6 +376,32 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     } catch { /* user denied / unsupported */ }
   }
 
+  // Force the player into landscape on a portrait phone so the user can
+  // watch a 16:9 video at the device's full width. Requires fullscreen
+  // first because the Screen Orientation API silently rejects lock
+  // calls outside fullscreen on most browsers. If we're already
+  // landscape we go back to portrait + exit fullscreen — a single
+  // button toggles both directions.
+  async function toggleLandscape() {
+    type LockableOrientation = ScreenOrientation & {
+      lock?: (o: 'landscape' | 'portrait') => Promise<void>;
+    };
+    const orientation = screen.orientation as LockableOrientation | undefined;
+    const isLandscape = !!orientation && orientation.type.startsWith('landscape');
+    try {
+      if (isLandscape) {
+        orientation?.unlock?.();
+        if (document.fullscreenElement) await document.exitFullscreen();
+        return;
+      }
+      const surface = videoRef.current?.parentElement;
+      if (surface && !document.fullscreenElement) {
+        await surface.requestFullscreen({ navigationUI: 'hide' });
+      }
+      await orientation?.lock?.('landscape');
+    } catch { /* unsupported / user denied — fall back silently */ }
+  }
+
   return (
     <div className="player-surface" onClick={onSurfaceClick}>
       {channel?.streamUrl ? (
@@ -400,6 +426,22 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
           {/* Player controls overlay — pinned top-right, lives above
               the native <video controls> for cast + pip toggles. */}
           <div className="player-tools">
+            <button
+              className="player-tool"
+              onClick={toggleLandscape}
+              title="הצג במצב אופקי"
+              aria-label="Rotate to landscape"
+            >
+              {/* Phone-with-rotation glyph: a horizontal device with a
+                  small rotation arrow. Pure SVG so it picks up the
+                  surrounding text colour from .player-tool. */}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" strokeWidth="2"
+                   strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="6" width="20" height="12" rx="2"/>
+                <path d="M16 3l3 3-3 3"/>
+              </svg>
+            </button>
             <button
               className="player-tool"
               onClick={togglePip}

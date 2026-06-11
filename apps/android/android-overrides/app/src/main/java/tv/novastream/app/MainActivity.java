@@ -67,6 +67,16 @@ public class MainActivity extends BridgeActivity {
             s.setDatabaseEnabled(true);
             s.setLoadWithOverviewMode(true);
             s.setUseWideViewPort(true);
+            // Pinch-to-zoom support. The default WebSettings has
+            // setSupportZoom=true but Capacitor's BridgeActivity flips
+            // it off — we re-enable it here. We also turn the legacy
+            // built-in zoom controls on (without that flag pinch is
+            // silently ignored on some OEM WebView builds) but hide
+            // the floating +/- buttons that would otherwise overlap
+            // the video player.
+            s.setSupportZoom(true);
+            s.setBuiltInZoomControls(true);
+            s.setDisplayZoomControls(false);
             s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 s.setSafeBrowsingEnabled(true);

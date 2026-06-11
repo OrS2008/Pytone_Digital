@@ -34,11 +34,21 @@ export default function TvBoot() {
     // flash of the default before their preference loads. The choice is
     // written by /tv/account/appearance to localStorage. This runs on
     // every device — theme persistence is not TV-specific.
+    //
+    // Default per surface: phones boot the neutral "sage" palette to
+    // match the Android APK design; TVs (and laptops/desktops) keep
+    // the existing "apex" default.
     try {
       const saved = localStorage.getItem('ns.theme');
-      if (saved && ['apex','aurora','mono','cyber','premium'].includes(saved)) {
-        document.documentElement.setAttribute('data-theme', saved);
-        document.body.setAttribute('data-theme', saved);
+      const allowed = ['apex','aurora','mono','cyber','premium','sage'];
+      let pick = saved && allowed.includes(saved) ? saved : null;
+      if (!pick && !isTv) {
+        const isPhone = /Android|iPhone|iPad|Mobile/i.test(ua) && window.innerWidth <= 820;
+        if (isPhone) pick = 'sage';
+      }
+      if (pick) {
+        document.documentElement.setAttribute('data-theme', pick);
+        document.body.setAttribute('data-theme', pick);
       }
       // Accessibility flags persisted by /tv/account/appearance.
       // Mirror them onto <html> on first paint so themes.css picks

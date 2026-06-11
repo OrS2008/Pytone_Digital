@@ -29,7 +29,7 @@ export default function Signup() {
       if (user.name)    localStorage.setItem('ns.session.name',    user.name);
       if (user.picture) localStorage.setItem('ns.session.picture', user.picture);
     } catch { /* ignore */ }
-    router.push('/tv');
+    router.push('/tv/home');
   }
 
   async function submit(e: React.FormEvent) {

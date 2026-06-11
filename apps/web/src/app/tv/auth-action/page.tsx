@@ -71,7 +71,7 @@ function NoCodeRedirect() {
             if (body.email) { setSessionEmail(body.email); setActivated(true); }
             try { await syncDown(); } catch { /* ignore */ }
             setState('ok');
-            setTimeout(() => { window.location.href = body.redirectTo || '/tv'; }, 600);
+            setTimeout(() => { window.location.href = body.redirectTo || '/tv/home'; }, 600);
             return;
           }
         }
@@ -127,7 +127,7 @@ function VerifyEmailFlow({ oobCode }: { oobCode: string }) {
         if (body.email) { setSessionEmail(body.email); setActivated(true); }
         try { await syncDown(); } catch { /* ignore */ }
         setState('ok');
-        setTimeout(() => { window.location.href = body.redirectTo || '/tv'; }, 600);
+        setTimeout(() => { window.location.href = body.redirectTo || '/tv/home'; }, 600);
       } catch (e) {
         setState('error');
         setDetail((e as Error).message);
@@ -209,7 +209,7 @@ function ResetPasswordFlow({ oobCode }: { oobCode: string }) {
       if (body.email) { setSessionEmail(body.email); setActivated(true); }
       try { await syncDown(); } catch { /* ignore */ }
       setPhase('done');
-      setTimeout(() => { window.location.href = body.redirectTo || '/tv'; }, 700);
+      setTimeout(() => { window.location.href = body.redirectTo || '/tv/home'; }, 700);
     } catch (e) {
       setPhase('form'); setErr((e as Error).message);
     }

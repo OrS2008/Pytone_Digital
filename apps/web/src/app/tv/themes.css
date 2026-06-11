@@ -200,6 +200,54 @@
   --ns-display-italic: italic;
 }
 
+/* --- Sage Calm (neutral, mobile default) -------------------------------- */
+/* The palette the mobile APK ships with: warm graphite background, calm
+   sage-teal accent, almost-monochrome chrome. Picked because the home
+   screen relies on coloured thumbnails for visual energy and a loud UI
+   accent fought with them. TVs still default to apex; phones boot into
+   this. */
+:root[data-theme="sage"] {
+  --ns-bg:            #0F1212;
+  --ns-bg-elevated:   #1A1F1E;
+  --ns-bg-input:      #151918;
+  --ns-bg-hover:      rgba(255, 255, 255, 0.04);
+  --ns-hairline:      rgba(255, 255, 255, 0.06);
+  --ns-border:        rgba(255, 255, 255, 0.11);
+  --ns-border-strong: rgba(157, 194, 184, 0.40);
+
+  --ns-text:        #ECF1EF;
+  --ns-text-muted:  #9BA8A4;
+  --ns-text-faint:  #5D6A66;
+  --ns-text-dim:    #4A5552;
+
+  --ns-accent:        #9DC2B8;
+  --ns-accent-soft:   rgba(157, 194, 184, 0.12);
+  --ns-accent-glow:   0 0 24px rgba(157, 194, 184, 0.35);
+  --ns-accent-grad:   linear-gradient(135deg, #BFDCD3, #9DC2B8);
+  --ns-accent-text-on: #13201D;
+  --ns-accent-2:      #BFDCD3;
+
+  --ns-ok:      #9DC2B8;
+  --ns-warn:    #D9B97A;
+  --ns-danger:  #E2776B;
+
+  --ns-radius-sm: 8px;
+  --ns-radius-md: 12px;
+  --ns-radius-lg: 18px;
+  --ns-radius-xl: 24px;
+
+  --ns-font-display: 'Inter', -apple-system, system-ui, sans-serif;
+  --ns-font-body:    'Inter', -apple-system, system-ui, sans-serif;
+  --ns-display-weight: 800;
+  --ns-display-tracking: -0.5px;
+  --ns-display-italic: normal;
+
+  --ns-card-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.55);
+  --ns-glass-blur: 22px;
+  --ns-overlay-grid: none;
+  --ns-overlay-scanline: none;
+}
+
 /* --- Background overlays per theme -------------------------------------- */
 /* Cyber adds a subtle grid + scanline behind everything. Aurora gets
    coloured blur blobs. The overlays sit on body::before/::after so they

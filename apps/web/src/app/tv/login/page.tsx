@@ -70,7 +70,7 @@ export default function Login() {
       setSessionEmail(email);
       setActivated(true);
       await syncDown();
-      window.location.href = '/tv';
+      window.location.href = '/tv/home';
     } catch (err) {
       setError(`Sign-in failed: ${(err as Error).message}`);
       setBusy(false);
