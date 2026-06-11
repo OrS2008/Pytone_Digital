@@ -846,3 +846,82 @@
 .infobar-modal-time  { font-size: 13px; color: #B7BEC9; margin-bottom: 16px; }
 .infobar-modal-desc  { font-size: 14px; color: #B7BEC9; line-height: 1.5; margin-bottom: 20px; }
 .infobar-modal-actions { display: flex; gap: 10px; }
+
+/* ============================================================
+ * Mobile sage palette overrides
+ *
+ * On phones the Live page used to ship its TV-era colours (the
+ * hot-pink #FF3B6E accent, very-dark #06070A background, hard
+ * borders) which felt jarring next to the new sage home. These
+ * rules bring it into line: same neutral background, same card
+ * radius, same gentle accent. Channel rows look like cards
+ * instead of a dense list, and the focus colour is the sage mint
+ * used by the bottom tab bar's active state.
+ * ============================================================ */
+@media (max-width: 819px) {
+  .live-layout {
+    background: #0F1212;
+    color: #ECF1EF;
+    /* Page can scroll on mobile; the rail no longer needs to
+       lock the whole viewport. */
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: visible;
+    padding-bottom: 6rem; /* room for the floating tab bar */
+  }
+  .live-body { overflow: visible; }
+  .rail {
+    background: transparent;
+    border-right: 0;
+    padding: 8px 12px 16px;
+    max-height: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .rail-row {
+    display: grid;
+    grid-template-columns: 36px 48px 1fr;
+    gap: 12px;
+    height: auto;
+    padding: 12px;
+    border-left: 0;
+    border-radius: 14px;
+    background: #1A1F1E;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .rail-row:hover    { background: #232A28; }
+  .rail-row.active,
+  .rail-row.focused {
+    background: rgba(157, 194, 184, 0.10);
+    border-color: rgba(157, 194, 184, 0.40);
+    box-shadow: none;
+  }
+  .rail-num   { font-size: 15px; color: #9BA8A4; }
+  .rail-logo  {
+    width: 48px; height: 36px;
+    background: #0F1212;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .rail-logo img { max-width: 42px; max-height: 30px; }
+  .rail-name  { color: #ECF1EF; font-size: 14.5px; font-weight: 700; }
+  .rail-now   { color: #9BA8A4; }
+  .rail-next  { color: #5D6A66; }
+  .rail-divider { color: #5D6A66; }
+
+  .live-status {
+    background: rgba(157, 194, 184, 0.06);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    color: #9BA8A4;
+  }
+  .live-status-link { color: #BFDCD3; }
+
+  /* Player chrome — match the sage card look from home. */
+  .player-surface .placeholder {
+    background: linear-gradient(135deg, #1A1F1E 0%, #0F1212 60%);
+  }
+  .player-surface .placeholder-meta { color: #5D6A66; }
+  .player-surface .placeholder-meta .ch-num { color: #232A28; }
+}
