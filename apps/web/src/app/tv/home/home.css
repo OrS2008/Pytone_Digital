@@ -1,333 +1,429 @@
 /*
- * /tv/home — mobile-first home screen, the Nova Stream APK loads this
- * page on launch.
+ * /tv/home — mobile home screen.
  *
- * All selectors are scoped under .nshome so this stylesheet cannot leak
- * into other /tv routes (the TV layout, the account pages, the existing
- * /tv home for big screens). The Sage Calm neutral palette is declared
- * locally too — :root tokens elsewhere in the app are untouched.
+ * Scoped under .nshome so it can never leak into other /tv routes.
  *
- * Sizing is rem-based with a viewport-driven font-size, so the layout
- * scales smoothly from a 360px phone up to a 12" tablet without media
- * queries for every breakpoint.
+ * Robustness notes (fixing the issues seen on real-device WebViews):
+ *   - aspect-ratio is NOT used on <a> elements; anchors are inline by
+ *     default and aspect-ratio silently collapses to height:0 on them.
+ *     Every clickable card sets `display:block` (or flex) explicitly.
+ *   - color-mix() is avoided — not supported on Android WebView < 111.
+ *     All translucent colours use plain rgba() literals.
+ *   - The font-size base uses a media query rather than clamp(...vmin),
+ *     which several OEM WebView builds compute to 0 and collapse text.
+ *   - The bottom tab bar is position:fixed at z-index:100 and the page
+ *     has padding-bottom:7rem so no content can ever sit under it.
  */
 
 .nshome {
+  /* Local palette overrides — independent of the global theme so /tv/home
+     looks identical whether the user is on sage, apex, or anything else. */
   --ns-bg: #0F1212;
   --ns-surface: #1A1F1E;
   --ns-surface-2: #232A28;
-  --ns-surface-3: #2D3634;
-  --ns-line: rgba(255,255,255,.06);
-  --ns-line-2: rgba(255,255,255,.11);
+  --ns-line: rgba(255, 255, 255, 0.06);
+  --ns-line-2: rgba(255, 255, 255, 0.11);
   --ns-text: #ECF1EF;
   --ns-text-2: #9BA8A4;
   --ns-text-3: #5D6A66;
   --ns-accent: #9DC2B8;
   --ns-accent-2: #BFDCD3;
+  --ns-accent-soft: rgba(157, 194, 184, 0.12);
+  --ns-accent-soft-border: rgba(157, 194, 184, 0.30);
   --ns-accent-ink: #13201D;
   --ns-live: #E2776B;
+  --ns-live-soft: rgba(226, 119, 107, 0.14);
   --ns-gold: #D9B97A;
-  --ns-r-lg: 1.25rem;
-  --ns-r-md: 0.85rem;
+  --ns-gold-soft: rgba(217, 185, 122, 0.14);
 
-  font-size: clamp(14px, 1.05vmin + 11px, 17px);
-  background:
-    radial-gradient(120% 100% at 50% -10%, #1B2120 0%, #0A0D0D 55%),
-    var(--ns-bg);
+  font-size: 15px;
+  background: #0F1212;
   color: var(--ns-text);
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter',
-               'Segoe UI', Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+               'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
   min-height: 100dvh;
-  direction: rtl;
-  padding-bottom: 6rem;
+  /* The fixed bottom tab bar lives at the layout level; its CSS adds
+     padding-bottom on .nova-tv-root for phones. We just leave a tiny
+     margin so the last section doesn't kiss the nav. */
+  padding-bottom: 1rem;
   padding-top: env(safe-area-inset-top);
 }
-.nshome * { box-sizing: border-box; }
+
+@media (min-width: 480px) { .nshome { font-size: 16px; } }
+@media (min-width: 768px) { .nshome { font-size: 17px; } }
+
+.nshome *,
+.nshome *::before,
+.nshome *::after { box-sizing: border-box; }
 
 /* ===== header ===== */
-.nshome-top { padding: .8rem 1.25rem 1rem; }
-.nshome-top-row { display: flex; align-items: center; justify-content: space-between; }
-.nshome-brand { display: flex; align-items: center; gap: .55rem; }
-.nshome-brand-mark {
-  width: 1.9rem; height: 1.9rem; border-radius: .55rem;
-  background: linear-gradient(135deg, var(--ns-accent-2), var(--ns-accent));
-  display: grid; place-items: center;
-  box-shadow: 0 6px 16px color-mix(in srgb, var(--ns-accent) 30%, transparent);
+.nshome-top { padding: 0.8rem 1.1rem 1rem; }
+.nshome-top-row {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%;
 }
-.nshome-brand-mark svg { width: .9rem; height: .9rem; color: var(--ns-accent-ink); }
-.nshome-brand-name { font-weight: 800; font-size: 1rem; letter-spacing: .5px; }
-.nshome-brand-name b { color: var(--ns-accent-2); }
-.nshome-top-actions { display: flex; align-items: center; gap: .7rem; }
+.nshome-brand { display: flex; align-items: center; gap: 0.5rem; }
+.nshome-brand-mark {
+  width: 1.9rem; height: 1.9rem; border-radius: 0.55rem;
+  background: linear-gradient(135deg, #BFDCD3, #9DC2B8);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 6px 16px rgba(157, 194, 184, 0.30);
+  flex-shrink: 0;
+}
+.nshome-brand-mark svg { width: 0.9rem; height: 0.9rem; color: var(--ns-accent-ink); }
+.nshome-brand-name { font-weight: 800; font-size: 1rem; letter-spacing: 0.5px; }
+.nshome-brand-name b { color: var(--ns-accent-2); font-weight: 800; }
+
+.nshome-top-actions { display: flex; align-items: center; gap: 0.55rem; }
 .nshome-icon-btn {
-  width: 2.35rem; height: 2.35rem; border-radius: 50%;
-  display: grid; place-items: center;
+  display: flex; align-items: center; justify-content: center;
+  width: 2.3rem; height: 2.3rem; border-radius: 50%;
   background: var(--ns-surface); border: 1px solid var(--ns-line);
   color: var(--ns-text); position: relative; cursor: pointer;
+  text-decoration: none;
 }
-.nshome-icon-btn svg { width: 1.1rem; height: 1.1rem; }
+.nshome-icon-btn svg { width: 1.05rem; height: 1.05rem; }
 .nshome-icon-btn .nshome-badge {
-  position: absolute; top: -.15rem; left: -.15rem;
-  width: .55rem; height: .55rem; border-radius: 50%;
+  position: absolute; top: -2px;
+  inset-inline-end: -2px; /* respects RTL/LTR */
+  width: 9px; height: 9px; border-radius: 50%;
   background: var(--ns-live); border: 2px solid var(--ns-bg);
 }
 .nshome-avatar {
-  width: 2.35rem; height: 2.35rem; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  width: 2.3rem; height: 2.3rem; border-radius: 50%;
   background: linear-gradient(135deg, #A8B9A8, #9FB0BC);
-  display: grid; place-items: center;
-  font-weight: 800; font-size: .85rem; color: #1f2929;
-  text-decoration: none;
+  font-weight: 800; font-size: 0.82rem; color: #1f2929;
+  text-decoration: none; flex-shrink: 0;
 }
+
 .nshome-greet-row {
   display: flex; align-items: center; justify-content: space-between;
-  margin-top: 1rem; gap: .6rem;
+  margin-top: 0.95rem; gap: 0.5rem;
 }
-.nshome-greet { font-size: 1.3rem; font-weight: 800; letter-spacing: -.5px; }
-.nshome-greet span { color: var(--ns-text-2); font-weight: 600; }
+.nshome-greet { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.5px; }
+.nshome-greet-wave { display: inline-block; }
 .nshome-trial-chip {
-  font-size: .7rem; font-weight: 700; color: var(--ns-accent-2);
-  background: color-mix(in srgb, var(--ns-accent) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ns-accent) 25%, transparent);
-  padding: .4rem .75rem; border-radius: 999px; white-space: nowrap;
+  font-size: 0.7rem; font-weight: 700; color: var(--ns-accent-2);
+  background: var(--ns-accent-soft);
+  border: 1px solid var(--ns-accent-soft-border);
+  padding: 0.4rem 0.7rem; border-radius: 999px; white-space: nowrap;
 }
 
 /* ===== search ===== */
 .nshome-search {
-  margin: 1rem 1.25rem 0;
-  display: flex; align-items: center; gap: .6rem;
+  display: flex; align-items: center; gap: 0.55rem;
+  margin: 0.85rem 1.1rem 0;
   background: var(--ns-surface); border: 1px solid var(--ns-line);
-  border-radius: .85rem; padding: .8rem 1rem;
-  color: var(--ns-text-3); font-size: .9rem; font-weight: 500;
+  border-radius: 0.85rem; padding: 0.75rem 0.95rem;
+  color: var(--ns-text-3); font-size: 0.88rem; font-weight: 500;
   text-decoration: none;
 }
-.nshome-search svg { width: 1.1rem; height: 1.1rem; flex: 0 0 auto; }
+.nshome-search svg { width: 1.05rem; height: 1.05rem; flex-shrink: 0; }
 
 /* ===== quick channel bubbles ===== */
 .nshome-bubbles {
-  display: flex; gap: 1rem; overflow-x: auto;
-  padding: 1.1rem 1.25rem .25rem; scrollbar-width: none;
+  display: flex; gap: 0.9rem;
+  overflow-x: auto; overflow-y: hidden;
+  padding: 1rem 1.1rem 0.3rem;
+  scrollbar-width: none; -ms-overflow-style: none;
 }
 .nshome-bubbles::-webkit-scrollbar { display: none; }
 .nshome-bubble-item {
-  flex: 0 0 auto; display: flex; flex-direction: column;
-  align-items: center; gap: .45rem; width: 3.8rem;
+  display: flex; flex-direction: column; align-items: center; gap: 0.4rem;
+  flex: 0 0 auto; width: 3.6rem;
   text-decoration: none; color: inherit;
 }
 .nshome-bubble {
-  width: 3.6rem; height: 3.6rem; border-radius: 50%;
-  position: relative; display: grid; place-items: center;
-  font-weight: 800; font-size: .85rem; color: #fff;
-  border: 2px solid var(--ns-line-2); overflow: hidden;
+  position: relative;
+  width: 3.5rem; height: 3.5rem; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 0.8rem; color: #fff;
+  border: 2px solid var(--ns-line-2);
+  overflow: hidden; flex-shrink: 0;
+  background: var(--ns-surface);
 }
 .nshome-bubble img {
-  width: 100%; height: 100%; object-fit: cover;
+  width: 100%; height: 100%; object-fit: cover; display: block;
 }
 .nshome-bubble .nshome-live-pip {
-  position: absolute; bottom: .05rem; left: .05rem;
-  width: .85rem; height: .85rem; border-radius: 50%;
-  background: var(--ns-live); border: .18rem solid var(--ns-bg);
+  position: absolute; bottom: 2px; left: 2px;
+  width: 0.8rem; height: 0.8rem; border-radius: 50%;
+  background: var(--ns-live); border: 2.5px solid var(--ns-bg);
 }
-.nshome-bubble-item span {
-  font-size: .7rem; color: var(--ns-text-2); font-weight: 600;
-  white-space: nowrap; overflow: hidden;
-  text-overflow: ellipsis; max-width: 100%;
+.nshome-bubble-item-label {
+  font-size: 0.68rem; color: var(--ns-text-2); font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%; text-align: center;
 }
 
 /* ===== category chips ===== */
 .nshome-chips {
-  display: flex; gap: .5rem; overflow-x: auto;
-  padding: .9rem 1.25rem .4rem; scrollbar-width: none;
+  display: flex; gap: 0.5rem;
+  overflow-x: auto; overflow-y: hidden;
+  padding: 0.85rem 1.1rem 0.4rem;
+  scrollbar-width: none;
 }
 .nshome-chips::-webkit-scrollbar { display: none; }
 .nshome-chip {
-  flex: 0 0 auto; padding: .55rem 1.1rem; border-radius: 999px;
-  font-size: .8rem; font-weight: 700;
+  flex: 0 0 auto;
+  padding: 0.5rem 1rem; border-radius: 999px;
+  font-size: 0.78rem; font-weight: 700;
   background: var(--ns-surface); color: var(--ns-text-2);
   border: 1px solid var(--ns-line);
-  text-decoration: none; cursor: pointer;
+  cursor: pointer; font-family: inherit;
+  white-space: nowrap;
 }
 .nshome-chip.active {
   background: var(--ns-text); color: #0B0D12; border-color: transparent;
 }
 
-/* ===== hero ===== */
-.nshome-hero-wrap { padding: 1.15rem 1.25rem .25rem; }
+/* ===== hero =====
+   Critical: .nshome-hero is an <a>, so we MUST set display:block before
+   the height tricks work. We use min-height + flex (not aspect-ratio)
+   for older WebView compatibility. */
+.nshome-hero-wrap { padding: 1.1rem 1.1rem 0.2rem; }
 .nshome-hero {
-  position: relative; border-radius: var(--ns-r-lg);
-  overflow: hidden; aspect-ratio: 4/5;
-  box-shadow: 0 24px 60px -24px rgba(0,0,0,.75);
-  text-decoration: none; color: inherit;
+  display: block;                  /* anchors are inline by default */
+  position: relative;
+  width: 100%;
+  min-height: 26rem;               /* ~ 4:5 on 21rem-wide phones */
+  border-radius: 1.1rem;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.75);
+  isolation: isolate;              /* contain children's stacking */
 }
-.nshome-hero-art { position: absolute; inset: 0; }
+.nshome-hero-art {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 0;
+}
 .nshome-hero-fade {
-  position: absolute; inset: 0;
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 1;
   background: linear-gradient(180deg,
-    rgba(15,18,18,0) 28%,
-    rgba(15,18,18,.55) 62%,
-    rgba(15,18,18,.97) 100%);
+    rgba(15, 18, 18, 0) 30%,
+    rgba(15, 18, 18, 0.55) 65%,
+    rgba(15, 18, 18, 0.97) 100%);
 }
 .nshome-hero-content {
   position: absolute; left: 0; right: 0; bottom: 0;
-  padding: 1.4rem; z-index: 2;
+  z-index: 2;
+  padding: 1.2rem;
 }
 .nshome-hero-badge {
-  display: inline-flex; align-items: center; gap: .35rem;
-  font-size: .65rem; font-weight: 800;
-  letter-spacing: 1.5px; text-transform: uppercase;
+  display: inline-block;
+  font-size: 0.62rem; font-weight: 800;
+  letter-spacing: 1.3px; text-transform: uppercase;
   color: var(--ns-accent-ink); background: var(--ns-accent-2);
-  padding: .4rem .7rem; border-radius: .45rem;
+  padding: 0.35rem 0.65rem; border-radius: 0.4rem;
 }
 .nshome-hero-title {
-  font-size: 1.85rem; font-weight: 900;
-  letter-spacing: -1px; line-height: 1.1;
-  margin: .7rem 0 .25rem;
+  margin: 0.6rem 0 0.2rem;
+  font-size: 1.6rem; font-weight: 900;
+  letter-spacing: -0.7px; line-height: 1.12;
+  color: #fff;
 }
 .nshome-hero-meta {
-  font-size: .8rem; color: var(--ns-text-2);
-  font-weight: 600; margin-bottom: 1rem;
+  font-size: 0.8rem; color: var(--ns-text-2);
+  font-weight: 600; margin: 0 0 0.95rem;
 }
-.nshome-hero-cta { display: flex; gap: .65rem; }
+.nshome-hero-cta {
+  display: flex; gap: 0.55rem; align-items: center;
+}
 .nshome-btn {
-  appearance: none; border: 0; border-radius: .85rem;
-  padding: .85rem 1.25rem; font-size: .9rem; font-weight: 800;
-  display: inline-flex; align-items: center; gap: .5rem;
-  font-family: inherit; cursor: pointer; text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 0.45rem; padding: 0.75rem 1.05rem;
+  border: 0; border-radius: 0.8rem;
+  font-size: 0.88rem; font-weight: 800; font-family: inherit;
+  cursor: pointer; text-decoration: none;
 }
 .nshome-btn-primary { background: var(--ns-text); color: #0B0D12; }
 .nshome-btn-primary svg { width: 1rem; height: 1rem; }
 .nshome-btn-icon {
-  width: 3rem; height: 3rem; padding: 0; justify-content: center;
-  background: rgba(255,255,255,.10); color: var(--ns-text);
-  border: 1px solid rgba(255,255,255,.14);
-  backdrop-filter: blur(10px);
+  width: 2.6rem; height: 2.6rem; padding: 0;
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--ns-text);
+  border: 1px solid rgba(255, 255, 255, 0.14);
 }
-.nshome-btn-icon svg { width: 1.2rem; height: 1.2rem; }
+.nshome-btn-icon svg { width: 1.1rem; height: 1.1rem; }
 
-/* ===== sections ===== */
-.nshome-section { margin-top: 1.85rem; }
+/* ===== sections / rails ===== */
+.nshome-section { margin-top: 1.6rem; }
 .nshome-sec-head {
   display: flex; align-items: baseline; justify-content: space-between;
-  padding: 0 1.25rem; margin-bottom: .85rem;
+  padding: 0 1.1rem; margin-bottom: 0.75rem;
 }
 .nshome-sec-head h2 {
-  margin: 0; font-size: 1.1rem; font-weight: 800; letter-spacing: -.2px;
+  margin: 0; font-size: 1.05rem; font-weight: 800;
+  letter-spacing: -0.2px;
 }
 .nshome-sec-head a {
-  font-size: .78rem; font-weight: 700;
+  font-size: 0.75rem; font-weight: 700;
   color: var(--ns-text-3); text-decoration: none;
 }
 .nshome-rail {
-  display: flex; gap: .75rem; overflow-x: auto;
-  padding: 0 1.25rem; scrollbar-width: none;
+  display: flex; gap: 0.7rem;
+  overflow-x: auto; overflow-y: hidden;
+  padding: 0 1.1rem;
+  scrollbar-width: none;
 }
 .nshome-rail::-webkit-scrollbar { display: none; }
-.nshome-rail::after { content: ""; flex: 0 0 .5rem; }
+.nshome-rail::after { content: ""; flex: 0 0 0.4rem; }
 
-/* live now rail */
+/* live now */
 .nshome-live-card {
-  flex: 0 0 auto; width: 14.5rem;
+  display: block;                  /* anchor needs display:block */
+  flex: 0 0 auto;
+  width: 14rem;
   text-decoration: none; color: inherit;
 }
 .nshome-live-art {
-  width: 100%; aspect-ratio: 16/9; border-radius: var(--ns-r-md);
-  position: relative; overflow: hidden;
+  position: relative;
+  width: 100%; height: 8rem;       /* 14rem * 9/16 ≈ 7.9rem */
+  border-radius: 0.85rem;
+  overflow: hidden;
+  isolation: isolate;
+}
+.nshome-live-art-bg {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 0;
 }
 .nshome-live-art img {
-  position: absolute; inset: 0;
-  width: 100%; height: 100%; object-fit: cover;
-  opacity: .55;
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 0;
+  width: 100%; height: 100%; object-fit: cover; opacity: 0.65;
 }
 .nshome-live-chip {
-  position: absolute; top: .6rem; right: .6rem; z-index: 2;
-  background: rgba(8,10,16,.55); backdrop-filter: blur(10px);
-  border: 1px solid rgba(255,255,255,.12); border-radius: .5rem;
-  padding: .3rem .55rem;
-  font-size: .72rem; font-weight: 800; letter-spacing: .5px;
+  position: absolute; top: 0.5rem; z-index: 3;
+  inset-inline-end: 0.5rem;
+  background: rgba(8, 10, 16, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.68rem; font-weight: 800; letter-spacing: 0.4px;
+  color: #fff;
 }
 .nshome-live-pill {
-  position: absolute; top: .6rem; left: .6rem; z-index: 2;
-  display: flex; align-items: center; gap: .3rem;
-  background: var(--ns-live); border-radius: .45rem;
-  padding: .3rem .55rem;
-  font-size: .65rem; font-weight: 800; letter-spacing: 1px; color: #fff;
+  position: absolute; top: 0.5rem; z-index: 3;
+  inset-inline-start: 0.5rem;
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  background: var(--ns-live); border-radius: 0.4rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.62rem; font-weight: 800; letter-spacing: 1px;
+  color: #fff;
 }
 .nshome-live-dot {
-  width: .35rem; height: .35rem; border-radius: 50%;
-  background: #fff; animation: nshomePulse 1.6s infinite;
+  width: 0.35rem; height: 0.35rem; border-radius: 50%;
+  background: #fff;
+  animation: nshomePulse 1.6s infinite;
 }
-@keyframes nshomePulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-.nshome-live-now-bar {
-  position: absolute; left: 0; right: 0; bottom: 0;
-  padding: 1.6rem .7rem .55rem; z-index: 2;
-  background: linear-gradient(180deg, transparent, rgba(0,0,0,.88));
+@keyframes nshomePulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.4 } }
+
+.nshome-live-meta {
+  margin-top: 0.5rem; padding: 0 0.1rem;
 }
-.nshome-live-now-bar b {
-  display: block; font-size: .85rem; font-weight: 800;
+.nshome-live-meta-title {
+  font-size: 0.85rem; font-weight: 700; color: var(--ns-text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.nshome-live-now-bar .time {
-  font-size: .7rem; color: var(--ns-text-2); font-weight: 600; margin-top: .1rem;
+.nshome-live-meta-sub {
+  font-size: 0.7rem; color: var(--ns-text-3);
+  margin-top: 0.1rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 /* genre grid */
 .nshome-genre-grid {
   display: grid; grid-template-columns: repeat(4, 1fr);
-  gap: .6rem; padding: 0 1.25rem;
+  gap: 0.55rem;
+  padding: 0 1.1rem;
 }
-@media (min-width: 600px) { .nshome-genre-grid { grid-template-columns: repeat(6, 1fr); } }
+@media (min-width: 600px) {
+  .nshome-genre-grid { grid-template-columns: repeat(6, 1fr); }
+}
 .nshome-genre-tile {
-  border-radius: 1rem; padding: .9rem .5rem; text-align: center;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 0.45rem;
+  border-radius: 0.95rem; padding: 0.85rem 0.4rem;
+  text-align: center;
   background: var(--ns-surface); border: 1px solid var(--ns-line);
-  display: flex; flex-direction: column; align-items: center; gap: .5rem;
   text-decoration: none; color: inherit;
+  min-height: 5.5rem;
 }
 .nshome-genre-ic {
-  width: 2.35rem; height: 2.35rem; border-radius: .7rem;
-  display: grid; place-items: center;
+  display: flex; align-items: center; justify-content: center;
+  width: 2.2rem; height: 2.2rem; border-radius: 0.65rem;
+  flex-shrink: 0;
 }
-.nshome-genre-ic svg { width: 1.1rem; height: 1.1rem; }
-.nshome-genre-tile span {
-  font-size: .72rem; font-weight: 700; color: var(--ns-text-2);
+.nshome-genre-ic svg { width: 1.05rem; height: 1.05rem; }
+.nshome-genre-tile-label {
+  font-size: 0.7rem; font-weight: 700; color: var(--ns-text-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%;
 }
 
-/* ===== bottom tab nav ===== */
+/* genre icon backgrounds — explicit rgba, no color-mix */
+.nshome-ic-live    { background: rgba(157, 194, 184, 0.14); color: var(--ns-accent-2); }
+.nshome-ic-sports  { background: rgba(217, 185, 122, 0.14); color: var(--ns-gold); }
+.nshome-ic-guide   { background: rgba(159, 176, 188, 0.14); color: #BCC8D6; }
+.nshome-ic-catchup { background: rgba(226, 119, 107, 0.14); color: var(--ns-live); }
+
+/* ===== welcome / empty state ===== */
+.nshome-welcome {
+  margin: 0.4rem 1.1rem 0;
+  padding: 2rem 1.5rem;
+  background: var(--ns-surface);
+  border: 1px solid var(--ns-line);
+  border-radius: 1.1rem;
+  text-align: center;
+}
+.nshome-welcome h3 {
+  margin: 0 0 0.5rem; font-size: 1.05rem;
+}
+.nshome-welcome p {
+  margin: 0 0 1rem; color: var(--ns-text-2); font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+/* ===== bottom tab nav (fixed, blurred) =====
+   z-index 100 so it sits above EVERY other element; the page has
+   padding-bottom: 7rem so no content can ever sit under it. */
 .nshome-nav {
-  position: fixed; left: 1.1rem; right: 1.1rem;
-  bottom: calc(1.1rem + env(safe-area-inset-bottom)); z-index: 50;
-  background: rgba(22,26,25,.72);
-  backdrop-filter: blur(22px) saturate(1.3);
-  -webkit-backdrop-filter: blur(22px) saturate(1.3);
+  position: fixed; z-index: 100;
+  left: 0.85rem; right: 0.85rem;
+  bottom: calc(0.85rem + env(safe-area-inset-bottom));
+  display: flex; justify-content: space-around; align-items: center;
+  padding: 0.55rem 0.4rem;
+  border-radius: 1.3rem;
+  background: rgba(22, 26, 25, 0.82);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
   border: 1px solid var(--ns-line-2);
-  border-radius: 1.4rem;
-  padding: .65rem .5rem;
-  display: flex; justify-content: space-around;
-  box-shadow: 0 16px 40px -16px rgba(0,0,0,.7);
+  box-shadow: 0 16px 40px -16px rgba(0, 0, 0, 0.65);
 }
 .nshome-tab {
-  display: flex; flex-direction: column; align-items: center; gap: .25rem;
-  color: var(--ns-text-3); font-size: .65rem; font-weight: 700;
-  padding: .3rem .9rem; border-radius: .9rem; text-decoration: none;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 0.2rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.85rem;
+  color: var(--ns-text-3); font-size: 0.64rem; font-weight: 700;
+  text-decoration: none;
+  min-width: 3rem;
 }
-.nshome-tab svg { width: 1.3rem; height: 1.3rem; }
+.nshome-tab svg { width: 1.25rem; height: 1.25rem; }
 .nshome-tab.active {
   color: var(--ns-accent-ink); background: var(--ns-accent-2);
 }
 
-/* ===== mesh-gradient placeholders for content with no real artwork ===== */
-.nshome-m1{background:radial-gradient(120% 90% at 15% 0%,#7C3AED 0%,transparent 55%),radial-gradient(100% 90% at 100% 100%,#DB2777 0%,transparent 55%),#171029}
-.nshome-m2{background:radial-gradient(110% 90% at 90% 0%,#0EA5E9 0%,transparent 55%),radial-gradient(100% 100% at 0% 100%,#10B981 0%,transparent 55%),#0B1A22}
-.nshome-m3{background:radial-gradient(120% 90% at 20% 100%,#F59E0B 0%,transparent 55%),radial-gradient(100% 90% at 100% 0%,#DC2626 0%,transparent 55%),#241409}
-.nshome-m4{background:radial-gradient(110% 90% at 80% 10%,#22C55E 0%,transparent 55%),radial-gradient(100% 100% at 10% 100%,#0D9488 0%,transparent 55%),#0B1F1A}
-.nshome-m5{background:radial-gradient(120% 90% at 10% 10%,#3B82F6 0%,transparent 55%),radial-gradient(100% 90% at 100% 100%,#8B5CF6 0%,transparent 55%),#0E1330}
-.nshome-m6{background:radial-gradient(120% 90% at 100% 0%,#EC4899 0%,transparent 55%),radial-gradient(100% 100% at 0% 100%,#7C3AED 0%,transparent 55%),#1C0E26}
-.nshome-m7{background:radial-gradient(120% 90% at 0% 100%,#FACC15 0%,transparent 55%),radial-gradient(100% 90% at 100% 0%,#EA580C 0%,transparent 55%),#26160A}
-.nshome-m8{background:radial-gradient(120% 90% at 90% 90%,#06B6D4 0%,transparent 55%),radial-gradient(100% 100% at 0% 0%,#1D4ED8 0%,transparent 55%),#0A1626}
-
-/* empty state */
-.nshome-empty {
-  margin: 2rem 1.25rem; padding: 2rem 1.5rem;
-  background: var(--ns-surface); border: 1px solid var(--ns-line);
-  border-radius: var(--ns-r-lg); text-align: center;
-}
-.nshome-empty h3 { margin: 0 0 .5rem; font-size: 1.1rem; }
-.nshome-empty p { margin: 0 0 1rem; color: var(--ns-text-2); font-size: .85rem; }
+/* ===== mesh gradients (for content without artwork) ===== */
+.nshome-m1  { background: radial-gradient(120% 90% at 15% 0%, #7C3AED 0%, transparent 55%), radial-gradient(100% 90% at 100% 100%, #DB2777 0%, transparent 55%), #171029; }
+.nshome-m2  { background: radial-gradient(110% 90% at 90% 0%, #0EA5E9 0%, transparent 55%), radial-gradient(100% 100% at 0% 100%, #10B981 0%, transparent 55%), #0B1A22; }
+.nshome-m3  { background: radial-gradient(120% 90% at 20% 100%, #F59E0B 0%, transparent 55%), radial-gradient(100% 90% at 100% 0%, #DC2626 0%, transparent 55%), #241409; }
+.nshome-m4  { background: radial-gradient(110% 90% at 80% 10%, #22C55E 0%, transparent 55%), radial-gradient(100% 100% at 10% 100%, #0D9488 0%, transparent 55%), #0B1F1A; }
+.nshome-m5  { background: radial-gradient(120% 90% at 10% 10%, #3B82F6 0%, transparent 55%), radial-gradient(100% 90% at 100% 100%, #8B5CF6 0%, transparent 55%), #0E1330; }
+.nshome-m6  { background: radial-gradient(120% 90% at 100% 0%, #EC4899 0%, transparent 55%), radial-gradient(100% 100% at 0% 100%, #7C3AED 0%, transparent 55%), #1C0E26; }
+.nshome-m7  { background: radial-gradient(120% 90% at 0% 100%, #FACC15 0%, transparent 55%), radial-gradient(100% 90% at 100% 0%, #EA580C 0%, transparent 55%), #26160A; }
+.nshome-m8  { background: radial-gradient(120% 90% at 90% 90%, #06B6D4 0%, transparent 55%), radial-gradient(100% 100% at 0% 0%, #1D4ED8 0%, transparent 55%), #0A1626; }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { TvFocusProvider, useSetZone } from '@/components/tv/TvFocus';
 import TvNav from '@/components/tv/TvNav';
 import TvHero from '@/components/tv/TvHero';
@@ -16,11 +17,23 @@ import { useT } from '@/lib/i18n';
 // CTA pointing them to Sources — no fake content, no placeholders.
 
 function TvHomeInner() {
+  const router = useRouter();
   const focusHero = useSetZone('hero');
   const { t } = useT();
   const [hasPlaylist, setHasPlaylist] = useState(
     typeof window !== 'undefined' ? (getCachedChannels()?.length ?? 0) > 0 : false,
   );
+
+  // Phones get the new mobile home — bounce them off the desktop layout
+  // immediately. TVs (which advertise themselves in the UA) and laptop
+  // viewports stay here.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const ua = navigator.userAgent || '';
+    const isTv = /webOS|Web0S|SmartTV|Tizen|HbbTV|CrKey|AppleTV/i.test(ua);
+    const isPhone = !isTv && /Android|iPhone|iPad|Mobile/i.test(ua) && window.innerWidth <= 820;
+    if (isPhone) router.replace('/tv/home');
+  }, [router]);
 
   useEffect(() => { focusHero(); }, [focusHero]);
 

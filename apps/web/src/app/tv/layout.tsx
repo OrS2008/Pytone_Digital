@@ -18,6 +18,7 @@ import './themes.css';
 import './tv.css';
 import TvBoot from '@/components/tv/TvBoot';
 import TrialGate from '@/components/tv/TrialGate';
+import MobileTabBar from '@/components/tv/MobileTabBar';
 
 export const metadata: Metadata = {
   title: 'Nova Stream',
@@ -43,6 +44,7 @@ export default function TvLayout({ children }: { children: React.ReactNode }) {
       <TvBoot />
       {children}
       <TrialGate />
+      <MobileTabBar />
     </div>
   );
 }
