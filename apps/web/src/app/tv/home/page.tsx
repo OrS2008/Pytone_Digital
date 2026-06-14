@@ -1,15 +1,15 @@
 'use client';
 
 /*
- * /tv/home — the Android APK's home screen.
+ * /tv/home — the Android APK's home screen. Designed to feel like the
+ * M6+ France app: a dense, scrollable surface of horizontal rails, each
+ * one carrying a different slice of the user's playlist. The rails are
+ * computed locally from the cached M3U using a keyword scorer (lifted
+ * from SmartHomeRow so the home page stays one self-contained file).
  *
- * Loaded by the APK on launch, and by the web app on phone-sized
- * viewports after sign-in. Language follows the user's device
- * (navigator.language; user can override in Account → Appearance).
- *
- * All visual rules live in home.css. Every clickable card here is
- * an <a> with display:block/flex set in CSS so heights don't
- * collapse on older Android WebViews.
+ * Language follows the device (navigator.language); colours follow the
+ * sage theme. All cards are <Link>s explicitly set to display:block in
+ * home.css so they don't collapse on older Android WebViews.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -17,6 +17,7 @@ import Link from 'next/link';
 import type { M3UChannel } from '@/lib/m3u';
 import { getCachedChannels, loadChannels } from '@/lib/channelCache';
 import { getSessionEmail } from '@/lib/session';
+import { getHistory, type WatchEntry } from '@/lib/watchHistory';
 import { useT } from '@/lib/i18n';
 import './home.css';
 
@@ -28,6 +29,64 @@ function meshFor(seed: string): string {
   let h = 0;
   for (let i = 0; i < seed.length; i++) { h = ((h << 5) - h) + seed.charCodeAt(i); h |= 0; }
   return MESH[Math.abs(h) % MESH.length];
+}
+
+// Category keyword tables, mirroring SmartHomeRow so the home page can
+// classify channels without round-tripping through that component.
+// Keys are scored: primary +8, secondary +3, logo +1. Any score > 0
+// qualifies the channel for the rail. Localised category aliases are
+// kept Hebrew-friendly (`חדשות`, `ספורט`, `סרטים`, `ילדים`, etc.) so
+// IL playlists with Hebrew group-titles classify correctly.
+type Pick = 'sports' | 'news' | 'movies' | 'kids' | 'music' | 'documentary' | 'entertainment';
+const KEYWORDS: Record<Pick, { primary: string[]; secondary: string[] }> = {
+  sports: {
+    primary:   ['sport', 'ספורט', 'espn', 'fox sports', 'eurosport', 'bein', 'sky sports', 'one', 'tnt', 'dazn'],
+    secondary: ['football', 'soccer', 'basketball', 'tennis', 'nba', 'nhl', 'nfl', 'mlb', 'ufc', 'golf', 'rugby', 'liga', 'champions', 'premier'],
+  },
+  news: {
+    primary:   ['news', 'חדשות', 'cnn', 'bbc', 'fox news', 'sky news', 'al jazeera', 'bloomberg', 'cnbc', 'i24', 'כאן', 'reshet'],
+    secondary: ['breaking', '24', 'business', 'world', 'דיווח', 'מהדורה'],
+  },
+  movies: {
+    primary:   ['movies', 'cinema', 'film', 'סרט', 'hbo', 'starz', 'showtime', 'amc', 'paramount', 'mgm', 'yes movie'],
+    secondary: ['action', 'drama', 'thriller', 'classic', 'tcm', 'epix', 'hits'],
+  },
+  kids: {
+    primary:   ['kids', 'ילדים', 'cartoon', 'nick', 'disney', 'boomerang', 'baby', 'cbeebies', 'הופ'],
+    secondary: ['toon', 'family', 'junior', 'children', 'duck', 'משפח'],
+  },
+  music: {
+    primary:   ['music', 'מוזיקה', 'mtv', 'vh1', 'kiss', 'trace', 'mezzo', 'stingray', '24music'],
+    secondary: ['hits', 'pop', 'rock', 'r&b', 'urban', 'classical'],
+  },
+  documentary: {
+    primary:   ['documentary', 'תיעוד', 'discovery', 'national geographic', 'nat geo', 'history', 'animal planet', 'crime'],
+    secondary: ['nature', 'science', 'wild', 'travel', 'planet'],
+  },
+  entertainment: {
+    primary:   ['entertainment', 'בידור', 'comedy central', 'e!', 'tlc', 'reality', 'lifestyle', 'bravo', 'yes oh', 'yes 1'],
+    secondary: ['drama', 'show', 'series', 'sitcom', 'cooking', 'food', 'סדר'],
+  },
+};
+
+function scoreChannel(c: M3UChannel, kw: { primary: string[]; secondary: string[] }): number {
+  if (SKIP.test(c.name) || SKIP.test(c.category)) return 0;
+  const hay = (c.name + ' ' + c.category).toLowerCase();
+  let s = 0;
+  for (const w of kw.primary)   if (hay.includes(w)) s += 8;
+  for (const w of kw.secondary) if (hay.includes(w)) s += 3;
+  if (c.logoUrl) s += 1;
+  return s;
+}
+
+function pickByCategory(channels: M3UChannel[], pick: Pick, n: number): M3UChannel[] {
+  const scored = channels
+    .map((c) => ({ c, s: scoreChannel(c, KEYWORDS[pick]) }))
+    .filter((x) => x.s > 0)
+    .sort((a, b) => b.s - a.s)
+    .slice(0, n)
+    .map((x) => x.c);
+  return scored;
 }
 
 function pickHero(channels: M3UChannel[]): M3UChannel | null {
@@ -59,15 +118,84 @@ function initials(email: string | null): string {
   return email.split('@')[0].slice(0, 2).toUpperCase();
 }
 
+interface RailCardProps {
+  href: string;
+  name: string;
+  sub?: string;
+  logoUrl?: string;
+  showLive?: boolean;
+  t: (k: string) => string;
+}
+
+function RailCard({ href, name, sub, logoUrl, showLive, t }: RailCardProps) {
+  return (
+    <Link href={href} className="nshome-live-card">
+      <div className="nshome-live-art">
+        <div className={`nshome-live-art-bg ${meshFor(name)}`} aria-hidden="true"/>
+        {logoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logoUrl} alt="" loading="lazy"/>
+        )}
+        {showLive && (
+          <span className="nshome-live-pill">
+            <span className="nshome-live-dot" aria-hidden="true"/>
+            {t('nav.live')}
+          </span>
+        )}
+        <span className="nshome-live-chip">{name}</span>
+      </div>
+      <div className="nshome-live-meta">
+        <div className="nshome-live-meta-title">{name}</div>
+        {sub && <div className="nshome-live-meta-sub">{sub}</div>}
+      </div>
+    </Link>
+  );
+}
+
+interface RailProps {
+  title: string;
+  items: M3UChannel[];
+  t: (k: string) => string;
+  showLive?: boolean;
+}
+
+function Rail({ title, items, t, showLive }: RailProps) {
+  if (items.length === 0) return null;
+  return (
+    <section className="nshome-section">
+      <div className="nshome-sec-head">
+        <h2>{title}</h2>
+        <Link href="/tv/live">{t('home.allChannels')}</Link>
+      </div>
+      <div className="nshome-rail">
+        {items.map((c) => (
+          <RailCard
+            key={c.id}
+            href={`/tv/live?ch=${encodeURIComponent(c.id)}`}
+            name={c.name}
+            sub={c.category || t('home.liveNow')}
+            logoUrl={c.logoUrl}
+            showLive={showLive}
+            t={t}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function TvMobileHome() {
   const { t } = useT();
   const [channels, setChannels] = useState<M3UChannel[]>(
     typeof window !== 'undefined' ? (getCachedChannels() ?? []) : [],
   );
   const [email, setEmail] = useState<string | null>(null);
-  const [activeCat, setActiveCat] = useState<string>('foryou');
+  const [history, setHistory] = useState<WatchEntry[]>([]);
 
-  useEffect(() => { setEmail(getSessionEmail()); }, []);
+  useEffect(() => {
+    setEmail(getSessionEmail());
+    setHistory(getHistory());
+  }, []);
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -78,8 +206,15 @@ export default function TvMobileHome() {
   }, []);
 
   const hero    = useMemo(() => pickHero(channels),                    [channels]);
-  const live    = useMemo(() => pickList(channels, 10),                [channels]);
+  const live    = useMemo(() => pickList(channels, 12),                [channels]);
   const bubbles = useMemo(() => pickList(channels, 8, /* logos */ true), [channels]);
+  const sports        = useMemo(() => pickByCategory(channels, 'sports',        12), [channels]);
+  const news          = useMemo(() => pickByCategory(channels, 'news',          12), [channels]);
+  const movies        = useMemo(() => pickByCategory(channels, 'movies',        12), [channels]);
+  const kids          = useMemo(() => pickByCategory(channels, 'kids',          12), [channels]);
+  const music         = useMemo(() => pickByCategory(channels, 'music',         12), [channels]);
+  const documentary   = useMemo(() => pickByCategory(channels, 'documentary',   12), [channels]);
+  const entertainment = useMemo(() => pickByCategory(channels, 'entertainment', 12), [channels]);
 
   const CATEGORIES = useMemo(() => ([
     { id: 'foryou',  label: t('home.recommended') },
@@ -89,6 +224,7 @@ export default function TvMobileHome() {
     { id: 'news',    label: t('home.news')       },
     { id: 'kids',    label: t('home.kids')       },
   ]), [t]);
+  const [activeCat, setActiveCat] = useState<string>('foryou');
 
   return (
     <main className="nshome">
@@ -142,7 +278,8 @@ export default function TvMobileHome() {
             >
               <span className={`nshome-bubble ${c.logoUrl ? '' : meshFor(c.name)}`}>
                 {c.logoUrl
-                  ? <img src={c.logoUrl} alt="" loading="lazy"/>
+                  ? // eslint-disable-next-line @next/next/no-img-element
+                    <img src={c.logoUrl} alt="" loading="lazy"/>
                   : <span>{c.name.slice(0, 2).toUpperCase()}</span>}
                 <span className="nshome-live-pip" aria-hidden="true"/>
               </span>
@@ -200,38 +337,37 @@ export default function TvMobileHome() {
         )}
       </div>
 
-      {/* ===== live now rail ===== */}
-      {live.length > 0 && (
+      {/* ===== continue watching (only if there's history) ===== */}
+      {history.length > 0 && (
         <section className="nshome-section">
           <div className="nshome-sec-head">
-            <h2>{t('home.liveNow')}</h2>
-            <Link href="/tv/live">{t('home.allChannels')}</Link>
+            <h2>{t('home.continue')}</h2>
           </div>
           <div className="nshome-rail">
-            {live.map((c) => (
-              <Link
-                key={c.id}
-                href={`/tv/live?ch=${encodeURIComponent(c.id)}`}
-                className="nshome-live-card"
-              >
-                <div className="nshome-live-art">
-                  <div className={`nshome-live-art-bg ${meshFor(c.name)}`} aria-hidden="true"/>
-                  {c.logoUrl && <img src={c.logoUrl} alt="" loading="lazy"/>}
-                  <span className="nshome-live-pill">
-                    <span className="nshome-live-dot" aria-hidden="true"/>
-                    {t('nav.live')}
-                  </span>
-                  <span className="nshome-live-chip">{c.name}</span>
-                </div>
-                <div className="nshome-live-meta">
-                  <div className="nshome-live-meta-title">{c.name}</div>
-                  <div className="nshome-live-meta-sub">{c.category || t('home.liveNow')}</div>
-                </div>
-              </Link>
+            {history.slice(0, 10).map((h) => (
+              <RailCard
+                key={h.channelId}
+                href={`/tv/live?ch=${encodeURIComponent(h.channelId)}`}
+                name={h.name}
+                logoUrl={h.logoUrl}
+                t={t}
+              />
             ))}
           </div>
         </section>
       )}
+
+      {/* ===== live now rail ===== */}
+      <Rail title={t('home.liveNow')} items={live} t={t} showLive />
+
+      {/* ===== genre rails — populated from the user's real playlist ===== */}
+      <Rail title={t('home.cat.sports')}   items={sports}        t={t} />
+      <Rail title={t('home.news')}         items={news}          t={t} />
+      <Rail title={t('home.recent')}       items={movies}        t={t} />
+      <Rail title={t('home.recommended')}  items={entertainment} t={t} />
+      <Rail title={t('home.kids')}         items={kids}          t={t} />
+      <Rail title={t('home.documentaries')} items={documentary}  t={t} />
+      <Rail title={t('home.music')}        items={music}         t={t} />
 
       {/* ===== genre grid ===== */}
       <section className="nshome-section">
