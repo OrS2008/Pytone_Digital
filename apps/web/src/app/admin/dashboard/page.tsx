@@ -206,6 +206,7 @@ function UsersTab() {
   const [loading, setLoading] = useState(false);
   const [busy,    setBusy]    = useState<string | null>(null);
   const [query,   setQuery]   = useState('');
+  const [editing, setEditing] = useState<UserRow | null>(null);
 
   const loadMore = useCallback(async (reset: boolean) => {
     setLoading(true);
@@ -287,6 +288,13 @@ function UsersTab() {
                 </td>
                 <td style={{ textAlign: 'right' }}>
                   <button
+                    className="adm-btn adm-btn-ghost adm-btn-sm"
+                    style={{ marginInlineEnd: 8 }}
+                    onClick={() => setEditing(u)}
+                  >
+                    Manage
+                  </button>
+                  <button
                     className="adm-btn adm-btn-ghost adm-btn-sm adm-btn-danger"
                     disabled={busy === u.email}
                     onClick={() => deleteUser(u.email)}
@@ -307,6 +315,17 @@ function UsersTab() {
           </button>
         </div>
       )}
+
+      {editing && (
+        <ManageAccessModal
+          user={editing}
+          onClose={() => setEditing(null)}
+          onUpdated={(updated) => {
+            setUsers((prev) => prev.map((u) => u.email === updated.email ? { ...u, ...updated } : u));
+            setEditing(null);
+          }}
+        />
+      )}
     </>
   );
 }
@@ -315,6 +334,141 @@ function StatusPill({ status, daysLeft }: { status: 'trial' | 'subscribed' | 'ex
   if (status === 'subscribed') return <span className="adm-pill adm-pill-ok">SUBSCRIBED</span>;
   if (status === 'expired')    return <span className="adm-pill adm-pill-warn">EXPIRED</span>;
   return <span className="adm-pill adm-pill-mut">TRIAL · {daysLeft}d</span>;
+}
+
+// ─── ManageAccessModal ─────────────────────────────────────────────
+// Lets the admin: extend a trial by N days, grant N days of paid
+// subscription, cancel a paid subscription, or reset a trial. Each
+// action is one POST to /api/admin/users/<email>/access; the row in
+// the parent table refreshes optimistically with the server's reply.
+function ManageAccessModal({
+  user, onClose, onUpdated,
+}: {
+  user: UserRow;
+  onClose: () => void;
+  onUpdated: (u: Pick<UserRow, 'email' | 'status' | 'daysLeft' | 'trialEndsAt' | 'subscribedUntil'>) => void;
+}) {
+  const [trialDays,  setTrialDays]  = useState<number>(7);
+  const [subDays,    setSubDays]    = useState<number>(30);
+  const [busy,       setBusy]       = useState<string | null>(null);
+  const [err,        setErr]        = useState<string | null>(null);
+
+  async function call(body: Record<string, unknown>, label: string) {
+    setBusy(label); setErr(null);
+    try {
+      const r = await fetch(
+        `/api/admin/users/${encodeURIComponent(user.email)}/access`,
+        {
+          method:  'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body:    JSON.stringify(body),
+        },
+      );
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setErr(typeof data.error === 'string' ? data.error : `HTTP ${r.status}`);
+        return;
+      }
+      onUpdated({
+        email:           user.email,
+        status:          data.status,
+        daysLeft:        data.daysLeft,
+        trialEndsAt:     data.trialEndsAt,
+        subscribedUntil: data.subscribedUntil,
+      });
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally { setBusy(null); }
+  }
+
+  return (
+    <div
+      className="adm-modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="adm-modal">
+        <div className="adm-modal-head">
+          <div>
+            <h2 className="adm-modal-title">Manage access</h2>
+            <div className="adm-modal-sub">{user.email}</div>
+          </div>
+          <button className="adm-btn adm-btn-ghost adm-btn-sm" onClick={onClose}>Close</button>
+        </div>
+
+        <div className="adm-modal-row" style={{ alignItems: 'center', gap: 12 }}>
+          <span style={{ color: '#9AA3B5', fontSize: 13 }}>Current status</span>
+          <StatusPill status={user.status} daysLeft={user.daysLeft} />
+          {user.subscribedUntil > 0 && (
+            <span style={{ color: '#9AA3B5', fontSize: 12 }}>
+              · paid through {formatDate(user.subscribedUntil)}
+            </span>
+          )}
+        </div>
+
+        {err && <div className="adm-err" style={{ marginTop: 12 }}>{err}</div>}
+
+        {/* Trial controls -------------------------------------------- */}
+        <fieldset className="adm-modal-card">
+          <legend>Trial</legend>
+          <p className="adm-modal-help">
+            Extend by setting how many days of free access the user
+            should have from <b>right now</b>. Use Reset to restart a
+            fresh 7-day window.
+          </p>
+          <div className="adm-modal-row">
+            <input
+              className="adm-input"
+              type="number" min={1} max={3650}
+              value={trialDays}
+              onChange={(e) => setTrialDays(Math.max(1, Math.min(3650, Number(e.target.value) || 1)))}
+              style={{ width: 100 }}
+            /> <span>days</span>
+            <button
+              className="adm-btn adm-btn-primary adm-btn-sm"
+              disabled={!!busy}
+              onClick={() => call({ action: 'extendTrial', days: trialDays }, 'extend')}
+            >{busy === 'extend' ? '…' : `Extend trial → ${trialDays}d`}</button>
+            <button
+              className="adm-btn adm-btn-ghost adm-btn-sm"
+              disabled={!!busy}
+              onClick={() => call({ action: 'resetTrial' }, 'reset')}
+            >{busy === 'reset' ? '…' : 'Reset to 7d'}</button>
+          </div>
+        </fieldset>
+
+        {/* Subscription controls ------------------------------------- */}
+        <fieldset className="adm-modal-card">
+          <legend>Subscription</legend>
+          <p className="adm-modal-help">
+            Grant paid access on top of any existing window (good for
+            comp days). Cancel zeroes the paid window — the user falls
+            back to trial if it still has time, otherwise to expired.
+          </p>
+          <div className="adm-modal-row">
+            <input
+              className="adm-input"
+              type="number" min={1} max={3650}
+              value={subDays}
+              onChange={(e) => setSubDays(Math.max(1, Math.min(3650, Number(e.target.value) || 1)))}
+              style={{ width: 100 }}
+            /> <span>days</span>
+            <button
+              className="adm-btn adm-btn-primary adm-btn-sm"
+              disabled={!!busy}
+              onClick={() => call({ action: 'grantSubscription', days: subDays }, 'grant')}
+            >{busy === 'grant' ? '…' : `Grant +${subDays}d paid`}</button>
+            <button
+              className="adm-btn adm-btn-ghost adm-btn-sm adm-btn-danger"
+              disabled={!!busy || user.subscribedUntil === 0}
+              onClick={() => call({ action: 'cancelSubscription' }, 'cancel')}
+            >{busy === 'cancel' ? '…' : 'Cancel subscription'}</button>
+          </div>
+        </fieldset>
+      </div>
+    </div>
+  );
 }
 
 // ─── System ────────────────────────────────────────────────────────

@@ -241,3 +241,231 @@
   .nw-hero-actions { flex-direction: column; }
   .nw-hero-actions .nw-btn { width: 100%; justify-content: center; }
 }
+
+/* ===== Creative round ===== */
+
+/* Aurora — three sage orbs drifting behind the hero. Pure CSS so it
+   keeps working with JS disabled. Animation is slow (28s loop) and
+   uses transform/opacity so the GPU can hand it off cheaply. */
+.nw-aurora {
+  position: absolute; inset: 0 0 auto 0;
+  height: 720px;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+.nw-aurora-orb {
+  position: absolute;
+  width: 600px; height: 600px;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: .55;
+  will-change: transform;
+}
+.nw-aurora-1 {
+  top: -160px; left: -120px;
+  background: radial-gradient(circle, rgba(157,194,184,0.55) 0%, rgba(157,194,184,0) 70%);
+  animation: nw-drift-a 28s ease-in-out infinite;
+}
+.nw-aurora-2 {
+  top: -80px; right: -160px;
+  background: radial-gradient(circle, rgba(191,220,211,0.45) 0%, rgba(191,220,211,0) 70%);
+  animation: nw-drift-b 34s ease-in-out infinite;
+}
+.nw-aurora-3 {
+  top: 120px; left: 38%;
+  width: 480px; height: 480px;
+  background: radial-gradient(circle, rgba(125,180,165,0.35) 0%, rgba(125,180,165,0) 70%);
+  animation: nw-drift-c 40s ease-in-out infinite;
+}
+@keyframes nw-drift-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(80px, 40px) scale(1.10); }
+}
+@keyframes nw-drift-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(-100px, 60px) scale(0.92); }
+}
+@keyframes nw-drift-c {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(40px, -50px) scale(1.06); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nw-aurora-orb { animation: none; }
+}
+
+/* Lift hero content above the aurora layer. */
+.nw-nav, .nw-hero, .nw-features, .nw-howto, .nw-footer { position: relative; z-index: 1; }
+
+/* Split hero: copy on the left, phone mockup on the right. Stacks
+   vertically below 900px. */
+.nw-hero-split {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: clamp(32px, 4vw, 64px);
+  align-items: center;
+  text-align: start;
+  max-width: 1180px;
+  padding-top: clamp(40px, 8vw, 96px);
+  padding-bottom: clamp(40px, 6vw, 80px);
+}
+.nw-hero-split .nw-hero-title { font-size: clamp(40px, 6.4vw, 80px); margin-top: 6px; }
+.nw-hero-title-em {
+  background: linear-gradient(180deg, #BFDCD3 0%, #9DC2B8 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.nw-hero-split .nw-hero-tagline { margin-inline: 0; }
+.nw-hero-split .nw-hero-actions { justify-content: flex-start; }
+.nw-hero-split .nw-hero-eyebrow {
+  background: rgba(157,194,184,0.10);
+  border: 1px solid rgba(157,194,184,0.25);
+  color: #BFDCD3;
+  padding: 6px 12px; border-radius: 999px;
+  display: inline-block; margin-bottom: 16px;
+  letter-spacing: 2px;
+}
+
+@media (max-width: 900px) {
+  .nw-hero-split { grid-template-columns: 1fr; text-align: center; padding-top: 32px; }
+  .nw-hero-split .nw-hero-actions { justify-content: center; }
+  .nw-hero-split .nw-hero-eyebrow { margin-inline: auto; }
+  .nw-mock { order: 2; margin-top: 24px; transform: scale(0.92); }
+}
+
+/* Phone mockup —— a small static preview of the /tv/home design. */
+.nw-mock {
+  position: relative;
+  display: flex; justify-content: center;
+  perspective: 1200px;
+}
+.nw-mock-frame {
+  position: relative; z-index: 2;
+  width: 260px; aspect-ratio: 9 / 19;
+  background: linear-gradient(180deg, #1d2120, #0e1110 50%, #1d2120);
+  border-radius: 36px;
+  padding: 8px;
+  box-shadow:
+    0 40px 80px -20px rgba(0,0,0,.75),
+    0 0 0 1px rgba(255,255,255,.04);
+  transform: rotateY(-8deg) rotateX(4deg);
+  transition: transform 600ms cubic-bezier(.2,.7,.2,1);
+}
+.nw-mock:hover .nw-mock-frame { transform: rotateY(0) rotateX(0); }
+.nw-mock-island {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+  width: 70px; height: 18px;
+  background: #000; border-radius: 12px; z-index: 5;
+}
+.nw-mock-screen {
+  width: 100%; height: 100%; border-radius: 28px;
+  background: #0F1212;
+  padding: 30px 14px 14px;
+  font-family: -apple-system, system-ui, sans-serif;
+  font-size: 10px; color: #ECF1EF;
+  display: flex; flex-direction: column; gap: 9px;
+  overflow: hidden;
+}
+.nw-mock-row { display: flex; align-items: center; justify-content: space-between; }
+.nw-mock-brand { font-weight: 800; font-size: 9px; letter-spacing: .5px; }
+.nw-mock-brand b { color: #BFDCD3; }
+.nw-mock-avatar {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: linear-gradient(135deg, #BFDCD3, #9DC2B8);
+  display: grid; place-items: center;
+  color: #13201D; font-weight: 800; font-size: 10px;
+}
+.nw-mock-greet { font-size: 14px; font-weight: 800; letter-spacing: -.3px; margin-top: 2px; }
+.nw-mock-search {
+  background: #1A1F1E; border: 1px solid rgba(255,255,255,.06);
+  border-radius: 8px; padding: 7px 10px; color: #5D6A66; font-size: 9px;
+}
+.nw-mock-bubbles { display: flex; gap: 6px; padding-top: 2px; }
+.nw-mock-bubble {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center;
+  color: #fff; font-weight: 800; font-size: 9px;
+  border: 1.5px solid rgba(255,255,255,.12); flex-shrink: 0;
+}
+.nw-mock-b1 { background: radial-gradient(circle at 30% 30%, #7C3AED, #1C0E26); }
+.nw-mock-b2 { background: radial-gradient(circle at 70% 30%, #0EA5E9, #0B1A22); }
+.nw-mock-b3 { background: radial-gradient(circle at 30% 70%, #F59E0B, #241409); }
+.nw-mock-b4 { background: radial-gradient(circle at 70% 70%, #EC4899, #1C0E26); }
+.nw-mock-b5 { background: radial-gradient(circle at 50% 50%, #22C55E, #0B1F1A); }
+.nw-mock-b6 { background: radial-gradient(circle at 50% 50%, #06B6D4, #0A1626); }
+.nw-mock-hero {
+  position: relative;
+  margin-top: 2px;
+  height: 110px;
+  border-radius: 12px;
+  background:
+    radial-gradient(120% 90% at 80% 10%, #22C55E 0%, transparent 55%),
+    radial-gradient(100% 100% at 10% 100%, #0D9488 0%, transparent 55%),
+    #0B1F1A;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 10px; gap: 4px;
+  overflow: hidden;
+}
+.nw-mock-hero::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent 50%, rgba(0,0,0,.6) 100%);
+}
+.nw-mock-hero > * { position: relative; z-index: 1; }
+.nw-mock-hero-badge {
+  font-size: 7.5px; font-weight: 800; letter-spacing: 1.2px;
+  color: #13201D; background: #BFDCD3;
+  padding: 2px 5px; border-radius: 3px; align-self: flex-start;
+}
+.nw-mock-hero-title { font-size: 12px; font-weight: 900; letter-spacing: -.3px; }
+.nw-mock-hero-play {
+  font-size: 8px; font-weight: 800;
+  background: #fff; color: #0B0D12;
+  padding: 4px 8px; border-radius: 6px; align-self: flex-start;
+}
+.nw-mock-rail-head { font-size: 10px; font-weight: 800; margin-top: 4px; }
+.nw-mock-rail { display: flex; gap: 6px; }
+.nw-mock-tile {
+  flex: 1; height: 40px; border-radius: 6px;
+}
+.nw-mock-glow {
+  position: absolute; inset: 20% -10% -20% -10%;
+  background: radial-gradient(ellipse at center, rgba(157,194,184,0.35) 0%, transparent 60%);
+  filter: blur(40px);
+  z-index: 0;
+}
+
+/* Button pulse — subtle continuous halo on the primary CTA so the eye
+   lands on it naturally. Drops to no animation if the user prefers
+   reduced motion. */
+.nw-btn-pulse { position: relative; }
+.nw-btn-pulse::before {
+  content: ''; position: absolute; inset: -3px;
+  border-radius: 999px;
+  border: 2px solid rgba(157,194,184,0.5);
+  animation: nw-pulse 2.4s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes nw-pulse {
+  0%   { transform: scale(0.96); opacity: .9; }
+  80%  { transform: scale(1.18); opacity: 0; }
+  100% { transform: scale(1.18); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nw-btn-pulse::before { animation: none; }
+}
+
+/* Reveal: blocks fade-in on mount via pure CSS animation, no JS. */
+.nw-reveal { animation: nw-rise 600ms cubic-bezier(.2,.7,.2,1) both; }
+.nw-howto-steps .nw-reveal:nth-child(1) { animation-delay: 60ms; }
+.nw-howto-steps .nw-reveal:nth-child(2) { animation-delay: 180ms; }
+.nw-howto-steps .nw-reveal:nth-child(3) { animation-delay: 300ms; }
+@keyframes nw-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nw-reveal { animation: none; }
+}
+
+/* SVG icons in features — colour through currentColor. */
+.nw-feature-icon { color: #9DC2B8; width: 32px; height: 32px; }
+.nw-feature-icon svg { width: 100%; height: 100%; }

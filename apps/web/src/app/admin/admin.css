@@ -316,3 +316,43 @@
   .adm-table tbody tr { display: block; padding: 14px 0; border-bottom: 1px solid #131923; }
   .adm-detail { grid-template-columns: 1fr; }
 }
+
+/* ─── ManageAccessModal ─────────────────────────────────────────── */
+.adm-modal-backdrop {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0,0,0,0.65);
+  display: grid; place-items: center;
+  padding: 24px;
+  animation: adm-fade-in 160ms ease-out;
+}
+@keyframes adm-fade-in { from { opacity: 0 } to { opacity: 1 } }
+.adm-modal {
+  width: 100%; max-width: 640px;
+  background: #11141B;
+  border: 1px solid #1F2530;
+  border-radius: 14px;
+  padding: 24px;
+  color: #E9EBF1;
+  box-shadow: 0 30px 80px -20px rgba(0,0,0,0.6);
+}
+.adm-modal-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 16px; gap: 16px;
+}
+.adm-modal-title { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.3px; }
+.adm-modal-sub   { color: #9AA3B5; font-size: 13px; margin-top: 2px; font-family: var(--ns-font-mono, ui-monospace, monospace); }
+.adm-modal-card {
+  border: 1px solid #1F2530;
+  border-radius: 10px;
+  padding: 14px 16px 16px;
+  margin: 14px 0 0;
+}
+.adm-modal-card legend {
+  padding: 0 6px; font-size: 11px; letter-spacing: 2.5px;
+  text-transform: uppercase; color: #9AA3B5;
+}
+.adm-modal-help { color: #9AA3B5; font-size: 12.5px; line-height: 1.5; margin: 4px 0 12px; }
+.adm-modal-row {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+}
+.adm-modal-row > span { color: #9AA3B5; font-size: 13px; }
