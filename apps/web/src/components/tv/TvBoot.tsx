@@ -41,11 +41,11 @@ export default function TvBoot() {
     try {
       const saved = localStorage.getItem('ns.theme');
       const allowed = ['apex','aurora','mono','cyber','premium','sage'];
-      let pick = saved && allowed.includes(saved) ? saved : null;
-      if (!pick && !isTv) {
-        const isPhone = /Android|iPhone|iPad|Mobile/i.test(ua) && window.innerWidth <= 820;
-        if (isPhone) pick = 'sage';
-      }
+      let pick: string | null = saved && allowed.includes(saved) ? saved : null;
+      // Sage everywhere except a real TV launch — mirrors the pre-paint
+      // script in app/layout.tsx so client-side SPA navigation doesn't
+      // drift back to apex.
+      if (!pick) pick = isTv ? 'apex' : 'sage';
       if (pick) {
         document.documentElement.setAttribute('data-theme', pick);
         document.body.setAttribute('data-theme', pick);

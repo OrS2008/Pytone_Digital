@@ -59,20 +59,20 @@ const THEME_BOOT = `
     return;
   }
   // Theme selection — runs before paint so the page never flashes the
-  // wrong palette. Priority: saved choice > phone default (sage) > apex.
-  // "sage" is the neutral palette the Android APK ships with; we apply
-  // it pre-paint on any phone-sized Android/iPhone WebView so the whole
-  // /tv tree (including pages that bypass TvBoot) starts in the right
-  // colours.
+  // wrong palette. Priority order:
+  //   1. saved choice (Account → Appearance)
+  //   2. sage default everywhere except a real TV launch
+  // Sage is the unified brand palette across the marketing landing, the
+  // /tv app and the Android APK. Real TVs (webOS / Tizen / etc.) keep
+  // the apex default because the 10-foot UI was designed around the
+  // pink/magenta accent and TVs aren't part of the customer rebrand.
   var t = localStorage.getItem('ns.theme');
   var allowed = ['apex','aurora','mono','cyber','premium','sage'];
   var pick = (t && allowed.indexOf(t) >= 0) ? t : null;
   if (!pick) {
     var ua = navigator.userAgent || '';
     var isTV = /webOS|Web0S|SmartTV|Tizen|HbbTV|CrKey|AppleTV/i.test(ua);
-    var isPhone = !isTV && /Android|iPhone|iPad|Mobile/i.test(ua) &&
-                  (window.innerWidth || screen.width || 0) <= 820;
-    if (isPhone) pick = 'sage';
+    pick = isTV ? 'apex' : 'sage';
   }
   if (pick) {
     document.documentElement.setAttribute('data-theme', pick);
