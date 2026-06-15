@@ -185,7 +185,7 @@ function Rail({ title, items, t, showLive }: RailProps) {
 }
 
 export default function TvMobileHome() {
-  const { t } = useT();
+  const { t, locale, setLocale } = useT();
   const [channels, setChannels] = useState<M3UChannel[]>(
     typeof window !== 'undefined' ? (getCachedChannels() ?? []) : [],
   );
@@ -239,7 +239,16 @@ export default function TvMobileHome() {
             <span className="nshome-brand-name">NOVA <b>STREAM</b></span>
           </div>
           <div className="nshome-top-actions">
-            <Link href="/tv/account/notifications" className="nshome-icon-btn" aria-label="Notifications">
+            <button
+              type="button"
+              className="nshome-icon-btn nshome-locale-btn"
+              onClick={() => setLocale(locale === 'he' ? 'en' : 'he')}
+              aria-label={locale === 'he' ? 'Switch to English' : 'החלף לעברית'}
+              title={locale === 'he' ? 'EN' : 'עב'}
+            >
+              <span className="nshome-locale-label">{locale === 'he' ? 'EN' : 'עב'}</span>
+            </button>
+            <Link href="/tv/account/notifications" className="nshome-icon-btn" aria-label={t('chip.menu')}>
               <span className="nshome-badge" aria-hidden="true"/>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -309,6 +318,12 @@ export default function TvMobileHome() {
           <Link href={`/tv/live?ch=${encodeURIComponent(hero.id)}`} className="nshome-hero">
             <div className={`nshome-hero-art ${meshFor(hero.name)}`} aria-hidden="true"/>
             <div className="nshome-hero-fade" aria-hidden="true"/>
+            {hero.logoUrl && (
+              <div className="nshome-hero-poster" aria-hidden="true">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={hero.logoUrl} alt="" loading="eager"/>
+              </div>
+            )}
             <div className="nshome-hero-content">
               <span className="nshome-hero-badge">{t('home.featured')}</span>
               <h2 className="nshome-hero-title">{hero.name}</h2>
