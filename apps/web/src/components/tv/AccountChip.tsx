@@ -10,12 +10,14 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { getSessionEmail, signOut } from '@/lib/session';
 import { useAccess } from '@/lib/useAccess';
+import { useT } from '@/lib/i18n';
 
 export default function AccountChip() {
   const [email, setEmail] = useState<string | null>(null);
   const [open, setOpen]   = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   const access = useAccess();
+  const { t }  = useT();
 
   useEffect(() => { setEmail(getSessionEmail()); }, []);
 
@@ -31,7 +33,7 @@ export default function AccountChip() {
   if (!email) {
     return (
       <div className="ac-account">
-        <Link href="/tv/login" className="ac-btn ac-btn-sm">Sign in</Link>
+        <Link href="/tv/login" className="ac-btn ac-btn-sm">{t('auth.signIn')}</Link>
       </div>
     );
   }
@@ -45,12 +47,12 @@ export default function AccountChip() {
   if (access.status === 'trial') {
     const d = access.daysLeft ?? 0;
     const label =
-      d <= 0 ? 'Trial ends today' :
-      d === 1 ? 'Trial · 1 day left' :
-                `Trial · ${d} days left`;
+      d <= 0 ? t('chip.trialEndsToday') :
+      d === 1 ? t('chip.trial1Day') :
+                t('chip.trialNDays').replace('{n}', String(d));
     pill = { text: label, tone: 'trial' };
   } else if (access.status === 'expired') {
-    pill = { text: 'Trial expired', tone: 'warn' };
+    pill = { text: t('chip.trialExpired'), tone: 'warn' };
   }
 
   return (
@@ -62,7 +64,7 @@ export default function AccountChip() {
       )}
       <button
         className="ac-avatar"
-        aria-label="Account menu"
+        aria-label={t('chip.menu')}
         title={email}
         onClick={() => setOpen((v) => !v)}
         style={{ border: 0, cursor: 'pointer', fontFamily: 'inherit' }}
@@ -72,10 +74,10 @@ export default function AccountChip() {
       {open && (
         <div className="ac-menu">
           <div className="ac-menu-email">{email}</div>
-          <Link href="/tv/account" className="ac-menu-item" onClick={() => setOpen(false)}>Account overview</Link>
-          <Link href="/tv/account/subscription" className="ac-menu-item" onClick={() => setOpen(false)}>Subscription</Link>
-          <Link href="/tv/account/security" className="ac-menu-item" onClick={() => setOpen(false)}>Security</Link>
-          <button className="ac-menu-item ac-menu-danger" onClick={signOut}>Sign out</button>
+          <Link href="/tv/account" className="ac-menu-item" onClick={() => setOpen(false)}>{t('ac.nav.overview')}</Link>
+          <Link href="/tv/account/subscription" className="ac-menu-item" onClick={() => setOpen(false)}>{t('ac.nav.subscription')}</Link>
+          <Link href="/tv/account/security" className="ac-menu-item" onClick={() => setOpen(false)}>{t('chip.security')}</Link>
+          <button className="ac-menu-item ac-menu-danger" onClick={signOut}>{t('auth.signOut')}</button>
         </div>
       )}
     </div>

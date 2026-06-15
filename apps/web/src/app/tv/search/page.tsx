@@ -151,10 +151,16 @@ export default function SearchHome() {
             color: '#B7BEC9', fontFamily: 'Inter, system-ui, sans-serif',
           }}>
             <span style={{ opacity: 0.6, alignSelf: 'center', marginInlineEnd: 6 }}>{t('search.try')}</span>
-            {['News', 'Sports', 'Movies', 'Kids', 'HD'].map((s) => (
+            {([
+              { key: 'home.news',       q: 'News'   },
+              { key: 'home.cat.sports', q: 'Sports' },
+              { key: 'home.recent',     q: 'Movies' },
+              { key: 'home.kids',       q: 'Kids'   },
+              { key: 'search.hd',       q: 'HD'     },
+            ]).map(({ key, q: queryFor }) => (
               <button
-                key={s}
-                onClick={() => setQ(s)}
+                key={key}
+                onClick={() => setQ(queryFor)}
                 style={{
                   padding: '8px 14px', borderRadius: 999,
                   background: 'rgba(255,255,255,0.05)',
@@ -162,7 +168,7 @@ export default function SearchHome() {
                   color: 'inherit', cursor: 'pointer', fontSize: 14,
                   fontFamily: 'inherit',
                 }}
-              >{s}</button>
+              >{t(key)}</button>
             ))}
           </div>
         </div>

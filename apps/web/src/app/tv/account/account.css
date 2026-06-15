@@ -93,7 +93,13 @@
   width: 3px; background: var(--ns-accent);
   border-radius: 0 3px 3px 0;
 }
-.ac-sb-icon { font-size: 18px; }
+.ac-sb-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px;
+  color: currentColor;
+  flex-shrink: 0;
+}
+.ac-sb-icon svg { width: 18px; height: 18px; }
 .ac-sb-badge {
   background: var(--ns-accent-soft);
   color: var(--ns-accent);
@@ -639,15 +645,27 @@
   .ac-sb-section:last-child { border-right: 0; }
   .ac-sb-heading { display: none; }
   .ac-sb-item {
+    display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 8px 12px;
+    align-items: center; justify-content: center;
+    gap: 6px;
+    grid-template-columns: none;
+    padding: 8px 6px;
     font-size: 11px;
     text-align: center;
-    min-width: 78px;
+    min-width: 84px;
+    margin: 0;
+  }
+  /* Reset the grid layout that pushes the icon to the start on
+     desktop. On mobile we want a vertical stack icon-over-label. */
+  .ac-sb-item > * { width: auto !important; }
+  .ac-sb-label {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 78px; display: block; line-height: 1.15;
   }
   .ac-sb-item-active::before { display: none; }
-  .ac-sb-icon { font-size: 16px; }
+  .ac-sb-icon { width: 22px; height: 22px; }
+  .ac-sb-icon svg { width: 20px; height: 20px; }
   .ac-sb-badge { display: none; }
 
   .ac-panel { padding: 24px 16px 64px; }

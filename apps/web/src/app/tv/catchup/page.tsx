@@ -354,8 +354,14 @@ function ChannelDetail({ channel, epgIndex, epgState, onBack }: DetailProps) {
   // Build the seven-day picker (today + 6 days back). XMLTV usually
   // covers slightly past + several days forward; catch-up cares about
   // past only.
-  const today = useMemo(() => new Date(), []);
+  // `today` is intentionally lazy: building a Date during the very
+  // first render (server or client) produced two different timestamps
+  // for SSR vs. hydration, throwing React error #418. We compute it
+  // once after mount instead so the markup stays stable.
+  const [today, setToday] = useState<Date | null>(null);
+  useEffect(() => { setToday(new Date()); }, []);
   const days = useMemo(() => {
+    if (!today) return [];
     const arr: Date[] = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(today);
@@ -440,14 +446,14 @@ function ChannelDetail({ channel, epgIndex, epgState, onBack }: DetailProps) {
                 whiteSpace: 'nowrap',
               }}
             >
-              {fmtDayShort(d, today)}
+              {today && fmtDayShort(d, today)}
             </button>
           ))}
         </div>
 
         <section style={{ padding: '20px 24px 64px', maxWidth: 1280, margin: '0 auto' }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: '#E9EBF1', margin: '0 0 12px' }}>
-            {fmtDayLong(days[selectedDay], today)}
+            {today && days[selectedDay] ? fmtDayLong(days[selectedDay], today) : ''}
           </h2>
 
           {epgState === 'loading' ? (
@@ -470,7 +476,7 @@ function ChannelDetail({ channel, epgIndex, epgState, onBack }: DetailProps) {
             </div>
           ) : dayProgs.length === 0 ? (
             <div style={emptyStateStyle}>
-              Nothing in the guide for {fmtDayLong(days[selectedDay], today).toLowerCase()} on this channel.
+              Nothing in the guide for {today && days[selectedDay] ? fmtDayLong(days[selectedDay], today).toLowerCase() : 'this day'} on this channel.
             </div>
           ) : (
             <div style={{ display: 'grid', gap: 10 }}>
