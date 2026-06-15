@@ -54,33 +54,6 @@
 @media (min-width: 480px) { .nshome { font-size: 16px; } }
 @media (min-width: 768px) { .nshome { font-size: 17px; } }
 
-/* On desktop, cap the home page width so the mobile-first design
-   doesn't stretch into a kilometre-wide empty banner. The /tv/home
-   surface is designed as a phone column; on a 1440px screen we centre
-   it at 880px wide with a faint gradient backdrop so the page still
-   feels like a finished product instead of a tiny iframe. */
-@media (min-width: 900px) {
-  .nshome {
-    max-width: 880px;
-    margin: 0 auto;
-    border-inline-start: 1px solid rgba(255,255,255,0.06);
-    border-inline-end:   1px solid rgba(255,255,255,0.06);
-    min-height: 100dvh;
-    background:
-      radial-gradient(120% 60% at 50% 0%, rgba(157,194,184,0.10) 0%, transparent 55%),
-      var(--ns-bg, #0F1212);
-  }
-  /* The fixed-position bottom tab bar (.ns-mtab) is positioned by
-     vw/right values that span the entire viewport — pin it to the
-     centred column instead so it doesn't float out into empty space. */
-  body:has(.nshome) .ns-mtab {
-    left: 50%; right: auto;
-    transform: translateX(-50%);
-    width: calc(880px - 1.7rem);
-    max-width: calc(100vw - 1.7rem);
-  }
-}
-
 .nshome *,
 .nshome *::before,
 .nshome *::after { box-sizing: border-box; }
