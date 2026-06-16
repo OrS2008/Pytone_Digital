@@ -25,14 +25,16 @@ function TvHomeInner() {
   );
 
   // Phones get the new mobile home — bounce them off the desktop layout
-  // immediately. TVs (which advertise themselves in the UA) and laptop
-  // viewports stay here.
+  // immediately. Only real TVs (UA self-identifies as webOS / Tizen /
+  // AppleTV) keep the 1920×1080 channel-rail layout that lives here;
+  // every other client — phone, tablet, laptop, desktop browser — gets
+  // bounced to the simplified home so /tv and /tv/home don't show two
+  // different products for the same user.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const ua = navigator.userAgent || '';
     const isTv = /webOS|Web0S|SmartTV|Tizen|HbbTV|CrKey|AppleTV/i.test(ua);
-    const isPhone = !isTv && /Android|iPhone|iPad|Mobile/i.test(ua) && window.innerWidth <= 820;
-    if (isPhone) router.replace('/tv/home');
+    if (!isTv) router.replace('/tv/home');
   }, [router]);
 
   useEffect(() => { focusHero(); }, [focusHero]);
