@@ -85,19 +85,18 @@ type NavItem = {
 };
 type Section = { groupKey: string; items: NavItem[] };
 
+// "Simple as possible" pass: collapsed 9 sidebar entries across 3
+// groups into 5 essentials in a single ungrouped column. Plans got
+// merged into Subscription (same conceptual surface), Playback and
+// Parental dropped (advanced; the routes still exist for power users
+// via direct URL). The screen now fits without scrolling on any
+// laptop / phone.
 const NAV: Section[] = [
-  { groupKey: 'ac.group.account', items: [
+  { groupKey: '', items: [
     { id: 'overview',     href: '/tv/account',              labelKey: 'ac.nav.overview',     icon: Icons.overview },
     { id: 'subscription', href: '/tv/account/subscription', labelKey: 'ac.nav.subscription', icon: Icons.subscription },
-    { id: 'plans',        href: '/tv/account/plans',        labelKey: 'ac.nav.plans',        icon: Icons.plans },
-    { id: 'devices',      href: '/tv/account/devices',      labelKey: 'ac.nav.devices',      icon: Icons.devices },
-  ]},
-  { groupKey: 'ac.group.content', items: [
     { id: 'sources',      href: '/tv/account/sources',      labelKey: 'ac.nav.sources',      icon: Icons.sources },
-    { id: 'preferences',  href: '/tv/account/preferences',  labelKey: 'ac.nav.preferences',  icon: Icons.preferences },
-    { id: 'parental',     href: '/tv/account/parental',     labelKey: 'ac.nav.parental',     icon: Icons.parental },
-  ]},
-  { groupKey: 'ac.group.system',  items: [
+    { id: 'devices',      href: '/tv/account/devices',      labelKey: 'ac.nav.devices',      icon: Icons.devices },
     { id: 'appearance',   href: '/tv/account/appearance',   labelKey: 'ac.nav.appearance',   icon: Icons.appearance },
     { id: 'help',         href: '/tv/account/help',         labelKey: 'ac.nav.help',         icon: Icons.help },
   ]},
@@ -133,8 +132,8 @@ export default function Shell({ active, children }: { active: string; children: 
       <div className="ac-body">
         <aside className="ac-sidebar">
           {NAV.map((sec) => (
-            <div key={sec.groupKey} className="ac-sb-section">
-              <div className="ac-sb-heading">{t(sec.groupKey)}</div>
+            <div key={sec.groupKey || 'main'} className="ac-sb-section">
+              {sec.groupKey && <div className="ac-sb-heading">{t(sec.groupKey)}</div>}
               {sec.items.map((it) => (
                 <Link
                   key={it.id}

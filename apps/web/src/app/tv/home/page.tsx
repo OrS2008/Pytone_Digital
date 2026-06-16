@@ -31,64 +31,6 @@ function meshFor(seed: string): string {
   return MESH[Math.abs(h) % MESH.length];
 }
 
-// Category keyword tables, mirroring SmartHomeRow so the home page can
-// classify channels without round-tripping through that component.
-// Keys are scored: primary +8, secondary +3, logo +1. Any score > 0
-// qualifies the channel for the rail. Localised category aliases are
-// kept Hebrew-friendly (`חדשות`, `ספורט`, `סרטים`, `ילדים`, etc.) so
-// IL playlists with Hebrew group-titles classify correctly.
-type Pick = 'sports' | 'news' | 'movies' | 'kids' | 'music' | 'documentary' | 'entertainment';
-const KEYWORDS: Record<Pick, { primary: string[]; secondary: string[] }> = {
-  sports: {
-    primary:   ['sport', 'ספורט', 'espn', 'fox sports', 'eurosport', 'bein', 'sky sports', 'one', 'tnt', 'dazn'],
-    secondary: ['football', 'soccer', 'basketball', 'tennis', 'nba', 'nhl', 'nfl', 'mlb', 'ufc', 'golf', 'rugby', 'liga', 'champions', 'premier'],
-  },
-  news: {
-    primary:   ['news', 'חדשות', 'cnn', 'bbc', 'fox news', 'sky news', 'al jazeera', 'bloomberg', 'cnbc', 'i24', 'כאן', 'reshet'],
-    secondary: ['breaking', '24', 'business', 'world', 'דיווח', 'מהדורה'],
-  },
-  movies: {
-    primary:   ['movies', 'cinema', 'film', 'סרט', 'hbo', 'starz', 'showtime', 'amc', 'paramount', 'mgm', 'yes movie'],
-    secondary: ['action', 'drama', 'thriller', 'classic', 'tcm', 'epix', 'hits'],
-  },
-  kids: {
-    primary:   ['kids', 'ילדים', 'cartoon', 'nick', 'disney', 'boomerang', 'baby', 'cbeebies', 'הופ'],
-    secondary: ['toon', 'family', 'junior', 'children', 'duck', 'משפח'],
-  },
-  music: {
-    primary:   ['music', 'מוזיקה', 'mtv', 'vh1', 'kiss', 'trace', 'mezzo', 'stingray', '24music'],
-    secondary: ['hits', 'pop', 'rock', 'r&b', 'urban', 'classical'],
-  },
-  documentary: {
-    primary:   ['documentary', 'תיעוד', 'discovery', 'national geographic', 'nat geo', 'history', 'animal planet', 'crime'],
-    secondary: ['nature', 'science', 'wild', 'travel', 'planet'],
-  },
-  entertainment: {
-    primary:   ['entertainment', 'בידור', 'comedy central', 'e!', 'tlc', 'reality', 'lifestyle', 'bravo', 'yes oh', 'yes 1'],
-    secondary: ['drama', 'show', 'series', 'sitcom', 'cooking', 'food', 'סדר'],
-  },
-};
-
-function scoreChannel(c: M3UChannel, kw: { primary: string[]; secondary: string[] }): number {
-  if (SKIP.test(c.name) || SKIP.test(c.category)) return 0;
-  const hay = (c.name + ' ' + c.category).toLowerCase();
-  let s = 0;
-  for (const w of kw.primary)   if (hay.includes(w)) s += 8;
-  for (const w of kw.secondary) if (hay.includes(w)) s += 3;
-  if (c.logoUrl) s += 1;
-  return s;
-}
-
-function pickByCategory(channels: M3UChannel[], pick: Pick, n: number): M3UChannel[] {
-  const scored = channels
-    .map((c) => ({ c, s: scoreChannel(c, KEYWORDS[pick]) }))
-    .filter((x) => x.s > 0)
-    .sort((a, b) => b.s - a.s)
-    .slice(0, n)
-    .map((x) => x.c);
-  return scored;
-}
-
 function pickHero(channels: M3UChannel[]): M3UChannel | null {
   const showcase = channels.filter((c) => !SKIP.test(c.name) && SHOWCASE.test(c.name + ' ' + c.category));
   if (showcase.length) return showcase[0];
@@ -205,26 +147,8 @@ export default function TvMobileHome() {
     return () => { cancelled = true; };
   }, []);
 
-  const hero    = useMemo(() => pickHero(channels),                    [channels]);
-  const live    = useMemo(() => pickList(channels, 12),                [channels]);
-  const bubbles = useMemo(() => pickList(channels, 8, /* logos */ true), [channels]);
-  const sports        = useMemo(() => pickByCategory(channels, 'sports',        12), [channels]);
-  const news          = useMemo(() => pickByCategory(channels, 'news',          12), [channels]);
-  const movies        = useMemo(() => pickByCategory(channels, 'movies',        12), [channels]);
-  const kids          = useMemo(() => pickByCategory(channels, 'kids',          12), [channels]);
-  const music         = useMemo(() => pickByCategory(channels, 'music',         12), [channels]);
-  const documentary   = useMemo(() => pickByCategory(channels, 'documentary',   12), [channels]);
-  const entertainment = useMemo(() => pickByCategory(channels, 'entertainment', 12), [channels]);
-
-  const CATEGORIES = useMemo(() => ([
-    { id: 'foryou',  label: t('home.recommended') },
-    { id: 'live',    label: t('home.cat.live')   },
-    { id: 'movies',  label: t('home.recent')     },
-    { id: 'sports',  label: t('home.cat.sports') },
-    { id: 'news',    label: t('home.news')       },
-    { id: 'kids',    label: t('home.kids')       },
-  ]), [t]);
-  const [activeCat, setActiveCat] = useState<string>('foryou');
+  const hero = useMemo(() => pickHero(channels),     [channels]);
+  const live = useMemo(() => pickList(channels, 12), [channels]);
 
   return (
     <main className="nshome">
@@ -276,41 +200,9 @@ export default function TvMobileHome() {
         <span>{t('home.searchPh')}</span>
       </Link>
 
-      {/* ===== quick channel bubbles ===== */}
-      {bubbles.length > 0 && (
-        <div className="nshome-bubbles">
-          {bubbles.map((c) => (
-            <Link
-              key={c.id}
-              href={`/tv/live?ch=${encodeURIComponent(c.id)}`}
-              className="nshome-bubble-item"
-            >
-              <span className={`nshome-bubble ${c.logoUrl ? '' : meshFor(c.name)}`}>
-                {c.logoUrl
-                  ? // eslint-disable-next-line @next/next/no-img-element
-                    <img src={c.logoUrl} alt="" loading="lazy"/>
-                  : <span>{c.name.slice(0, 2).toUpperCase()}</span>}
-                <span className="nshome-live-pip" aria-hidden="true"/>
-              </span>
-              <span className="nshome-bubble-item-label">{c.name}</span>
-            </Link>
-          ))}
-        </div>
-      )}
-
-      {/* ===== category chips ===== */}
-      <div className="nshome-chips">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat.id}
-            type="button"
-            className={`nshome-chip ${cat.id === activeCat ? 'active' : ''}`}
-            onClick={() => setActiveCat(cat.id)}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
+      {/* Bubbles + chips removed in the "make it simple" pass — the
+          search + bottom tab bar already give the user category access
+          and the bubbles competed with the hero for attention. */}
 
       {/* ===== hero ===== */}
       <div className="nshome-hero-wrap">
@@ -372,17 +264,11 @@ export default function TvMobileHome() {
         </section>
       )}
 
-      {/* ===== live now rail ===== */}
+      {/* ===== live now rail — the only non-empty rail by default.
+           We dropped Sports / News / Movies / Entertainment / Kids /
+           Docs / Music rails to keep the home page short and calm. Users
+           who want category browsing tap into the grid below. ===== */}
       <Rail title={t('home.liveNow')} items={live} t={t} showLive />
-
-      {/* ===== genre rails — populated from the user's real playlist ===== */}
-      <Rail title={t('home.cat.sports')}   items={sports}        t={t} />
-      <Rail title={t('home.news')}         items={news}          t={t} />
-      <Rail title={t('home.recent')}       items={movies}        t={t} />
-      <Rail title={t('home.recommended')}  items={entertainment} t={t} />
-      <Rail title={t('home.kids')}         items={kids}          t={t} />
-      <Rail title={t('home.documentaries')} items={documentary}  t={t} />
-      <Rail title={t('home.music')}        items={music}         t={t} />
 
       {/* ===== genre grid ===== */}
       <section className="nshome-section">
