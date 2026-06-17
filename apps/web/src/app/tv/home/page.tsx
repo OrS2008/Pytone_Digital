@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { M3UChannel } from '@/lib/m3u';
 import { getCachedChannels, loadChannels } from '@/lib/channelCache';
@@ -127,12 +128,26 @@ function Rail({ title, items, t, showLive }: RailProps) {
 }
 
 export default function TvMobileHome() {
+  const router = useRouter();
   const { t, locale, setLocale } = useT();
   const [channels, setChannels] = useState<M3UChannel[]>(
     typeof window !== 'undefined' ? (getCachedChannels() ?? []) : [],
   );
   const [email, setEmail] = useState<string | null>(null);
   const [history, setHistory] = useState<WatchEntry[]>([]);
+
+  // /tv/home is the mobile home (designed for phones / the Android
+  // APK). Non-phone users (laptop / desktop) should land on the
+  // legacy /tv layout instead — the user explicitly asked not to see
+  // this page on desktop. Real TVs (webOS / Tizen / AppleTV) also go
+  // to /tv since /tv/home is sized for a 360px column.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const ua = navigator.userAgent || '';
+    const isTv = /webOS|Web0S|SmartTV|Tizen|HbbTV|CrKey|AppleTV/i.test(ua);
+    const isPhone = !isTv && /Android|iPhone|iPad|Mobile/i.test(ua) && window.innerWidth <= 820;
+    if (!isPhone) router.replace('/tv');
+  }, [router]);
 
   useEffect(() => {
     setEmail(getSessionEmail());
