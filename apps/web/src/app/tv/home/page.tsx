@@ -113,7 +113,7 @@ function Rail({ title, items, t, showLive }: RailProps) {
         {items.map((c) => (
           <RailCard
             key={c.id}
-            href={`/tv/live?ch=${encodeURIComponent(c.id)}`}
+            href={`/tv/live?ch=${encodeURIComponent(c.number)}`}
             name={c.name}
             sub={c.category || t('home.liveNow')}
             logoUrl={c.logoUrl}
@@ -207,7 +207,7 @@ export default function TvMobileHome() {
       {/* ===== hero ===== */}
       <div className="nshome-hero-wrap">
         {hero ? (
-          <Link href={`/tv/live?ch=${encodeURIComponent(hero.id)}`} className="nshome-hero">
+          <Link href={`/tv/live?ch=${encodeURIComponent(hero.number)}`} className="nshome-hero">
             <div className={`nshome-hero-art ${meshFor(hero.name)}`} aria-hidden="true"/>
             <div className="nshome-hero-fade" aria-hidden="true"/>
             {hero.logoUrl && (
@@ -254,7 +254,7 @@ export default function TvMobileHome() {
             {history.slice(0, 10).map((h) => (
               <RailCard
                 key={h.channelId}
-                href={`/tv/live?ch=${encodeURIComponent(h.channelId)}`}
+                href={`/tv/live?ch=${encodeURIComponent(h.number)}`}
                 name={h.name}
                 logoUrl={h.logoUrl}
                 t={t}
