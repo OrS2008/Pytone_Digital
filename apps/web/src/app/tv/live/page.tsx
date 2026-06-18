@@ -468,11 +468,11 @@ export default function LivePage() {
         {!watching && <TvNav />}
 
         {!watching && load.kind === 'loading' && (
-          <div className="live-status">Loading your playlist…</div>
+          <div className="live-status">{t('live.loadingPlaylist')}</div>
         )}
         {!watching && load.kind === 'ready' && (
           <div className="live-status live-status-ok">
-            {load.sourceTitle} · {load.count} channels loaded. Click a channel to play.
+            {load.sourceTitle} · {t('live.channelsLoaded').replace('{count}', String(load.count))}
           </div>
         )}
         {!watching && load.kind === 'mock' && (
@@ -562,7 +562,7 @@ export default function LivePage() {
                     <div className="live-preview-meta-schedule">
                       {active.now ? (
                         <div className="live-preview-meta-row">
-                          <span className="live-preview-meta-eyebrow">Now</span>
+                          <span className="live-preview-meta-eyebrow">{t('live.now')}</span>
                           <span className="live-preview-meta-title">{active.now.title}</span>
                           <span className="live-preview-meta-time">
                             {fmtHM(active.now.start)}–{fmtHM(active.now.stop)}
@@ -570,24 +570,24 @@ export default function LivePage() {
                         </div>
                       ) : (
                         <div className="live-preview-meta-row">
-                          <span className="live-preview-meta-eyebrow">Now</span>
+                          <span className="live-preview-meta-eyebrow">{t('live.now')}</span>
                           {epgState === 'loading' ? (
-                            <span className="live-preview-meta-empty">Loading programme guide…</span>
+                            <span className="live-preview-meta-empty">{t('live.loadingGuide')}</span>
                           ) : epgState === 'none' ? (
                             <Link
                               href="/tv/account/sources?tab=epg"
                               className="live-preview-meta-empty live-preview-meta-link"
                             >
-                              Live stream · add a programme guide →
+                              {t('live.addGuide')}
                             </Link>
                           ) : (
-                            <span className="live-preview-meta-empty">No programme info</span>
+                            <span className="live-preview-meta-empty">{t('live.noProgramme')}</span>
                           )}
                         </div>
                       )}
                       {active.next1 && (
                         <div className="live-preview-meta-row">
-                          <span className="live-preview-meta-eyebrow next">Next</span>
+                          <span className="live-preview-meta-eyebrow next">{t('live.next')}</span>
                           <span className="live-preview-meta-title">{active.next1.title}</span>
                           <span className="live-preview-meta-time">{fmtHM(active.next1.start)}</span>
                         </div>
@@ -597,9 +597,9 @@ export default function LivePage() {
                   <button
                     className="live-preview-fs"
                     onClick={() => setWatching(true)}
-                    title="Watch fullscreen"
+                    title={t('live.fullscreen')}
                   >
-                    ⛶  Fullscreen
+                    ⛶  {t('live.fullscreen')}
                   </button>
                 </div>
               )}
