@@ -335,6 +335,60 @@ export default function LivePage() {
     };
   }, [watching]);
 
+  // Auto-enter fullscreen when the user rotates the phone to landscape
+  // (and exit back to browsing when they rotate back to portrait). This
+  // mirrors the M6+ / Molotov / Pluto behaviour: video apps treat
+  // landscape as "the user wants to watch", portrait as "the user wants
+  // to browse". The user can still tap the Fullscreen button manually.
+  //
+  // We only respond to orientation events on phones (≤819px) — on
+  // tablets and desktops rotating the screen doesn't carry the same
+  // intent. We also bail when there's no channel selected, when the
+  // user is on the welcome empty-state, and when a permission/policy
+  // denial blocks fullscreen.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!active) return;
+    const isPhone = window.innerWidth <= 819;
+    if (!isPhone) return;
+
+    function isLandscape(): boolean {
+      if (screen.orientation?.type) {
+        return screen.orientation.type.startsWith('landscape');
+      }
+      // Fallback for older WebViews: compare viewport dimensions.
+      return window.innerWidth > window.innerHeight;
+    }
+
+    function onChange() {
+      if (isLandscape()) {
+        // Rotated to landscape → enter watching mode. The existing
+        // useEffect that mirrors `watching` to the Fullscreen API
+        // will pick this up on its next render and call
+        // requestFullscreen() on the overlay element.
+        if (!watching) setWatching(true);
+      } else {
+        // Rotated back to portrait → leave fullscreen so the user can
+        // browse the channel rail again. Doing this here instead of
+        // relying on the user pressing the close × button feels more
+        // like a native streaming app.
+        if (watching) setWatching(false);
+      }
+    }
+
+    // Run once on mount in case the user opened the page already in
+    // landscape (deep-link from another app, autorotate already locked).
+    onChange();
+
+    const screenOrient = screen.orientation as ScreenOrientation | undefined;
+    screenOrient?.addEventListener?.('change', onChange);
+    window.addEventListener('orientationchange', onChange);
+    return () => {
+      screenOrient?.removeEventListener?.('change', onChange);
+      window.removeEventListener('orientationchange', onChange);
+    };
+  }, [active, watching]);
+
   // The 5-second auto-hide window is re-armed imperatively on every
   // activity tick (mouse move, click, key press inside the player
   // overlay). We used to drive this via a useEffect with `activityTick`

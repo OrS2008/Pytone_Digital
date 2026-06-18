@@ -200,36 +200,38 @@
   --ns-display-italic: italic;
 }
 
-/* --- Sage Calm (neutral, mobile default) -------------------------------- */
-/* The palette the mobile APK ships with: warm graphite background, calm
-   sage-teal accent, almost-monochrome chrome. Picked because the home
-   screen relies on coloured thumbnails for visual energy and a loud UI
-   accent fought with them. TVs still default to apex; phones boot into
-   this. */
+/* --- Sage Calm → Opus IPTV (mobile default) --------------------------- */
+/* The palette the mobile APK ships with: deep navy background, hot
+   magenta-pink accent, white display text. Matches the Opus IPTV
+   reference design — big posters, prominent Play CTA, premium feel.
+   TVs still default to apex; phones boot into this. The data-theme
+   attribute remains "sage" so existing localStorage preferences and
+   the pre-paint script in layout.tsx keep working — just the colours
+   underneath changed. */
 :root[data-theme="sage"] {
-  --ns-bg:            #0F1212;
-  --ns-bg-elevated:   #1A1F1E;
-  --ns-bg-input:      #151918;
+  --ns-bg:            #0B0C12;
+  --ns-bg-elevated:   #16171F;
+  --ns-bg-input:      #11121A;
   --ns-bg-hover:      rgba(255, 255, 255, 0.04);
   --ns-hairline:      rgba(255, 255, 255, 0.06);
-  --ns-border:        rgba(255, 255, 255, 0.11);
-  --ns-border-strong: rgba(157, 194, 184, 0.40);
+  --ns-border:        rgba(255, 255, 255, 0.10);
+  --ns-border-strong: rgba(255, 27, 107, 0.45);
 
-  --ns-text:        #ECF1EF;
-  --ns-text-muted:  #9BA8A4;
-  --ns-text-faint:  #5D6A66;
-  --ns-text-dim:    #4A5552;
+  --ns-text:        #FFFFFF;
+  --ns-text-muted:  #9099AB;
+  --ns-text-faint:  #5A6275;
+  --ns-text-dim:    #434A5C;
 
-  --ns-accent:        #9DC2B8;
-  --ns-accent-soft:   rgba(157, 194, 184, 0.12);
-  --ns-accent-glow:   0 0 24px rgba(157, 194, 184, 0.35);
-  --ns-accent-grad:   linear-gradient(135deg, #BFDCD3, #9DC2B8);
-  --ns-accent-text-on: #13201D;
-  --ns-accent-2:      #BFDCD3;
+  --ns-accent:        #FF1B6B;
+  --ns-accent-soft:   rgba(255, 27, 107, 0.14);
+  --ns-accent-glow:   0 0 28px rgba(255, 27, 107, 0.50);
+  --ns-accent-grad:   linear-gradient(135deg, #FF4081, #E91E63);
+  --ns-accent-text-on: #FFFFFF;
+  --ns-accent-2:      #FF4081;
 
-  --ns-ok:      #9DC2B8;
-  --ns-warn:    #D9B97A;
-  --ns-danger:  #E2776B;
+  --ns-ok:      #5EE6A0;
+  --ns-warn:    #FFB020;
+  --ns-danger:  #FF6B7B;
 
   --ns-radius-sm: 8px;
   --ns-radius-md: 12px;

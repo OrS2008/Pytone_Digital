@@ -47,9 +47,9 @@ public class MainActivity extends BridgeActivity {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         // Match the brand background so the system bars blend with the
-        // app even before the WebView paints. Sage Calm neutral palette.
-        window.setStatusBarColor(0xFF0A0D0D);
-        window.setNavigationBarColor(0xFF0F1212);
+        // app even before the WebView paints. Opus IPTV deep-navy palette.
+        window.setStatusBarColor(0xFF08090F);
+        window.setNavigationBarColor(0xFF0B0C12);
 
         // Light icons on dark bars.
         WindowInsetsControllerCompat insets =
@@ -87,7 +87,7 @@ public class MainActivity extends BridgeActivity {
             this.bridge.getWebView().setHapticFeedbackEnabled(false);
             // Transparent so the brand background shows through during
             // the WebView's first paint.
-            this.bridge.getWebView().setBackgroundColor(0xFF0F1212);
+            this.bridge.getWebView().setBackgroundColor(0xFF0B0C12);
         }
     }
 

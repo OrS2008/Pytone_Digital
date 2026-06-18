@@ -285,9 +285,13 @@ export default function TvMobileHome() {
            who want category browsing tap into the grid below. ===== */}
       <Rail title={t('home.liveNow')} items={live} t={t} showLive />
 
-      {/* ===== genre grid ===== */}
+      {/* ===== quick-access tiles =====
+           Three large square tiles in the Opus IPTV style — icon up
+           top on a tinted square, label, then a small count subtitle
+           ("N Channels" for live, "Live now" for sports, "Today" for
+           guide). The fourth tile (Catchup) moved into the live page
+           UI so we hit the canonical 3-up layout. */}
       <section className="nshome-section">
-        <div className="nshome-sec-head"><h2>{t('home.discover')}</h2></div>
         <div className="nshome-genre-grid">
           <Link href="/tv/live" className="nshome-genre-tile">
             <span className="nshome-genre-ic nshome-ic-live" aria-hidden="true">
@@ -296,6 +300,11 @@ export default function TvMobileHome() {
               </svg>
             </span>
             <span className="nshome-genre-tile-label">{t('home.cat.live')}</span>
+            {channels.length > 0 && (
+              <span className="nshome-genre-tile-count">
+                {channels.length} {t('home.channels')}
+              </span>
+            )}
           </Link>
           <Link href="/tv/sports" className="nshome-genre-tile">
             <span className="nshome-genre-ic nshome-ic-sports" aria-hidden="true">
@@ -304,6 +313,7 @@ export default function TvMobileHome() {
               </svg>
             </span>
             <span className="nshome-genre-tile-label">{t('home.cat.sports')}</span>
+            <span className="nshome-genre-tile-count">{t('home.liveNow')}</span>
           </Link>
           <Link href="/tv/guide" className="nshome-genre-tile">
             <span className="nshome-genre-ic nshome-ic-guide" aria-hidden="true">
@@ -312,14 +322,7 @@ export default function TvMobileHome() {
               </svg>
             </span>
             <span className="nshome-genre-tile-label">{t('home.cat.guide')}</span>
-          </Link>
-          <Link href="/tv/catchup" className="nshome-genre-tile">
-            <span className="nshome-genre-ic nshome-ic-catchup" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>
-              </svg>
-            </span>
-            <span className="nshome-genre-tile-label">{t('home.cat.catchup')}</span>
+            <span className="nshome-genre-tile-count">{t('home.today')}</span>
           </Link>
         </div>
       </section>

@@ -16,28 +16,31 @@
  */
 
 .nshome {
-  /* Local palette overrides — independent of the global theme so /tv/home
-     looks identical whether the user is on sage, apex, or anything else. */
-  --ns-bg: #0F1212;
-  --ns-surface: #1A1F1E;
-  --ns-surface-2: #232A28;
+  /* Local palette — Opus IPTV inspired. Deep navy background, hot
+     magenta-pink accent, white text. Independent of the global theme
+     so /tv/home looks identical whether the user is on sage, apex,
+     or anything else. */
+  --ns-bg: #0B0C12;
+  --ns-surface: #16171F;
+  --ns-surface-2: #1F202A;
   --ns-line: rgba(255, 255, 255, 0.06);
   --ns-line-2: rgba(255, 255, 255, 0.11);
-  --ns-text: #ECF1EF;
-  --ns-text-2: #9BA8A4;
-  --ns-text-3: #5D6A66;
-  --ns-accent: #9DC2B8;
-  --ns-accent-2: #BFDCD3;
-  --ns-accent-soft: rgba(157, 194, 184, 0.12);
-  --ns-accent-soft-border: rgba(157, 194, 184, 0.30);
-  --ns-accent-ink: #13201D;
-  --ns-live: #E2776B;
-  --ns-live-soft: rgba(226, 119, 107, 0.14);
-  --ns-gold: #D9B97A;
-  --ns-gold-soft: rgba(217, 185, 122, 0.14);
+  --ns-text: #FFFFFF;
+  --ns-text-2: #9099AB;
+  --ns-text-3: #5A6275;
+  --ns-accent: #FF1B6B;
+  --ns-accent-2: #FF4081;
+  --ns-accent-soft: rgba(255, 27, 107, 0.14);
+  --ns-accent-soft-border: rgba(255, 27, 107, 0.35);
+  --ns-accent-ink: #FFFFFF;
+  --ns-accent-grad: linear-gradient(135deg, #FF4081 0%, #E91E63 100%);
+  --ns-live: #FF4D5F;
+  --ns-live-soft: rgba(255, 77, 95, 0.14);
+  --ns-gold: #FFB020;
+  --ns-gold-soft: rgba(255, 176, 32, 0.14);
 
   font-size: 15px;
-  background: #0F1212;
+  background: #0B0C12;
   color: var(--ns-text);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
                'Helvetica Neue', sans-serif;
@@ -66,15 +69,15 @@
 }
 .nshome-brand { display: flex; align-items: center; gap: 0.5rem; }
 .nshome-brand-mark {
-  width: 1.9rem; height: 1.9rem; border-radius: 0.55rem;
-  background: linear-gradient(135deg, #BFDCD3, #9DC2B8);
+  width: 2rem; height: 2rem; border-radius: 0.6rem;
+  background: var(--ns-accent-grad);
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 6px 16px rgba(157, 194, 184, 0.30);
+  box-shadow: 0 8px 20px rgba(255, 27, 107, 0.40);
   flex-shrink: 0;
 }
-.nshome-brand-mark svg { width: 0.9rem; height: 0.9rem; color: var(--ns-accent-ink); }
+.nshome-brand-mark svg { width: 1rem; height: 1rem; color: #fff; }
 .nshome-brand-name { font-weight: 800; font-size: 1rem; letter-spacing: 0.5px; }
-.nshome-brand-name b { color: var(--ns-accent-2); font-weight: 800; }
+.nshome-brand-name b { color: var(--ns-accent); font-weight: 800; }
 
 .nshome-top-actions { display: flex; align-items: center; gap: 0.55rem; }
 .nshome-icon-btn {
@@ -106,10 +109,11 @@
 .nshome-greet { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.5px; }
 .nshome-greet-wave { display: inline-block; }
 .nshome-trial-chip {
-  font-size: 0.7rem; font-weight: 700; color: var(--ns-accent-2);
-  background: var(--ns-accent-soft);
-  border: 1px solid var(--ns-accent-soft-border);
-  padding: 0.4rem 0.7rem; border-radius: 999px; white-space: nowrap;
+  font-size: 0.7rem; font-weight: 700; color: #fff;
+  background: var(--ns-accent-grad);
+  border: 0;
+  padding: 0.4rem 0.8rem; border-radius: 999px; white-space: nowrap;
+  box-shadow: 0 6px 14px rgba(255, 27, 107, 0.28);
 }
 
 /* ===== search ===== */
@@ -205,9 +209,9 @@
   position: absolute; top: 0; left: 0; right: 0; bottom: 0;
   z-index: 1;
   background: linear-gradient(180deg,
-    rgba(15, 18, 18, 0) 30%,
-    rgba(15, 18, 18, 0.55) 65%,
-    rgba(15, 18, 18, 0.97) 100%);
+    rgba(11, 12, 18, 0) 30%,
+    rgba(11, 12, 18, 0.65) 65%,
+    rgba(11, 12, 18, 0.98) 100%);
 }
 .nshome-hero-content {
   position: absolute; left: 0; right: 0; bottom: 0;
@@ -215,11 +219,13 @@
   padding: 1.2rem;
 }
 .nshome-hero-badge {
-  display: inline-block;
+  display: inline-flex; align-items: center; gap: 0.3rem;
   font-size: 0.62rem; font-weight: 800;
   letter-spacing: 1.3px; text-transform: uppercase;
-  color: var(--ns-accent-ink); background: var(--ns-accent-2);
-  padding: 0.35rem 0.65rem; border-radius: 0.4rem;
+  color: #fff;
+  background: var(--ns-accent-grad);
+  padding: 0.35rem 0.7rem; border-radius: 999px;
+  box-shadow: 0 6px 14px rgba(255, 27, 107, 0.30);
 }
 .nshome-hero-title {
   margin: 0.6rem 0 0.2rem;
@@ -236,18 +242,23 @@
 }
 .nshome-btn {
   display: inline-flex; align-items: center; justify-content: center;
-  gap: 0.45rem; padding: 0.75rem 1.05rem;
-  border: 0; border-radius: 0.8rem;
-  font-size: 0.88rem; font-weight: 800; font-family: inherit;
+  gap: 0.5rem; padding: 0.9rem 1.6rem;
+  border: 0; border-radius: 999px;     /* pill button like the Opus mockup */
+  font-size: 0.95rem; font-weight: 800; font-family: inherit;
   cursor: pointer; text-decoration: none;
 }
-.nshome-btn-primary { background: var(--ns-text); color: #0B0D12; }
-.nshome-btn-primary svg { width: 1rem; height: 1rem; }
+.nshome-btn-primary {
+  background: var(--ns-accent-grad);
+  color: #fff;
+  box-shadow: 0 12px 28px rgba(255, 27, 107, 0.42);
+}
+.nshome-btn-primary svg { width: 1.05rem; height: 1.05rem; }
 .nshome-btn-icon {
-  width: 2.6rem; height: 2.6rem; padding: 0;
+  width: 2.8rem; height: 2.8rem; padding: 0;
   background: rgba(255, 255, 255, 0.10);
   color: var(--ns-text);
   border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 50%;
 }
 .nshome-btn-icon svg { width: 1.1rem; height: 1.1rem; }
 
@@ -334,42 +345,54 @@
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* genre grid */
+/* genre grid — 3 prominent tiles in the Opus IPTV style: square card,
+   icon big-and-centered on a tinted square, label, then a small count
+   subtitle ("85 Channels"). 4-column fallback for narrow phones. */
 .nshome-genre-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr);
-  gap: 0.55rem;
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 0.7rem;
   padding: 0 1.1rem;
+}
+@media (max-width: 359px) {
+  .nshome-genre-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (min-width: 600px) {
   .nshome-genre-grid { grid-template-columns: repeat(6, 1fr); }
 }
 .nshome-genre-tile {
   display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 0.45rem;
-  border-radius: 0.95rem; padding: 0.85rem 0.4rem;
+  align-items: center; justify-content: flex-start;
+  gap: 0.5rem;
+  border-radius: 1.1rem; padding: 1.1rem 0.6rem 0.85rem;
   text-align: center;
-  background: var(--ns-surface); border: 1px solid var(--ns-line);
+  background: var(--ns-surface);
+  border: 1px solid var(--ns-line);
   text-decoration: none; color: inherit;
-  min-height: 5.5rem;
+  min-height: 6.5rem;
+  transition: transform 120ms ease, border-color 120ms ease;
 }
+.nshome-genre-tile:active { transform: scale(0.97); }
 .nshome-genre-ic {
   display: flex; align-items: center; justify-content: center;
-  width: 2.2rem; height: 2.2rem; border-radius: 0.65rem;
+  width: 2.8rem; height: 2.8rem; border-radius: 0.85rem;
   flex-shrink: 0;
 }
-.nshome-genre-ic svg { width: 1.05rem; height: 1.05rem; }
+.nshome-genre-ic svg { width: 1.3rem; height: 1.3rem; }
 .nshome-genre-tile-label {
-  font-size: 0.7rem; font-weight: 700; color: var(--ns-text-2);
+  font-size: 0.78rem; font-weight: 800; color: var(--ns-text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   max-width: 100%;
 }
+.nshome-genre-tile-count {
+  font-size: 0.66rem; font-weight: 600; color: var(--ns-text-2);
+  margin-top: -0.2rem;
+}
 
-/* genre icon backgrounds — explicit rgba, no color-mix */
-.nshome-ic-live    { background: rgba(157, 194, 184, 0.14); color: var(--ns-accent-2); }
-.nshome-ic-sports  { background: rgba(217, 185, 122, 0.14); color: var(--ns-gold); }
-.nshome-ic-guide   { background: rgba(159, 176, 188, 0.14); color: #BCC8D6; }
-.nshome-ic-catchup { background: rgba(226, 119, 107, 0.14); color: var(--ns-live); }
+/* genre icon backgrounds — pink primary, then warm/cool variants */
+.nshome-ic-live    { background: rgba(255, 27, 107, 0.16); color: var(--ns-accent-2); }
+.nshome-ic-sports  { background: rgba(255, 176, 32, 0.16); color: var(--ns-gold); }
+.nshome-ic-guide   { background: rgba(99, 159, 255, 0.16); color: #7BA9FF; }
+.nshome-ic-catchup { background: rgba(94, 230, 160, 0.16); color: var(--ns-ok, #5EE6A0); }
 
 /* ===== welcome / empty state ===== */
 .nshome-welcome {
@@ -415,7 +438,8 @@
 }
 .nshome-tab svg { width: 1.25rem; height: 1.25rem; }
 .nshome-tab.active {
-  color: var(--ns-accent-ink); background: var(--ns-accent-2);
+  color: #fff; background: var(--ns-accent-grad);
+  box-shadow: 0 8px 18px rgba(255, 27, 107, 0.35);
 }
 
 /* ===== mesh gradients (for content without artwork) ===== */

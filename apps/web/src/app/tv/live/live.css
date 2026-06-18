@@ -860,8 +860,8 @@
  * ============================================================ */
 @media (max-width: 819px) {
   .live-layout {
-    background: #0F1212;
-    color: #ECF1EF;
+    background: #0B0C12;
+    color: #FFFFFF;
     /* Page can scroll on mobile; the rail no longer needs to
        lock the whole viewport. */
     height: auto;
@@ -888,40 +888,40 @@
     padding: 12px;
     border-left: 0;
     border-radius: 14px;
-    background: #1A1F1E;
+    background: #16171F;
     border: 1px solid rgba(255, 255, 255, 0.06);
   }
-  .rail-row:hover    { background: #232A28; }
+  .rail-row:hover    { background: #1F202A; }
   .rail-row.active,
   .rail-row.focused {
-    background: rgba(157, 194, 184, 0.10);
-    border-color: rgba(157, 194, 184, 0.40);
+    background: rgba(255, 27, 107, 0.12);
+    border-color: rgba(255, 27, 107, 0.40);
     box-shadow: none;
   }
-  .rail-num   { font-size: 15px; color: #9BA8A4; }
+  .rail-num   { font-size: 15px; color: #9099AB; }
   .rail-logo  {
     width: 48px; height: 36px;
-    background: #0F1212;
+    background: #0B0C12;
     border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.06);
   }
   .rail-logo img { max-width: 42px; max-height: 30px; }
-  .rail-name  { color: #ECF1EF; font-size: 14.5px; font-weight: 700; }
-  .rail-now   { color: #9BA8A4; }
-  .rail-next  { color: #5D6A66; }
-  .rail-divider { color: #5D6A66; }
+  .rail-name  { color: #FFFFFF; font-size: 14.5px; font-weight: 700; }
+  .rail-now   { color: #9099AB; }
+  .rail-next  { color: #5A6275; }
+  .rail-divider { color: #5A6275; }
 
   .live-status {
-    background: rgba(157, 194, 184, 0.06);
+    background: rgba(255, 27, 107, 0.06);
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    color: #9BA8A4;
+    color: #9099AB;
   }
-  .live-status-link { color: #BFDCD3; }
+  .live-status-link { color: #FF4081; }
 
-  /* Player chrome — match the sage card look from home. */
+  /* Player chrome — match the Opus card look from home. */
   .player-surface .placeholder {
-    background: linear-gradient(135deg, #1A1F1E 0%, #0F1212 60%);
+    background: linear-gradient(135deg, #16171F 0%, #0B0C12 60%);
   }
-  .player-surface .placeholder-meta { color: #5D6A66; }
-  .player-surface .placeholder-meta .ch-num { color: #232A28; }
+  .player-surface .placeholder-meta { color: #5A6275; }
+  .player-surface .placeholder-meta .ch-num { color: #1F202A; }
 }
