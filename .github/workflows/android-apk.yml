@@ -28,6 +28,12 @@ concurrency:
   group: android-apk-${{ github.ref }}
   cancel-in-progress: true
 
+# We publish to a GitHub Release on every build, which needs write
+# access to repo contents (releases live under `contents`). Default
+# GITHUB_TOKEN permissions on workflows are read-only.
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build Android APK
@@ -168,6 +174,44 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # Publish the APK as a GitHub Release so it's downloadable from a
+      # permanent public URL — no GitHub login required, no zip wrapper,
+      # no 30-day artifact expiry. We use a rolling `apk-latest` tag that
+      # gets overwritten on every build, so the URL stays stable:
+      #   https://github.com/<owner>/<repo>/releases/download/apk-latest/nova-stream.apk
+      # The release also keeps a per-build copy attached as a backup.
+      - name: Publish APK to GitHub Release (apk-latest)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: "Nova Stream APK (latest build)"
+          body: |
+            Auto-published from workflow run #${{ github.run_number }}
+            Commit: ${{ github.sha }}
+
+            **Install on Android**
+            1. Download `nova-stream.apk` below
+            2. Allow "Install unknown apps" for your browser / file manager
+            3. Tap the file → Install
+          files: |
+            apps/android/dist/*.apk
+          fail_on_unmatched_files: true
+          make_latest: true
+          # `apk-latest` tag is reused every build — overwrite previous assets.
+          generate_release_notes: false
+
+      # Rename the latest copy to a stable filename for the permalink.
+      - name: Pin stable filename in release
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          cp apps/android/dist/nova-stream-${{ github.run_number }}.apk \
+             apps/android/dist/nova-stream.apk
+          gh release upload apk-latest apps/android/dist/nova-stream.apk \
+            --clobber --repo "${{ github.repository }}"
+
       - name: Print install instructions
         run: |
-          echo "::notice title=APK ready::Download the 'nova-stream-apk' artifact from the workflow run summary, transfer the .apk to your phone, allow 'Install unknown apps' for your file manager, and tap it to install."
+          echo "::notice title=APK ready::Download from https://github.com/${{ github.repository }}/releases/download/apk-latest/nova-stream.apk — no login required."

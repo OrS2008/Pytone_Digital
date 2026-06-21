@@ -848,22 +848,22 @@
 .infobar-modal-actions { display: flex; gap: 10px; }
 
 /* ============================================================
- * Mobile sage palette overrides
+ * Mobile — channel GRID (Opus IPTV style)
  *
- * On phones the Live page used to ship its TV-era colours (the
- * hot-pink var(--ns-accent, #FF3B6E) accent, very-dark #06070A background, hard
- * borders) which felt jarring next to the new sage home. These
- * rules bring it into line: same neutral background, same card
- * radius, same gentle accent. Channel rows look like cards
- * instead of a dense list, and the focus colour is the sage mint
- * used by the bottom tab bar's active state.
+ * On phones the channel rail stops being a dense vertical list and
+ * becomes a 2-up grid of poster-style tiles: a coloured art block
+ * (channel logo centred, pink number badge top-left), with the
+ * channel name + current programme underneath. Far easier to scan
+ * and tap than a list, and it matches the card language of the home
+ * screen. Category names become full-width section headers.
+ *
+ * The desktop / TV layout (>819px) is untouched — it keeps the
+ * information-dense list which suits a remote + big screen.
  * ============================================================ */
 @media (max-width: 819px) {
   .live-layout {
     background: #0B0C12;
     color: #FFFFFF;
-    /* Page can scroll on mobile; the rail no longer needs to
-       lock the whole viewport. */
     height: auto;
     min-height: 100vh;
     min-height: 100dvh;
@@ -871,45 +871,114 @@
     padding-bottom: 6rem; /* room for the floating tab bar */
   }
   .live-body { overflow: visible; }
+
+  /* The rail becomes a 2-column grid of cards. */
   .rail {
     background: transparent;
     border-right: 0;
-    padding: 8px 12px 16px;
+    padding: 10px 12px 16px;
     max-height: none;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    align-content: start;
+  }
+
+  /* Category labels span the full grid width as section headers. */
+  .rail-divider {
+    grid-column: 1 / -1;
+    padding: 10px 2px 2px;
+    font-size: 12px; font-weight: 800;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    color: #7A8499;
+  }
+  .rail-divider:first-child { padding-top: 2px; }
+
+  /* Each channel = a vertical card. */
+  .rail-row {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-  }
-  .rail-row {
-    display: grid;
-    grid-template-columns: 36px 48px 1fr;
-    gap: 12px;
+    gap: 0;
     height: auto;
-    padding: 12px;
+    padding: 0;
     border-left: 0;
-    border-radius: 14px;
+    border-radius: 16px;
+    overflow: hidden;
     background: #16171F;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    position: relative;
+    transition: transform 120ms ease, border-color 120ms ease;
   }
-  .rail-row:hover    { background: #1F202A; }
+  .rail-row:active { transform: scale(0.97); }
   .rail-row.active,
   .rail-row.focused {
-    background: rgba(255, 27, 107, 0.12);
-    border-color: rgba(255, 27, 107, 0.40);
-    box-shadow: none;
+    border-color: rgba(255, 27, 107, 0.55);
+    box-shadow: 0 0 0 1px rgba(255, 27, 107, 0.35),
+                0 12px 28px -12px rgba(255, 27, 107, 0.45);
+    background: #1A1620;
   }
-  .rail-num   { font-size: 15px; color: #9099AB; }
-  .rail-logo  {
-    width: 48px; height: 36px;
-    background: #0B0C12;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+
+  /* Number badge — pink pill, top-left over the art. */
+  .rail-num {
+    position: absolute;
+    top: 8px; left: 8px;
+    z-index: 2;
+    min-width: 26px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 7px;
+    border-radius: 7px;
+    background: linear-gradient(135deg, #FF4081 0%, #E91E63 100%);
+    color: #fff; font-size: 12px; font-weight: 800;
+    box-shadow: 0 4px 10px rgba(255, 27, 107, 0.40);
   }
-  .rail-logo img { max-width: 42px; max-height: 30px; }
-  .rail-name  { color: #FFFFFF; font-size: 14.5px; font-weight: 700; }
-  .rail-now   { color: #9099AB; }
-  .rail-next  { color: #5A6275; }
-  .rail-divider { color: #5A6275; }
+
+  /* Art block — the logo sits centred on a tinted gradient. */
+  .rail-logo {
+    width: 100%; height: auto;
+    aspect-ratio: 16 / 10;
+    border: 0; border-radius: 0;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    background: #0F1018;
+  }
+  .rail-logo img {
+    max-width: 62%; max-height: 60%;
+    width: auto; height: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45));
+  }
+  /* 3-letter fallback when a channel has no logo. */
+  .rail-logo > span {
+    font-size: 22px !important; font-weight: 800 !important;
+    color: rgba(255, 255, 255, 0.92) !important;
+    letter-spacing: 0.5px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Gradient variety per tile so the grid doesn't read as flat
+     grey. nth-child cycles through six tasteful mesh backgrounds. */
+  .rail-row:nth-child(6n+1) .rail-logo { background: radial-gradient(120% 100% at 20% 0%, #7C3AED 0%, transparent 60%), #171029; }
+  .rail-row:nth-child(6n+2) .rail-logo { background: radial-gradient(120% 100% at 80% 0%, #0EA5E9 0%, transparent 60%), #0B1A22; }
+  .rail-row:nth-child(6n+3) .rail-logo { background: radial-gradient(120% 100% at 20% 100%, #F59E0B 0%, transparent 60%), #241409; }
+  .rail-row:nth-child(6n+4) .rail-logo { background: radial-gradient(120% 100% at 80% 10%, #22C55E 0%, transparent 60%), #0B1F1A; }
+  .rail-row:nth-child(6n+5) .rail-logo { background: radial-gradient(120% 100% at 100% 100%, #EC4899 0%, transparent 60%), #1C0E26; }
+  .rail-row:nth-child(6n+6) .rail-logo { background: radial-gradient(120% 100% at 0% 0%, #06B6D4 0%, transparent 60%), #0A1626; }
+
+  /* Meta strip under the art. */
+  .rail-meta { padding: 9px 11px 11px; min-height: 0; }
+  .rail-name {
+    color: #FFFFFF; font-size: 13.5px; font-weight: 700;
+    line-height: 1.25;
+    display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .rail-now {
+    color: #9099AB; font-size: 11.5px; margin-top: 3px;
+    display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  /* Keep tiles even height — drop the "next" line on the grid. */
+  .rail-next { display: none; }
 
   .live-status {
     background: rgba(255, 27, 107, 0.06);
