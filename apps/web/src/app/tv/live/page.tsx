@@ -575,7 +575,13 @@ export default function LivePage() {
           <ChannelRail
             channels={channels}
             activeIdx={activeIdx}
+            // Arrow keys / remote: just browse — preview updates, no
+            // fullscreen. Click on a card: enter watching mode straight
+            // away. On phones the preview tile sits below the grid
+            // (off-screen), so a click without entering watching looks
+            // like nothing happened.
             onTune={(i) => tune(i)}
+            onPlay={(i) => tune(i, { enterWatching: true })}
           />
           {!watching && (
             <div className="live-preview">

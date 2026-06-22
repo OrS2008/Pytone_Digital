@@ -7,7 +7,21 @@ import { userKey } from '@/lib/session';
 interface Props {
   channels: Channel[];
   activeIdx: number;
+  // Two flavours of "tune":
+  //   - onTune(i)            — browse (arrow keys / remote). Updates the
+  //                            highlighted channel and refreshes the
+  //                            preview tile, but does NOT enter
+  //                            fullscreen playback. The TV / desktop
+  //                            flow.
+  //   - onPlay(i)            — explicit "play this now" (a click on a
+  //                            card). Goes straight to fullscreen
+  //                            playback. The phone flow — on mobile the
+  //                            preview tile is below the fold so a
+  //                            silent rail tap looks broken.
+  // If onPlay is omitted we fall back to onTune so older callers (TV
+  // layout, keyboard nav) keep their browse-only behaviour.
   onTune: (idx: number) => void;
+  onPlay?: (idx: number) => void;
 }
 
 // Categories that benefit from spoiler protection — sports + live news.
@@ -26,7 +40,8 @@ const SPOILER_CATS = /sport|football|soccer|basketball|tennis|league|liga|nba|nh
  * Channels are grouped by category with a sticky-style divider; in a real
  * client the grouping is configurable and reorderable.
  */
-export default function ChannelRail({ channels, activeIdx, onTune }: Props) {
+export default function ChannelRail({ channels, activeIdx, onTune, onPlay }: Props) {
+  const play = onPlay ?? onTune;
   const railRef = useRef<HTMLDivElement>(null);
   const focusedRef = useRef<number>(activeIdx);
   const [spoiler, setSpoiler] = useState(false);
@@ -81,7 +96,7 @@ export default function ChannelRail({ channels, activeIdx, onTune }: Props) {
         key={ch.id}
         data-idx={i}
         className={`rail-row ${i === activeIdx ? 'active focused' : ''}`}
-        onClick={() => onTune(i)}
+        onClick={() => play(i)}
       >
         <div className="rail-num">{ch.number}</div>
         <div className="rail-logo">
