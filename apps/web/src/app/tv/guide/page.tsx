@@ -36,6 +36,7 @@ import { loadDigest } from '@/lib/digestClient';
 import type { EpgProgramme } from '@/lib/epg';
 import type { M3UChannel } from '@/lib/m3u';
 import type { DigestChannel } from '@/lib/digest';
+import './guide.css';
 import { useT } from '@/lib/i18n';
 
 // Default dimensions for desktop / TV. The component reads viewport
@@ -239,17 +240,23 @@ export default function GuidePage() {
   if (epgState === 'none') {
     return (
       <TvFocusProvider>
-        <main style={{ minHeight: '100vh' }}>
+        <main className="guide-empty-host">
           <div style={{ height: 100 }}><TvNav /></div>
-          <div style={{ padding: 48, textAlign: 'center', color: '#B7BEC9' }}>
-            <h1 style={{ margin: '0 0 12px', color: '#E9EBF1' }}>{t('guide.title')}</h1>
-            <p>{t('guide.needEpg')}</p>
-            <Link href="/tv/account/sources" style={{
-              display: 'inline-block', marginTop: 16, padding: '10px 18px',
-              background: 'var(--ns-accent, #FF3B6E)', color: 'var(--ns-accent-text-on, #fff)', borderRadius: 10,
-              textDecoration: 'none', fontWeight: 700,
-            }}>{t('guide.addEpg')}</Link>
-          </div>
+          <section className="guide-empty">
+            <div className="guide-empty-card">
+              <div className="guide-empty-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="17" rx="2"/>
+                  <path d="M3 10h18M8 4V2M16 4V2M7 14h3M7 17h3M13 14h4M13 17h4"/>
+                </svg>
+              </div>
+              <h1 className="guide-empty-title">{t('guide.title')}</h1>
+              <p  className="guide-empty-sub">{t('guide.needEpg')}</p>
+              <Link href="/tv/account/sources?tab=epg" className="guide-empty-cta">
+                {t('guide.addEpg')}
+              </Link>
+            </div>
+          </section>
         </main>
       </TvFocusProvider>
     );
@@ -257,9 +264,14 @@ export default function GuidePage() {
   if (epgState !== 'ready') {
     return (
       <TvFocusProvider>
-        <main style={{ minHeight: '100vh' }}>
+        <main className="guide-empty-host">
           <div style={{ height: 100 }}><TvNav /></div>
-          <div style={{ padding: 48, textAlign: 'center', color: '#B7BEC9' }}>{t('guide.loading')}</div>
+          <section className="guide-empty">
+            <div className="guide-empty-card">
+              <div className="guide-empty-spinner" aria-hidden="true" />
+              <p className="guide-empty-sub">{t('guide.loading')}</p>
+            </div>
+          </section>
         </main>
       </TvFocusProvider>
     );

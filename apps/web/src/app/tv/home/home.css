@@ -97,8 +97,9 @@
 .nshome-avatar {
   display: flex; align-items: center; justify-content: center;
   width: 2.3rem; height: 2.3rem; border-radius: 50%;
-  background: linear-gradient(135deg, #A8B9A8, #9FB0BC);
-  font-weight: 800; font-size: 0.82rem; color: #1f2929;
+  background: var(--ns-accent-grad);
+  font-weight: 800; font-size: 0.82rem; color: #fff;
+  box-shadow: 0 4px 12px rgba(255, 27, 107, 0.35);
   text-decoration: none; flex-shrink: 0;
 }
 

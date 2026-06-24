@@ -1,0 +1,86 @@
+/* Programme Guide — page-level styles.
+ *
+ * The grid itself is rendered inline with computed values, but the
+ * empty / loading states need a proper card layout. We keep those
+ * here so the page never falls back to "centered text on a black
+ * canvas" — which was the original look and felt unfinished. */
+
+.guide-empty-host {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #0B0C12;
+  color: #FFFFFF;
+}
+
+.guide-empty {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12vh 20px 6vh;
+}
+
+.guide-empty-card {
+  width: 100%;
+  max-width: 460px;
+  background:
+    radial-gradient(120% 100% at 100% 0%, rgba(255, 27, 107, 0.10), transparent 55%),
+    #16171F;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 22px;
+  padding: 36px 28px 32px;
+  text-align: center;
+  box-shadow:
+    0 30px 80px -28px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+}
+
+.guide-empty-icon {
+  width: 72px; height: 72px;
+  margin: 0 auto 18px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 20px;
+  background: rgba(255, 27, 107, 0.14);
+  color: #FF4081;
+  box-shadow: 0 12px 30px -10px rgba(255, 27, 107, 0.45);
+}
+.guide-empty-icon svg { width: 36px; height: 36px; }
+
+.guide-empty-title {
+  margin: 0 0 10px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  color: #FFFFFF;
+}
+
+.guide-empty-sub {
+  margin: 0 0 22px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: #9099AB;
+}
+
+.guide-empty-cta {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 13px 26px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #FF4081 0%, #E91E63 100%);
+  color: #fff;
+  font-size: 14.5px; font-weight: 800; letter-spacing: 0.2px;
+  text-decoration: none;
+  box-shadow: 0 14px 32px -8px rgba(255, 27, 107, 0.50);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.guide-empty-cta:hover { transform: translateY(-1px); }
+
+/* Loading spinner — same card frame, just a spinning ring instead
+   of the calendar icon. */
+.guide-empty-spinner {
+  width: 44px; height: 44px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.10);
+  border-top-color: #FF4081;
+  animation: guide-spin 0.9s linear infinite;
+}
+@keyframes guide-spin { to { transform: rotate(360deg); } }
