@@ -4,7 +4,7 @@
  * Goal: when the visitor jumps from the public welcome page into
  * signup, the design language feels like a continuation (same dark
  * canvas, same gradient style, same button shape, same fonts) but
- * the accent shifts to teal/emerald to signal "action / fresh start".
+ * the accent stays on the Opus pink to signal "action / fresh start".
  *
  * Class prefix is `ah-` (auth host) so styles can never collide with
  * the `.ac-*` account-shell classes which are still used inside /tv.
@@ -13,8 +13,8 @@
 .ah-root {
   min-height: 100vh;
   background:
-    radial-gradient(ellipse 900px 500px at 78% 18%, rgba(45, 212, 191, 0.18), transparent 60%),
-    radial-gradient(ellipse 700px 400px at 22% 82%, rgba(16, 185, 129, 0.14), transparent 65%),
+    radial-gradient(ellipse 900px 500px at 78% 18%, rgba(255, 27, 107, 0.20), transparent 60%),
+    radial-gradient(ellipse 700px 400px at 22% 82%, rgba(233, 30, 99, 0.14), transparent 65%),
     #04060B;
   color: #E7ECF3;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -40,7 +40,7 @@
 .ah-card {
   width: 100%; max-width: 460px;
   background: rgba(14, 18, 24, 0.92);
-  border: 1px solid rgba(45, 212, 191, 0.18);
+  border: 1px solid rgba(255, 27, 107, 0.18);
   border-radius: 20px;
   padding: 44px 38px;
   box-shadow:
@@ -52,13 +52,13 @@
   text-align: center;
   font-weight: 800; font-size: 13px;
   letter-spacing: 6px;
-  color: var(--ns-accent, #2DD4BF);
+  color: var(--ns-accent, #FF1B6B);
   margin-bottom: 22px;
 }
 .ah-title {
   margin: 0 0 8px;
   font-size: 28px; font-weight: 800; letter-spacing: -0.6px;
-  background: linear-gradient(180deg, #fff 0%, #B5F3E1 100%);
+  background: linear-gradient(180deg, #fff 0%, #FF8FB5 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -93,8 +93,8 @@
 .ah-input::placeholder { color: #4F5868; }
 .ah-input:focus {
   outline: none;
-  border-color: var(--ns-accent, #2DD4BF);
-  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.18);
+  border-color: var(--ns-accent, #FF1B6B);
+  box-shadow: 0 0 0 3px rgba(255, 27, 107, 0.20);
 }
 .ah-field-help {
   font-size: 12px;
@@ -117,7 +117,7 @@
 .ah-check input[type="checkbox"] {
   margin-top: 2px;
   width: 16px; height: 16px;
-  accent-color: var(--ns-accent, #2DD4BF);
+  accent-color: var(--ns-accent, #FF1B6B);
   cursor: pointer;
 }
 
@@ -137,8 +137,8 @@
   width: 100%;
   display: inline-flex; align-items: center; justify-content: center;
   padding: 14px 18px;
-  background: linear-gradient(180deg, var(--ns-accent-2, #34E5C2), var(--ns-accent, #2DD4BF));
-  color: #04060B;
+  background: var(--ns-accent-grad, linear-gradient(135deg, #FF4081, #E91E63));
+  color: #fff;
   border: 0;
   border-radius: 12px;
   font-family: inherit;
@@ -146,20 +146,20 @@
   font-size: 14.5px;
   letter-spacing: 0.2px;
   cursor: pointer;
-  box-shadow: 0 10px 32px rgba(45, 212, 191, 0.40);
+  box-shadow: 0 10px 32px rgba(255, 27, 107, 0.42);
   transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
 }
-.ah-btn:hover:not(:disabled)  { transform: translateY(-1px); box-shadow: 0 14px 40px rgba(45, 212, 191, 0.30); }
+.ah-btn:hover:not(:disabled)  { transform: translateY(-1px); box-shadow: 0 14px 40px rgba(255, 27, 107, 0.50); }
 .ah-btn:disabled              { opacity: 0.6; cursor: default; }
 
 /* Links --------------------------------------------------------------- */
 .ah-link {
-  color: var(--ns-accent, #2DD4BF);
+  color: var(--ns-accent, #FF1B6B);
   text-decoration: none;
   font-weight: 600;
   transition: color 120ms ease;
 }
-.ah-link:hover { color: var(--ns-accent-2, #67E8D2); text-decoration: underline; }
+.ah-link:hover { color: var(--ns-accent-2, #FF4081); }
 .ah-bottom {
   margin-top: 24px;
   text-align: center;
@@ -169,7 +169,7 @@
 
 /* Divider for the "or sign in with email" line ------------------------
    .ac-auth-divider is the class GoogleSection hardcodes; we restyle
-   it here so the third-party component picks up the teal palette
+   it here so the third-party component picks up the pink palette
    automatically. */
 .ah-divider,
 .ah-root .ac-auth-divider {
