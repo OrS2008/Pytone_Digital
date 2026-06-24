@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Channel } from './types';
 import { proxiedStreamUrl, onStreamModeChange } from '@/lib/streamProxy';
+import { useT } from '@/lib/i18n';
 
 /*
  * The player surface.
@@ -137,6 +138,7 @@ function applyPreferences(h: HlsInstance): void {
 }
 
 export default function PlayerSurface({ channel, autoPlay = true, startUnmuted = false, onCandidateChange }: Props) {
+  const { t } = useT();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -423,18 +425,16 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
             onVolumeChange={(e) => setMuted((e.currentTarget as HTMLVideoElement).muted)}
           />
 
-          {/* Player controls overlay — pinned top-right, lives above
-              the native <video controls> for cast + pip toggles. */}
+          {/* Player controls overlay — pinned top-left, sits above the
+              native <video> for rotate + pip toggles. SVG icons only,
+              localised titles. */}
           <div className="player-tools">
             <button
               className="player-tool"
               onClick={toggleLandscape}
-              title="הצג במצב אופקי"
-              aria-label="Rotate to landscape"
+              title={t('live.rotate')}
+              aria-label={t('live.rotate')}
             >
-              {/* Phone-with-rotation glyph: a horizontal device with a
-                  small rotation arrow. Pure SVG so it picks up the
-                  surrounding text colour from .player-tool. */}
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
                    stroke="currentColor" strokeWidth="2"
                    strokeLinecap="round" strokeLinejoin="round">
@@ -445,27 +445,54 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
             <button
               className="player-tool"
               onClick={togglePip}
-              title={pipActive ? 'Leave Picture-in-Picture' : 'Enter Picture-in-Picture'}
-              aria-label="Picture in picture"
-            >▭</button>
+              title={pipActive ? t('live.pipLeave') : t('live.pip')}
+              aria-label={pipActive ? t('live.pipLeave') : t('live.pip')}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" strokeWidth="2"
+                   strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="14" rx="2"/>
+                <rect x="11" y="10" width="9" height="7" rx="1"
+                      fill="currentColor" stroke="none"/>
+              </svg>
+            </button>
           </div>
 
           {!playing && !err && (
-            <div className="player-loading">Tuning {channel.number} · {channel.name}…</div>
+            <div className="player-loading">
+              <div className="player-loading-spinner" aria-hidden="true"/>
+              <div className="player-loading-text">
+                <span className="player-loading-num">{channel.number}</span>
+                <span className="player-loading-name">{channel.name}</span>
+              </div>
+              <div className="player-loading-status">{t('live.tuning')}</div>
+            </div>
           )}
           {playing && muted && (
-            <div className="player-unmute">
-              <span>🔇</span>
-              <span>Tap to unmute</span>
-            </div>
+            <button type="button" className="player-unmute" onClick={(e) => { e.stopPropagation(); unmute(); }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" strokeWidth="2"
+                   strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M11 5 6 9H2v6h4l5 4z"/>
+                <line x1="22" y1="9" x2="16" y2="15"/>
+                <line x1="16" y1="9" x2="22" y2="15"/>
+              </svg>
+              <span>{t('live.tapToUnmute')}</span>
+            </button>
           )}
           {err && (
             <div className="player-error">
-              <div className="player-error-title">Can&apos;t play {channel.name}</div>
-              <div className="player-error-msg">{err}</div>
-              <div className="player-error-hint">
-                The stream may be geo-blocked, require credentials, or block cross-origin playback.
+              <div className="player-error-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8"  x2="12" y2="13"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
               </div>
+              <div className="player-error-title">{t('live.cantPlay')}</div>
+              <div className="player-error-msg">{channel.name} · {err}</div>
+              <div className="player-error-hint">{t('live.streamHelp')}</div>
             </div>
           )}
         </>
