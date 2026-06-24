@@ -335,20 +335,24 @@ export default function LivePage() {
     };
   }, [watching]);
 
-  // Auto-enter fullscreen when the user rotates the phone to landscape
-  // (and exit back to browsing when they rotate back to portrait). This
-  // mirrors the M6+ / Molotov / Pluto behaviour: video apps treat
-  // landscape as "the user wants to watch", portrait as "the user wants
-  // to browse". The user can still tap the Fullscreen button manually.
+  // Auto-enter fullscreen when the user rotates the phone to landscape.
+  // This mirrors the M6+ / Molotov / Pluto behaviour: landscape means
+  // "I want to watch". We ONLY auto-enter — we deliberately do NOT
+  // auto-exit on portrait, because:
+  //   1. portrait is the resting orientation, so an "exit on portrait"
+  //      rule fires the instant the user taps a channel (which sets
+  //      watching=true while the phone is still portrait) and slams the
+  //      player shut again — the "I click a channel and nothing plays"
+  //      bug. The user leaves the player with the × button instead.
+  //   2. some OEM WebViews emit spurious orientationchange events.
   //
-  // We only respond to orientation events on phones (≤819px) — on
-  // tablets and desktops rotating the screen doesn't carry the same
-  // intent. We also bail when there's no channel selected, when the
-  // user is on the welcome empty-state, and when a permission/policy
-  // denial blocks fullscreen.
+  // We attach the listener ONCE (empty deps) and read the live
+  // `watching` value through a ref, so toggling watching never re-runs
+  // this effect (which is what caused the slam-shut regression).
+  const watchingRef = useRef(watching);
+  useEffect(() => { watchingRef.current = watching; }, [watching]);
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (!active) return;
     const isPhone = window.innerWidth <= 819;
     if (!isPhone) return;
 
@@ -360,34 +364,20 @@ export default function LivePage() {
       return window.innerWidth > window.innerHeight;
     }
 
-    function onChange() {
-      if (isLandscape()) {
-        // Rotated to landscape → enter watching mode. The existing
-        // useEffect that mirrors `watching` to the Fullscreen API
-        // will pick this up on its next render and call
-        // requestFullscreen() on the overlay element.
-        if (!watching) setWatching(true);
-      } else {
-        // Rotated back to portrait → leave fullscreen so the user can
-        // browse the channel rail again. Doing this here instead of
-        // relying on the user pressing the close × button feels more
-        // like a native streaming app.
-        if (watching) setWatching(false);
-      }
+    function onOrientation() {
+      // Only react to a genuine rotation INTO landscape, and only when
+      // we're not already watching. Never force-exit here.
+      if (isLandscape() && !watchingRef.current) setWatching(true);
     }
 
-    // Run once on mount in case the user opened the page already in
-    // landscape (deep-link from another app, autorotate already locked).
-    onChange();
-
     const screenOrient = screen.orientation as ScreenOrientation | undefined;
-    screenOrient?.addEventListener?.('change', onChange);
-    window.addEventListener('orientationchange', onChange);
+    screenOrient?.addEventListener?.('change', onOrientation);
+    window.addEventListener('orientationchange', onOrientation);
     return () => {
-      screenOrient?.removeEventListener?.('change', onChange);
-      window.removeEventListener('orientationchange', onChange);
+      screenOrient?.removeEventListener?.('change', onOrientation);
+      window.removeEventListener('orientationchange', onOrientation);
     };
-  }, [active, watching]);
+  }, []);
 
   // The 5-second auto-hide window is re-armed imperatively on every
   // activity tick (mouse move, click, key press inside the player
