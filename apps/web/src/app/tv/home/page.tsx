@@ -47,6 +47,26 @@ function pickList(channels: M3UChannel[], n: number, prefersLogo = false): M3UCh
   return clean.slice(0, n);
 }
 
+// Category rails for the home page. Each rail is keyword-matched
+// against the channel name + its M3U group-title, so the home fills
+// out with several content rows (like the Opus / Netflix layout)
+// using ONLY the user's real playlist — no placeholder content. A
+// rail that matches nothing is simply not rendered, so a news-only
+// playlist won't show empty Sports/Movies rows.
+const CATEGORY_RAILS: { titleKey: string; re: RegExp }[] = [
+  { titleKey: 'home.sports',        re: /sport|football|soccer|nba|nfl|nhl|mlb|espn|league|champion|tennis|golf|f1|formula|racing|rugby|cricket|boxing|ufc|fight/i },
+  { titleKey: 'home.movies',        re: /movie|cinema|film|hbo|cinemax|paramount|mgm|starz|showtime|fox movies|sky cinema/i },
+  { titleKey: 'home.news',          re: /news|cnn|bbc|fox news|sky news|al ?jazeera|msnbc|euronews|cnbc|bloomberg/i },
+  { titleKey: 'home.documentaries', re: /discovery|nat ?geo|geographic|history|documentary|animal|science|nature|crime/i },
+  { titleKey: 'home.kids',          re: /kid|cartoon|disney|nick|baby|junior|boomerang|pbs kids/i },
+];
+
+function pickByCategory(channels: M3UChannel[], re: RegExp, n: number): M3UChannel[] {
+  return channels
+    .filter((c) => !SKIP.test(c.name) && re.test(`${c.name} ${c.category}`))
+    .slice(0, n);
+}
+
 function greetingKey(): 'home.greet.morning' | 'home.greet.afternoon' | 'home.greet.evening' | 'home.greet.night' {
   const h = new Date().getHours();
   if (h < 5)  return 'home.greet.night';
@@ -164,6 +184,16 @@ export default function TvMobileHome() {
 
   const hero = useMemo(() => pickHero(channels),     [channels]);
   const live = useMemo(() => pickList(channels, 12), [channels]);
+  // Build the category rails once per playlist change. We keep only the
+  // rails that actually have channels, so the home page grows with the
+  // playlist instead of showing empty rows.
+  const catRails = useMemo(
+    () =>
+      CATEGORY_RAILS
+        .map((c) => ({ titleKey: c.titleKey, items: pickByCategory(channels, c.re, 12) }))
+        .filter((r) => r.items.length >= 3),
+    [channels],
+  );
 
   return (
     <main className="nshome">
@@ -279,11 +309,16 @@ export default function TvMobileHome() {
         </section>
       )}
 
-      {/* ===== live now rail — the only non-empty rail by default.
-           We dropped Sports / News / Movies / Entertainment / Kids /
-           Docs / Music rails to keep the home page short and calm. Users
-           who want category browsing tap into the grid below. ===== */}
+      {/* ===== live now rail ===== */}
       <Rail title={t('home.liveNow')} items={live} t={t} showLive />
+
+      {/* ===== category rails — one row per content type that the
+           user's playlist actually contains (Sports / Movies / News /
+           Docs / Kids). Gives the home the rich multi-row feel of a
+           real streaming app without any placeholder content. ===== */}
+      {catRails.map((r) => (
+        <Rail key={r.titleKey} title={t(r.titleKey)} items={r.items} t={t} />
+      ))}
 
       {/* ===== quick-access tiles =====
            Three large square tiles in the Opus IPTV style — icon up

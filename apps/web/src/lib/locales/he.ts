@@ -106,6 +106,7 @@ const he: Record<string, string> = {
   'home.continue':       'המשך לצפות',
   'home.liveNow':        'משדרים עכשיו',
   'home.sports':         'ספורט',
+  'home.movies':         'סרטים וקולנוע',
   'home.trending':       'פופולרי',
   'home.recommended':    'מומלץ עבורך',
   'home.recent':         'נוסף לאחרונה',

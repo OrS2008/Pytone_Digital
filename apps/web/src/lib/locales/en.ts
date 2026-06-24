@@ -106,6 +106,7 @@ const en: Record<string, string> = {
   'home.continue':       'Continue Watching',
   'home.liveNow':        'Live Now',
   'home.sports':         'Sports',
+  'home.movies':         'Movies & Cinema',
   'home.trending':       'Trending',
   'home.recommended':    'Recommended for You',
   'home.recent':         'Recently Added',
