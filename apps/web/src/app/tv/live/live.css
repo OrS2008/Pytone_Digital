@@ -631,6 +631,11 @@
   background: #000;
   min-height: 0;
   overflow: hidden;
+  /* Own the pinch gesture in JS (pinch-out → fullscreen). pan-y still
+     lets the user scroll the page vertically over the preview tile;
+     pinch-zoom is blocked so the WebView's native zoom can't steal
+     our touchmove. */
+  touch-action: pan-y;
 }
 .live-preview-player .player-surface {
   position: absolute;
@@ -735,6 +740,10 @@
   z-index: 80;
   display: flex;
   flex-direction: column;
+  /* The fullscreen overlay isn't scrollable, and pinch-in here means
+     "exit fullscreen" — handled in JS. touch-action:none blocks the
+     WebView's native zoom from intercepting. */
+  touch-action: none;
 }
 .live-player-overlay .player-surface {
   position: absolute; inset: 0;

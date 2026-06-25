@@ -393,6 +393,47 @@ export default function LivePage() {
     armHide();
   }, [armHide]);
 
+  // Pinch-to-fullscreen gesture. While in the preview tile, spreading
+  // two fingers apart (pinch-out) jumps the player into fullscreen;
+  // pinching them together inside the fullscreen overlay drops back to
+  // browsing. This is the gesture users expect from Twitch / YouTube /
+  // native iOS video, and gives us a parallel to the rotate-into-
+  // fullscreen behaviour for users who don't want to rotate.
+  //
+  // We compute the touch-pair distance on touchstart, compare it to the
+  // running distance on touchmove, and trigger when it crosses a 60 px
+  // threshold. The ref pattern (no state) keeps the handler cheap and
+  // re-render-free.
+  const pinchRef = useRef<{ start: number; fired: boolean }>({ start: 0, fired: false });
+  const pinchDist = (touches: React.TouchList): number => {
+    const a = touches[0], b = touches[1];
+    return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  };
+  const onPinchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      pinchRef.current = { start: pinchDist(e.touches), fired: false };
+    }
+  }, []);
+  const onPinchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length !== 2 || pinchRef.current.start === 0 || pinchRef.current.fired) return;
+    const delta = pinchDist(e.touches) - pinchRef.current.start;
+    const THRESHOLD = 60; // pixels of separation change
+    if (delta > THRESHOLD && !watching) {
+      // Pinch-out in preview → fullscreen.
+      pinchRef.current.fired = true;
+      setWatching(true);
+      e.preventDefault();
+    } else if (delta < -THRESHOLD && watching) {
+      // Pinch-in inside fullscreen → exit.
+      pinchRef.current.fired = true;
+      setWatching(false);
+      e.preventDefault();
+    }
+  }, [watching]);
+  const onPinchEnd = useCallback(() => {
+    pinchRef.current = { start: 0, fired: false };
+  }, []);
+
   // Arm the hide on first mount (bar starts visible) and on every
   // channel change (tune() sets visible=true and we want a fresh 5 s).
   useEffect(() => {
@@ -567,7 +608,13 @@ export default function LivePage() {
           />
           {!watching && (
             <div className="live-preview">
-              <div className="live-preview-player">
+              <div
+                className="live-preview-player"
+                onTouchStart={onPinchStart}
+                onTouchMove={onPinchMove}
+                onTouchEnd={onPinchEnd}
+                onTouchCancel={onPinchEnd}
+              >
                 {playable ? (
                   <PlayerSurface
                     channel={playable}
@@ -656,6 +703,10 @@ export default function LivePage() {
             onMouseMove={wakeInfoBar}
             onClick={wakeInfoBar}
             onKeyDown={wakeInfoBar}
+            onTouchStart={onPinchStart}
+            onTouchMove={onPinchMove}
+            onTouchEnd={onPinchEnd}
+            onTouchCancel={onPinchEnd}
           >
             <PlayerSurface
               channel={playable}
