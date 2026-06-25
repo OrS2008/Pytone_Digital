@@ -40,11 +40,58 @@ const SPOILER_CATS = /sport|football|soccer|basketball|tennis|league|liga|nba|nh
  * Channels are grouped by category with a sticky-style divider; in a real
  * client the grouping is configurable and reorderable.
  */
+// How many channels to render at first, and how many to add each time
+// the user scrolls near the bottom. IPTV playlists routinely carry
+// thousands of channels; rendering them all at once produced ~28k DOM
+// nodes and made the WebView crawl. We window the list instead — only
+// the rows near the viewport exist in the DOM.
+const WINDOW_STEP = 60;
+
 export default function ChannelRail({ channels, activeIdx, onTune, onPlay }: Props) {
   const play = onPlay ?? onTune;
   const railRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const focusedRef = useRef<number>(activeIdx);
   const [spoiler, setSpoiler] = useState(false);
+  // Number of channels currently rendered. Starts at one window, but
+  // always includes the active channel (deep-links can target a channel
+  // thousands deep) plus a small buffer so auto-scroll-to-active works.
+  const [visible, setVisible] = useState(() =>
+    Math.min(channels.length, Math.max(WINDOW_STEP, activeIdx + 20)),
+  );
+
+  // Reset the window when the playlist itself changes.
+  useEffect(() => {
+    setVisible(Math.min(channels.length, Math.max(WINDOW_STEP, activeIdx + 20)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channels]);
+
+  // Make sure the active channel is always within the rendered window
+  // (e.g. arrow-key navigation walking past the current bottom edge, or
+  // a deep-link to a far channel).
+  useEffect(() => {
+    setVisible((v) => Math.min(channels.length, Math.max(v, activeIdx + 20)));
+  }, [activeIdx, channels.length]);
+
+  // Grow the window as a sentinel near the bottom scrolls into view.
+  // rootMargin pre-loads the next chunk ~2 screens early so the user
+  // never sees a gap. Viewport root works whether the page scrolls
+  // (mobile) or the rail itself scrolls (desktop).
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    if (visible >= channels.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisible((v) => Math.min(channels.length, v + WINDOW_STEP));
+        }
+      },
+      { rootMargin: '1200px 0px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [visible, channels.length]);
 
   // Read the spoiler-protection preference. Updates if the user flips
   // it in the preferences screen and comes back to /tv/live.
@@ -84,11 +131,15 @@ export default function ChannelRail({ channels, activeIdx, onTune, onPlay }: Pro
   }, [channels.length, onTune]);
 
   // Render with category dividers when the category changes between rows.
+  // Only the first `visible` channels are materialised — the rest are
+  // added as the sentinel scrolls into view.
   const rows: React.ReactNode[] = [];
   let lastCat = '';
-  channels.forEach((ch, i) => {
+  const upTo = Math.min(visible, channels.length);
+  for (let i = 0; i < upTo; i++) {
+    const ch = channels[i];
     if (ch.category !== lastCat) {
-      rows.push(<div key={`d-${ch.category}`} className="rail-divider">{ch.category}</div>);
+      rows.push(<div key={`d-${i}-${ch.category}`} className="rail-divider">{ch.category}</div>);
       lastCat = ch.category;
     }
     rows.push(
@@ -101,7 +152,7 @@ export default function ChannelRail({ channels, activeIdx, onTune, onPlay }: Pro
         <div className="rail-num">{ch.number}</div>
         <div className="rail-logo">
           {ch.logoUrl
-            ? <img src={ch.logoUrl} alt="" />
+            ? <img src={ch.logoUrl} alt="" loading="lazy" decoding="async" />
             : <span style={{ color: '#5A6070', fontSize: 12, fontWeight: 700 }}>{ch.name.slice(0, 3)}</span>}
         </div>
         <div className="rail-meta">
@@ -111,9 +162,16 @@ export default function ChannelRail({ channels, activeIdx, onTune, onPlay }: Pro
         </div>
       </div>,
     );
-  });
+  }
 
-  return <div ref={railRef} className="rail">{rows}</div>;
+  return (
+    <div ref={railRef} className="rail">
+      {rows}
+      {visible < channels.length && (
+        <div ref={sentinelRef} className="rail-sentinel" aria-hidden="true" />
+      )}
+    </div>
+  );
 }
 
 function fmt(d: Date) {

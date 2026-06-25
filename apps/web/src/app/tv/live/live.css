@@ -939,6 +939,10 @@
     align-content: start;
   }
 
+  /* Sentinel spans the full grid width so the IntersectionObserver
+     reliably fires when the user nears the bottom. */
+  .rail-sentinel { grid-column: 1 / -1; height: 1px; }
+
   /* Category labels span the full grid width as section headers. */
   .rail-divider {
     grid-column: 1 / -1;
@@ -963,6 +967,12 @@
     border: 1px solid rgba(255, 255, 255, 0.07);
     position: relative;
     transition: transform 120ms ease, border-color 120ms ease;
+    /* Skip layout/paint for off-screen cards. Combined with the JS
+       windowing this keeps the WebView smooth on huge playlists. The
+       intrinsic size reserves the card's height so the scrollbar and
+       scroll position stay correct before a card paints. */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 190px;
   }
   .rail-row:active { transform: scale(0.97); }
   .rail-row.active,

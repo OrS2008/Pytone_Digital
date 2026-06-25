@@ -24,9 +24,11 @@
   padding: 0.55rem 0.4rem;
   padding-bottom: calc(0.55rem + env(safe-area-inset-bottom, 0px));
   border-radius: 1.3rem;
-  background: rgba(22, 23, 31, 0.92);
-  backdrop-filter: blur(20px) saturate(1.3);
-  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  /* Solid (not translucent + blur): the bar is fixed and always
+     visible, so a backdrop-filter recomposites on every scroll frame —
+     a real jank source on Android WebViews. At 0.92 opacity the blur
+     was barely visible anyway, so we drop it for a solid fill. */
+  background: #15161E;
   border: 1px solid rgba(255, 255, 255, 0.11);
   box-shadow: 0 16px 40px -16px rgba(0, 0, 0, 0.65);
 }
