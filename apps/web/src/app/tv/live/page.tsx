@@ -335,47 +335,39 @@ export default function LivePage() {
     };
   }, [watching]);
 
-  // Auto-enter fullscreen when the user rotates the phone to landscape.
-  // This mirrors the M6+ / Molotov / Pluto behaviour: landscape means
-  // "I want to watch". We ONLY auto-enter — we deliberately do NOT
-  // auto-exit on portrait, because:
-  //   1. portrait is the resting orientation, so an "exit on portrait"
-  //      rule fires the instant the user taps a channel (which sets
-  //      watching=true while the phone is still portrait) and slams the
-  //      player shut again — the "I click a channel and nothing plays"
-  //      bug. The user leaves the player with the × button instead.
-  //   2. some OEM WebViews emit spurious orientationchange events.
+  // Auto-enter fullscreen whenever the user rotates the phone — in
+  // EITHER direction. Any orientation change while a channel is selected
+  // is treated as "I want to watch", so the player goes fullscreen on
+  // its own. We ONLY ever enter (setWatching(true)); we never auto-exit,
+  // because an "exit on portrait" rule fires the instant the user taps a
+  // channel (watching=true while still portrait) and slams the player
+  // shut again — the "I click a channel and nothing plays" bug. The user
+  // leaves the player with the × button.
   //
-  // We attach the listener ONCE (empty deps) and read the live
-  // `watching` value through a ref, so toggling watching never re-runs
-  // this effect (which is what caused the slam-shut regression).
+  // We attach the listener ONCE (empty deps) and read the live `watching`
+  // / `active` values through refs, so state changes never re-run this
+  // effect (which is what caused the slam-shut regression).
   const watchingRef = useRef(watching);
+  const hasChannelRef = useRef(!!active);
   useEffect(() => { watchingRef.current = watching; }, [watching]);
+  useEffect(() => { hasChannelRef.current = !!active; }, [active]);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const isPhone = window.innerWidth <= 819;
     if (!isPhone) return;
 
-    function isLandscape(): boolean {
-      if (screen.orientation?.type) {
-        return screen.orientation.type.startsWith('landscape');
-      }
-      // Fallback for older WebViews: compare viewport dimensions.
-      return window.innerWidth > window.innerHeight;
-    }
-
-    function onOrientation() {
-      // Only react to a genuine rotation INTO landscape, and only when
-      // we're not already watching. Never force-exit here.
-      if (isLandscape() && !watchingRef.current) setWatching(true);
+    function enterFullscreen() {
+      // Any rotation → go fullscreen, as long as a channel is selected
+      // and we're not already watching. Direction-agnostic on purpose.
+      if (hasChannelRef.current && !watchingRef.current) setWatching(true);
     }
 
     const screenOrient = screen.orientation as ScreenOrientation | undefined;
-    screenOrient?.addEventListener?.('change', onOrientation);
-    window.addEventListener('orientationchange', onOrientation);
+    screenOrient?.addEventListener?.('change', enterFullscreen);
+    window.addEventListener('orientationchange', enterFullscreen);
     return () => {
-      screenOrient?.removeEventListener?.('change', onOrientation);
-      window.removeEventListener('orientationchange', onOrientation);
+      screenOrient?.removeEventListener?.('change', enterFullscreen);
+      window.removeEventListener('orientationchange', enterFullscreen);
     };
   }, []);
 
