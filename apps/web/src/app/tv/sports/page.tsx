@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useLayoutEffect } from 'react';
 import Link from 'next/link';
 import { TvFocusProvider } from '@/components/tv/TvFocus';
 import TvNav from '@/components/tv/TvNav';
@@ -14,9 +14,11 @@ import { useT } from '@/lib/i18n';
 
 export default function SportsHome() {
   const { t } = useT();
-  const [hasPlaylist, setHasPlaylist] = useState(
-    typeof window !== 'undefined' ? (getCachedChannels()?.length ?? 0) > 0 : false,
-  );
+  // Hydration-safe (React #418 fix): match server HTML, hydrate pre-paint.
+  const [hasPlaylist, setHasPlaylist] = useState(false);
+  useLayoutEffect(() => {
+    if ((getCachedChannels()?.length ?? 0) > 0) setHasPlaylist(true);
+  }, []);
   useEffect(() => {
     let cancelled = false;
     (async () => {

@@ -491,7 +491,9 @@
   background: rgba(255,255,255,0.04);
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
-.live-status-ok  { color: var(--ns-ok,     #7DF9C6); }
+/* Informational, not "success" — muted text reads cleaner than the
+   green success colour which clashed with the pink theme. */
+.live-status-ok  { color: var(--ns-text-muted, #B7BEC9); }
 .live-status-err { color: var(--ns-danger, #FF6B7B); }
 .live-status-link {
   color: var(--ns-accent, #FF3B6E);

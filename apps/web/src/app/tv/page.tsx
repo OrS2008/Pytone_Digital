@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { TvFocusProvider, useSetZone } from '@/components/tv/TvFocus';
 import TvNav from '@/components/tv/TvNav';
@@ -20,9 +20,15 @@ function TvHomeInner() {
   const router = useRouter();
   const focusHero = useSetZone('hero');
   const { t } = useT();
-  const [hasPlaylist, setHasPlaylist] = useState(
-    typeof window !== 'undefined' ? (getCachedChannels()?.length ?? 0) > 0 : false,
-  );
+  // Hydration-safe: start false to match the server HTML, then read the
+  // cache in a layout effect (runs before first paint, so no flash).
+  // Reading the cache inside the useState initializer made the client's
+  // first render differ from the server HTML → React #418 on every
+  // warm-cache visit.
+  const [hasPlaylist, setHasPlaylist] = useState(false);
+  useLayoutEffect(() => {
+    if ((getCachedChannels()?.length ?? 0) > 0) setHasPlaylist(true);
+  }, []);
 
   // Phones get the new mobile home — bounce them off the desktop layout
   // immediately. TVs (which advertise themselves in the UA) and laptop

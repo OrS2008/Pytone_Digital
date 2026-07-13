@@ -10,7 +10,7 @@
  * when no playlist is configured so the page is never empty.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react';
 import Link from 'next/link';
 import TvNav from '@/components/tv/TvNav';
 import { TvFocusProvider } from '@/components/tv/TvFocus';
@@ -39,10 +39,15 @@ export default function SearchHome() {
   const [q, setQ] = useState('');
   // Hydrate synchronously from the shared cache so the channel grid
   // appears instantly when the user comes back from another tab.
-  const [channels, setChannels] = useState<M3UChannel[]>(
-    (typeof window !== 'undefined' ? getCachedChannels() : null) ?? [],
-  );
-  const [loading, setLoading]   = useState(channels.length === 0);
+  // Hydration-safe: start empty (matches the server HTML); the layout
+  // effect swaps in the cache before first paint. Cache-in-initializer
+  // caused React #418 on warm visits.
+  const [channels, setChannels] = useState<M3UChannel[]>([]);
+  const [loading, setLoading]   = useState(true);
+  useLayoutEffect(() => {
+    const cached = getCachedChannels();
+    if (cached && cached.length > 0) { setChannels(cached); setLoading(false); }
+  }, []);
   const [listening, setListening] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
 

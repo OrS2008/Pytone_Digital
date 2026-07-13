@@ -132,9 +132,14 @@
 }
 .nw-feature:hover { transform: translateY(-2px); border-color: rgba(255, 27, 107, 0.35); }
 .nw-feature-icon {
-  font-size: 26px;
-  margin-bottom: 12px;
+  width: 46px; height: 46px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 13px;
+  background: rgba(255, 27, 107, 0.12);
+  color: #FF6B9C;
+  margin-bottom: 14px;
 }
+.nw-feature-icon svg { width: 22px; height: 22px; }
 .nw-feature-title {
   margin: 0 0 8px;
   font-size: 16px; font-weight: 700;

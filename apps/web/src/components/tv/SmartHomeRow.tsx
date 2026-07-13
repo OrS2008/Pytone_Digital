@@ -15,7 +15,7 @@
  * channels, so the tiles look meaningful rather than generic.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useLayoutEffect } from 'react';
 import type { M3UChannel } from '@/lib/m3u';
 import { getCachedChannels, loadChannels } from '@/lib/channelCache';
 import LivePreviewTile from './LivePreviewTile';
@@ -94,9 +94,12 @@ function pickChannels(all: M3UChannel[], kind: Props['pick'], limit: number): M3
 }
 
 export default function SmartHomeRow({ title, pick, limit = 12 }: Props) {
-  const [channels, setChannels] = useState<M3UChannel[]>(
-    (typeof window !== 'undefined' ? getCachedChannels() : null) ?? [],
-  );
+  // Hydration-safe (React #418 fix): match server HTML, hydrate pre-paint.
+  const [channels, setChannels] = useState<M3UChannel[]>([]);
+  useLayoutEffect(() => {
+    const cached = getCachedChannels();
+    if (cached && cached.length > 0) setChannels(cached);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

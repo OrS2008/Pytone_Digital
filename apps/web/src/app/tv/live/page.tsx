@@ -14,7 +14,7 @@
  * back so the user can keep zapping.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import TvNav from '@/components/tv/TvNav';
 import { TvFocusProvider } from '@/components/tv/TvFocus';
@@ -84,33 +84,21 @@ function normaliseEpoch(raw: number): number {
 }
 
 export default function LivePage() {
-  // Synchronous hydration: if the cache already has the user's
-  // playlist from a previous visit / route, use it instantly.
-  // Otherwise the rail starts empty and the page renders an
-  // "add your playlist" empty state — no demo channels.
-  const initialCached = (() => {
-    if (typeof window === 'undefined') return null;
-    return getCachedChannels();
-  })();
-  const initialDeep = (() => {
-    if (typeof window === 'undefined') return { idx: 0, watch: false, startMs: 0, durMin: 0 };
-    const params = new URLSearchParams(window.location.search);
-    const want = params.get('ch');
-    const startMs = normaliseEpoch(Number(params.get('start')) || 0);
-    const durMin  = Number(params.get('dur'))   || 0;
-    // ?preview=1 means "tune this channel but stay in the small
-    // preview" — Search uses this so a click on a result doesn't
-    // hijack the user into fullscreen.
-    const preview = params.get('preview') === '1';
-    if (!want || !initialCached) return { idx: 0, watch: false, startMs, durMin };
-    const idx = initialCached.findIndex((c) => String(c.number) === want);
-    return idx >= 0 ? { idx, watch: !preview, startMs, durMin } : { idx: 0, watch: false, startMs, durMin };
-  })();
-
-  const [channels, setChannels] = useState<Channel[]>(initialCached ?? []);
-  const [activeIdx, setActiveIdx] = useState(initialDeep.idx);
+  // All state starts in the server-rendered "empty" shape so hydration
+  // matches the prerendered HTML byte-for-byte (reading the session
+  // cache / URL inside useState initializers caused React #418 on every
+  // warm-cache visit — React then re-renders the whole page from
+  // scratch, which is SLOWER than hydrating cleanly). A useLayoutEffect
+  // below swaps in the cached playlist + deep-link params before the
+  // first paint, so the user never sees the empty state flash.
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [activeIdx, setActiveIdx] = useState(0);
   const [infoVisible, setInfoVisible] = useState(true);
-  const [watching, setWatching] = useState(initialDeep.watch);
+  const [watching, setWatching] = useState(false);
+  // Tracks whether the layout effect found a warm cache — the network
+  // refresh effect uses it to decide between "background refresh" and
+  // "first load with a visible loading state".
+  const hydratedFromCacheRef = useRef(false);
   // Ref to the player overlay so we can put it into OS-level
   // fullscreen via the Fullscreen API. The overlay always covers
   // the viewport via CSS too; requesting fullscreen on top lets the
@@ -126,7 +114,7 @@ export default function LivePage() {
   // Catch-up mode. When set, the active channel plays from this past
   // timestamp instead of the live edge. Cleared when the user clicks
   // "Return to live" or picks a different channel from the rail.
-  const [catchupMs, setCatchupMs] = useState<number>(initialDeep.startMs);
+  const [catchupMs, setCatchupMs] = useState<number>(0);
   // Optimistic preview of the pending seek target during a ← / → skip
   // burst. The actual catchupMs only updates after the LiveScrubber
   // debounce; this preview keeps the InfoBar's progress slider tracking
@@ -137,32 +125,46 @@ export default function LivePage() {
   // only covers the current live programme), so the catchup page bakes
   // the real EPG duration into the URL. Used as the Flussonic segment
   // length when the programme lookup below doesn't match.
-  const [catchupDurMin, setCatchupDurMin] = useState(initialDeep.durMin);
+  const [catchupDurMin, setCatchupDurMin] = useState(0);
   const [catchupError, setCatchupError] = useState<string | null>(null);
-  const [load, setLoad] = useState<LoadState>(
-    initialCached
-      ? { kind: 'ready', count: initialCached.length, sourceTitle: getUserSourceUrl()?.title || 'My playlist' }
-      : { kind: 'idle' },
-  );
+  const [load, setLoad] = useState<LoadState>({ kind: 'idle' });
   // EPG state: idle | loading (banner says "loading guide") | ready | none
   // (user hasn't configured an XMLTV source). Drives the small status
   // text shown below the now/next line in the preview meta strip.
-  const [epgState, setEpgState] = useState<'idle' | 'loading' | 'ready' | 'none'>(
-    typeof window !== 'undefined' && getUserEpgUrl() ? 'idle' : 'none',
-  );
+  const [epgState, setEpgState] = useState<'idle' | 'loading' | 'ready' | 'none'>('none');
 
-  // In Next.js App Router the component is server-rendered with
-  // window=undefined, so initialDeep.startMs/durMin are 0. The
-  // useState initialiser inherits that server value on hydration.
-  // This effect corrects catchupMs/catchupDurMin on the client as
-  // soon as the first paint finishes — before the user sees anything.
-  useEffect(() => {
-    const p = new URLSearchParams(window.location.search);
-    const ms  = normaliseEpoch(Number(p.get('start')) || 0);
-    const dur = Number(p.get('dur'))   || 0;
-    if (ms  > 0) setCatchupMs(ms);
-    if (dur > 0) setCatchupDurMin(dur);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Pre-paint hydration: pull the cached playlist + URL deep-link
+  // params into state BEFORE the first client paint. Layout effects run
+  // after hydration completes but before the browser paints, so this is
+  // both hydration-safe (server HTML matched the empty initial state)
+  // and flash-free (the user never sees the empty state).
+  useLayoutEffect(() => {
+    const cached = getCachedChannels();
+    const params = new URLSearchParams(window.location.search);
+    const want    = params.get('ch');
+    const startMs = normaliseEpoch(Number(params.get('start')) || 0);
+    const durMin  = Number(params.get('dur')) || 0;
+    // ?preview=1 means "tune this channel but stay in the small
+    // preview" — Search uses this so a click on a result doesn't
+    // hijack the user into fullscreen.
+    const preview = params.get('preview') === '1';
+
+    if (startMs > 0) setCatchupMs(startMs);
+    if (durMin  > 0) setCatchupDurMin(durMin);
+    if (getUserEpgUrl()) setEpgState('idle');
+
+    if (cached && cached.length > 0) {
+      hydratedFromCacheRef.current = true;
+      setChannels(cached);
+      setLoad({ kind: 'ready', count: cached.length, sourceTitle: getUserSourceUrl()?.title || 'My playlist' });
+      if (want) {
+        const idx = cached.findIndex((c) => String(c.number) === want);
+        if (idx >= 0) {
+          setActiveIdx(idx);
+          if (!preview) setWatching(true);
+        }
+      }
+    }
   }, []);
 
   const active = channels[activeIdx];
@@ -235,7 +237,7 @@ export default function LivePage() {
       // If we already hydrated from cache we still kick a background
       // refresh, but we don't show a loading state — the user keeps
       // seeing their channels the whole time.
-      const wasHydrated = initialCached !== null;
+      const wasHydrated = hydratedFromCacheRef.current;
       if (!wasHydrated) setLoad({ kind: 'loading' });
 
       const result = await loadChannelsResult();
@@ -295,7 +297,7 @@ export default function LivePage() {
     }
     run();
     return () => { cancelled = true; };
-    // initialCached is captured once on mount.
+    // hydratedFromCacheRef is set by the layout effect, which runs first.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

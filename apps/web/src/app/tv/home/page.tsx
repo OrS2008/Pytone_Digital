@@ -12,7 +12,7 @@
  * home.css so they don't collapse on older Android WebViews.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { M3UChannel } from '@/lib/m3u';
@@ -150,11 +150,24 @@ function Rail({ title, items, t, showLive }: RailProps) {
 export default function TvMobileHome() {
   const router = useRouter();
   const { t, locale, setLocale } = useT();
-  const [channels, setChannels] = useState<M3UChannel[]>(
-    typeof window !== 'undefined' ? (getCachedChannels() ?? []) : [],
-  );
+  // Start EMPTY on both server and client so hydration matches (reading
+  // the sessionStorage cache inside the useState initializer produced
+  // React #418 — the server HTML had no channels but the client's first
+  // render did). useLayoutEffect swaps in the cache before first paint,
+  // so there is no visible flash.
+  const [channels, setChannels] = useState<M3UChannel[]>([]);
+  useLayoutEffect(() => {
+    const cached = getCachedChannels();
+    if (cached && cached.length > 0) setChannels(cached);
+  }, []);
   const [email, setEmail] = useState<string | null>(null);
   const [history, setHistory] = useState<WatchEntry[]>([]);
+  // Greeting is time-of-day dependent. Computing it during render bakes
+  // the BUILD-time hour into the static HTML and the client recomputes
+  // with the local hour — another #418. Render a stable default first,
+  // correct after mount.
+  const [greetKey, setGreetKey] = useState<string>('home.greet.evening');
+  useEffect(() => { setGreetKey(greetingKey()); }, []);
 
   // /tv/home is the mobile home (designed for phones / the Android
   // APK). Non-phone users (laptop / desktop) should land on the
@@ -231,7 +244,7 @@ export default function TvMobileHome() {
         </div>
         <div className="nshome-greet-row">
           <div className="nshome-greet">
-            {t(greetingKey())} <span className="nshome-greet-wave" aria-hidden="true">👋</span>
+            {t(greetKey)} <span className="nshome-greet-wave" aria-hidden="true">👋</span>
           </div>
           {email && <span className="nshome-trial-chip">{t('home.trialActive')}</span>}
         </div>

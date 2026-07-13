@@ -252,6 +252,14 @@ html[dir="rtl"] .tv-scroll-arrow-right > span { margin-right: 3px; margin-left: 
   min-height: 540px;
   position: relative;
   overflow: hidden;
+  /* Rich mesh fallback that always paints UNDER the live <video>
+     preview. Many streams refuse to preview (geo-block, CORS, auth) —
+     without this the hero collapsed to a giant black void. */
+  background:
+    radial-gradient(90% 80% at 85% 10%, rgba(233, 30, 99, 0.28) 0%, transparent 55%),
+    radial-gradient(70% 90% at 15% 90%, rgba(124, 58, 237, 0.22) 0%, transparent 60%),
+    radial-gradient(60% 60% at 60% 60%, rgba(255, 64, 129, 0.10) 0%, transparent 65%),
+    #0B0C12;
 }
 .tv-hero img {
   position: absolute;
@@ -388,23 +396,24 @@ html[dir="rtl"] .tv-scroll-arrow-right > span { margin-right: 3px; margin-left: 
   font-size: 18px;
   font-weight: 500;
   color: rgba(233, 235, 241, 0.7);
-  border-radius: 8px;
+  border-radius: 999px;
   border: 3px solid transparent;
   outline: none;
+  text-decoration: none;   /* Links must never show the UA underline */
+  transition: color 120ms ease, background 120ms ease;
 }
+.tv-nav-link:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
 .tv-nav-link.focused {
   color: #fff;
   border-color: var(--ns-accent, #FF3B6E);
 }
-/* Active route — underlined accent so the user always knows which
-   section they're on (the focused state is for keyboard navigation
-   only and disappears when focus moves). */
+/* Active route — accent-tinted pill, matching the account section's
+   nav language. (Was an underline, but combined with the UA default
+   underline on the other links the whole nav read as "unstyled".) */
 .tv-nav-link.active {
   color: #fff;
-  text-decoration: underline;
-  text-decoration-color: var(--ns-accent, #FF3B6E);
-  text-decoration-thickness: 3px;
-  text-underline-offset: 8px;
+  background: var(--ns-accent-soft, rgba(255, 59, 110, 0.14));
+  font-weight: 700;
 }
 
 /* Always-visible account avatar in the top-right of the nav. Clicking

@@ -14,7 +14,7 @@
  * the home page never looks empty.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCurrentZone, useSetZone } from './TvFocus';
 import { getCachedChannels, loadChannels } from '@/lib/channelCache';
@@ -55,15 +55,22 @@ export default function TvHero() {
   const { t } = useT();
   const [btn, setBtn] = useState(0);
 
-  const [channels, setChannels] = useState<M3UChannel[]>(
-    (typeof window !== 'undefined' ? getCachedChannels() : null) ?? [],
-  );
+  // Hydration-safe: start empty (matches server HTML), read the cache
+  // in a layout effect before first paint. The old useState-initializer
+  // cache read caused React #418 on warm-cache visits.
+  const [channels, setChannels] = useState<M3UChannel[]>([]);
   const [idx, setIdx] = useState(0);
   const [previewFailed, setPreviewFailed] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Hydrate channels (no-op if already in cache).
+  useLayoutEffect(() => {
+    const cached = getCachedChannels();
+    if (cached && cached.length > 0) setChannels(cached);
+  }, []);
+
+  // Hydrate channels from the network (no-op if the cache already
+  // populated state above).
   useEffect(() => {
     let cancelled = false;
     if (channels.length > 0) return;
@@ -73,7 +80,7 @@ export default function TvHero() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [channels.length]);
 
   const featured = useMemo(() => pickFeatured(channels), [channels]);
   const current_channel = featured[idx];

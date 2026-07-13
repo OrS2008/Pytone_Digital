@@ -8,11 +8,42 @@
 // users to /tv at the cookie-check layer (../page.tsx).
 
 import Link from 'next/link';
+import type { ReactElement } from 'react';
 import './welcome.css';
+
+// Inline SVG feature icons — crisp at every DPI, tinted via CSS, and
+// consistent across platforms. (Emoji render differently on every OS
+// and read as unfinished next to the rest of the design.)
+const ICONS: Record<string, ReactElement> = {
+  playlist: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="5" width="20" height="14" rx="2"/>
+      <path d="m10 9 5 3-5 3z" fill="currentColor" stroke="none"/>
+    </svg>
+  ),
+  fast: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M13 2 3 14h7l-1 8 10-12h-7z"/>
+    </svg>
+  ),
+  sync: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 12a9 9 0 0 1-15.4 6.4L3 16"/>
+      <path d="M3 12a9 9 0 0 1 15.4-6.4L21 8"/>
+      <path d="M3 22v-6h6"/><path d="M21 2v6h-6"/>
+    </svg>
+  ),
+  lock: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="11" width="18" height="11" rx="2"/>
+      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+    </svg>
+  ),
+};
 
 const FEATURES = [
   {
-    icon: '📺',
+    icon: 'playlist',
     title: 'Bring any playlist',
     text:
       'M3U, M3U8, Xtream Codes, Stalker portals — paste a URL and Nova ' +
@@ -20,7 +51,7 @@ const FEATURES = [
       'Watching out of the box.',
   },
   {
-    icon: '⚡',
+    icon: 'fast',
     title: 'Fast on every screen',
     text:
       'Optimised for Smart TVs, web browsers, phones and tablets. ' +
@@ -28,7 +59,7 @@ const FEATURES = [
       'channel switching.',
   },
   {
-    icon: '🔄',
+    icon: 'sync',
     title: 'Settings follow you',
     text:
       'Sign in once. Your playlist, parental controls, themes, history ' +
@@ -36,7 +67,7 @@ const FEATURES = [
       'Nova Stream on.',
   },
   {
-    icon: '🔒',
+    icon: 'lock',
     title: 'Your data stays yours',
     text:
       "We don't host video. We don't sell data. We don't run ad " +
@@ -78,7 +109,7 @@ export default function WelcomeLanding() {
       <section className="nw-features">
         {FEATURES.map((f) => (
           <article className="nw-feature" key={f.title}>
-            <div className="nw-feature-icon" aria-hidden>{f.icon}</div>
+            <div className="nw-feature-icon" aria-hidden>{ICONS[f.icon]}</div>
             <h3 className="nw-feature-title">{f.title}</h3>
             <p className="nw-feature-text">{f.text}</p>
           </article>

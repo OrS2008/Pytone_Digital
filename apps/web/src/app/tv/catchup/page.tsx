@@ -25,7 +25,7 @@
  * those entries).
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useLayoutEffect } from 'react';
 import Link from 'next/link';
 import TvNav from '@/components/tv/TvNav';
 import { TvFocusProvider } from '@/components/tv/TvFocus';
@@ -71,13 +71,16 @@ function startOfDay(d: Date): number {
 
 export default function CatchupPage() {
   const { t } = useT();
-  const [channels, setChannels] = useState<M3UChannel[]>(
-    (typeof window !== 'undefined' ? getCachedChannels() : null) ?? [],
-  );
+  // Hydration-safe: start empty / 'none' (matches server HTML); layout
+  // effect hydrates from cache before first paint (React #418 fix).
+  const [channels, setChannels] = useState<M3UChannel[]>([]);
   const [epgIndex, setEpgIndex] = useState<EpgIndex | null>(null);
-  const [epgState, setEpgState] = useState<'idle' | 'loading' | 'ready' | 'none'>(
-    typeof window !== 'undefined' && getUserEpgUrl() ? 'idle' : 'none',
-  );
+  const [epgState, setEpgState] = useState<'idle' | 'loading' | 'ready' | 'none'>('none');
+  useLayoutEffect(() => {
+    const cached = getCachedChannels();
+    if (cached && cached.length > 0) setChannels(cached);
+    if (getUserEpgUrl()) setEpgState('idle');
+  }, []);
   const [recs, setRecs] = useState<Recording[]>([]);
   const [selectedNum, setSelectedNum] = useState<number | null>(null);
   const [showRecordings, setShowRecordings] = useState(false);
