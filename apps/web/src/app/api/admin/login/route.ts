@@ -17,30 +17,20 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { signAdminToken, ADMIN_COOKIE } from '@/lib/adminSession';
+import { getKV } from '@/lib/cfEnv';
+import { rateLimit, callerIp } from '@/lib/rateLimit';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 interface Body { username?: string; password?: string }
 
-// Per-instance rate limit. Best-effort across one isolate; Cloudflare
-// may spawn several, so this is a tar-pit and not a hard guarantee —
-// real production should move to Durable Objects or KV.
-const FAILS: Map<string, number[]> = new Map();
-const LIMIT = 5;
-const WINDOW_MS = 5 * 60_000;
-
-function tooManyFails(key: string): boolean {
-  const now = Date.now();
-  const arr = (FAILS.get(key) || []).filter((t) => now - t < WINDOW_MS);
-  FAILS.set(key, arr);
-  return arr.length >= LIMIT;
-}
-function recordFail(key: string) {
-  const arr = FAILS.get(key) || [];
-  arr.push(Date.now());
-  FAILS.set(key, arr);
-}
+// Rate-limit budget: 8 attempts per 5 minutes, keyed on the caller IP.
+// Backed by KV (see lib/rateLimit) so the budget is GLOBAL across
+// Cloudflare isolates — the previous in-memory Map was per-isolate and
+// an attacker hitting different edges reset it for free.
+const ADMIN_LOGIN_MAX = 8;
+const ADMIN_LOGIN_WINDOW_SEC = 5 * 60;
 
 function hexToBytes(hex: string): Uint8Array {
   const out = new Uint8Array(hex.length / 2);
@@ -118,15 +108,24 @@ async function handleLogin(req: NextRequest) {
     return NextResponse.json({ error: 'ADMIN_SESSION_SECRET must be at least 32 chars.' }, { status: 503 });
   }
 
+  // Global, KV-backed rate limit keyed on caller IP. Fails open only if
+  // KV is unreachable (a KV hiccup must not lock every admin out).
+  const kv = getKV();
+  if (kv) {
+    const rl = await rateLimit(kv, 'admin_login', callerIp(req), ADMIN_LOGIN_MAX, ADMIN_LOGIN_WINDOW_SEC);
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Too many attempts. Try again in a few minutes.' },
+        { status: 429, headers: { 'retry-after': String(rl.retryAfter) } },
+      );
+    }
+  }
+
   let body: Body;
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'JSON body required.' }, { status: 400 }); }
   const username = (body.username || '').trim().toLowerCase();
   const password = body.password || '';
   if (!username || !password) return NextResponse.json({ error: 'Username and password required.' }, { status: 400 });
-
-  if (tooManyFails(username)) {
-    return NextResponse.json({ error: 'Too many attempts. Try again in a few minutes.' }, { status: 429 });
-  }
 
   const enc = new TextEncoder();
   const userBytes = enc.encode(username);
@@ -135,7 +134,6 @@ async function handleLogin(req: NextRequest) {
   const passOk = await verifyPassword(password, ADMIN_PASSWORD_HASH);
 
   if (!userOk || !passOk) {
-    recordFail(username);
     // Small randomised delay to blunt online guessing without giving
     // a precise oracle on which check failed.
     const jitter = crypto.getRandomValues(new Uint8Array(1))[0] & 0x3f;

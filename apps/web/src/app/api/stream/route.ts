@@ -219,6 +219,9 @@ export async function GET(req: NextRequest) {
   const corsOrigin = req.headers.get('origin') || '';
   const passThroughHeaders: Record<string, string> = {
     'cache-control': 'private, max-age=10',
+    // Defense-in-depth: a proxied body must never be content-sniffed
+    // into an active document type served from our own origin.
+    'x-content-type-options': 'nosniff',
     ...(corsOrigin ? { 'access-control-allow-origin': corsOrigin, vary: 'Origin' } : {}),
   };
 

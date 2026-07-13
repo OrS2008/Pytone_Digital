@@ -120,6 +120,10 @@ export async function GET(req: NextRequest) {
     headers: {
       'content-type': 'application/x-mpegurl; charset=utf-8',
       'cache-control': 'private, max-age=60',
+      // Defense-in-depth: never let a proxied body be sniffed into an
+      // active document type in our origin (Cloudflare Pages Functions
+      // don't always inherit the global next.config headers).
+      'x-content-type-options': 'nosniff',
       ...(corsOrigin ? { 'access-control-allow-origin': corsOrigin, vary: 'Origin' } : {}),
     },
   });

@@ -102,6 +102,9 @@ export async function GET(req: NextRequest) {
       // a re-mount of /tv/live doesn't refetch a multi-megabyte file
       // every time, but still picks up fresh data within a half-hour.
       'cache-control': 'private, max-age=1800',
+      // Defense-in-depth: proxied XML must never be sniffed into an
+      // active document type in our origin.
+      'x-content-type-options': 'nosniff',
       ...(corsOrigin ? { 'access-control-allow-origin': corsOrigin, vary: 'Origin' } : {}),
     },
   });
