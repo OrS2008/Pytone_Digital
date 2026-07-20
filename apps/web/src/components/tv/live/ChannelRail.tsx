@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Channel } from './types';
 import { userKey } from '@/lib/session';
+import { getFavorites, onFavoritesChange, toggleFavorite } from '@/lib/favorites';
 
 interface Props {
   channels: Channel[];
@@ -53,6 +54,12 @@ export default function ChannelRail({ channels, activeIdx, onTune, onPlay }: Pro
   const sentinelRef = useRef<HTMLDivElement>(null);
   const focusedRef = useRef<number>(activeIdx);
   const [spoiler, setSpoiler] = useState(false);
+  // Favorites ("My List") — re-renders when a heart is toggled anywhere.
+  const [favs, setFavs] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setFavs(getFavorites());
+    return onFavoritesChange(() => setFavs(getFavorites()));
+  }, []);
   // Number of channels currently rendered. Starts at one window, but
   // always includes the active channel (deep-links can target a channel
   // thousands deep) plus a small buffer so auto-scroll-to-active works.
@@ -142,6 +149,7 @@ export default function ChannelRail({ channels, activeIdx, onTune, onPlay }: Pro
       rows.push(<div key={`d-${i}-${ch.category}`} className="rail-divider">{ch.category}</div>);
       lastCat = ch.category;
     }
+    const isFav = favs.has(ch.id);
     rows.push(
       <div
         key={ch.id}
@@ -150,6 +158,20 @@ export default function ChannelRail({ channels, activeIdx, onTune, onPlay }: Pro
         onClick={() => play(i)}
       >
         <div className="rail-num">{ch.number}</div>
+        <button
+          type="button"
+          className={`rail-fav ${isFav ? 'is-fav' : ''}`}
+          aria-label={isFav ? 'Remove from My list' : 'Add to My list'}
+          aria-pressed={isFav}
+          onClick={(e) => { e.stopPropagation(); toggleFavorite(ch.id); }}
+        >
+          <svg viewBox="0 0 24 24"
+               fill={isFav ? 'currentColor' : 'none'}
+               stroke="currentColor" strokeWidth="2"
+               strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>
+          </svg>
+        </button>
         <div className="rail-logo">
           {ch.logoUrl
             ? <img src={ch.logoUrl} alt="" loading="lazy" decoding="async" />

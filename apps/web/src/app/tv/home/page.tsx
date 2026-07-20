@@ -19,6 +19,8 @@ import type { M3UChannel } from '@/lib/m3u';
 import { getCachedChannels, loadChannels } from '@/lib/channelCache';
 import { getSessionEmail } from '@/lib/session';
 import { getHistory, type WatchEntry } from '@/lib/watchHistory';
+import { loadEpgIndex, programmesFor, getUserEpgUrl, type EpgIndex } from '@/lib/epgCache';
+import { getFavorites, onFavoritesChange } from '@/lib/favorites';
 import { useT } from '@/lib/i18n';
 import './home.css';
 
@@ -81,16 +83,22 @@ function initials(email: string | null): string {
   return email.split('@')[0].slice(0, 2).toUpperCase();
 }
 
+// Current-programme info attached to a card when the user has an EPG
+// configured. `progress` is 0..1 through the programme's runtime — the
+// thin bar under the art, exactly like M6+ / TF1+ live cards.
+interface NowInfo { title: string; progress: number }
+
 interface RailCardProps {
   href: string;
   name: string;
   sub?: string;
   logoUrl?: string;
   showLive?: boolean;
+  now?: NowInfo;
   t: (k: string) => string;
 }
 
-function RailCard({ href, name, sub, logoUrl, showLive, t }: RailCardProps) {
+function RailCard({ href, name, sub, logoUrl, showLive, now, t }: RailCardProps) {
   return (
     <Link href={href} className="nshome-live-card">
       <div className="nshome-live-art">
@@ -106,10 +114,22 @@ function RailCard({ href, name, sub, logoUrl, showLive, t }: RailCardProps) {
           </span>
         )}
         <span className="nshome-live-chip">{name}</span>
+        {now && (
+          <div className="nshome-live-progress" aria-hidden="true">
+            <div
+              className="nshome-live-progress-fill"
+              style={{ width: `${Math.round(Math.min(1, Math.max(0, now.progress)) * 100)}%` }}
+            />
+          </div>
+        )}
       </div>
       <div className="nshome-live-meta">
         <div className="nshome-live-meta-title">{name}</div>
-        {sub && <div className="nshome-live-meta-sub">{sub}</div>}
+        {/* Programme title beats the static category when we know it —
+            "what's on RIGHT NOW" is what a live-TV user scans for. */}
+        {(now?.title || sub) && (
+          <div className="nshome-live-meta-sub">{now?.title ?? sub}</div>
+        )}
       </div>
     </Link>
   );
@@ -120,9 +140,10 @@ interface RailProps {
   items: M3UChannel[];
   t: (k: string) => string;
   showLive?: boolean;
+  nowFor?: (c: M3UChannel) => NowInfo | undefined;
 }
 
-function Rail({ title, items, t, showLive }: RailProps) {
+function Rail({ title, items, t, showLive, nowFor }: RailProps) {
   if (items.length === 0) return null;
   return (
     <section className="nshome-section">
@@ -139,11 +160,36 @@ function Rail({ title, items, t, showLive }: RailProps) {
             sub={c.category || t('home.liveNow')}
             logoUrl={c.logoUrl}
             showLive={showLive}
+            now={nowFor?.(c)}
             t={t}
           />
         ))}
       </div>
     </section>
+  );
+}
+
+// Skeleton placeholders shown while the playlist is still loading —
+// shaped exactly like the real hero + rail so the page doesn't jump
+// when content lands (the M6+/Netflix loading pattern).
+function HomeSkeleton() {
+  return (
+    <>
+      <div className="nshome-hero-wrap">
+        <div className="nshome-skel nshome-skel-hero" aria-hidden="true"/>
+      </div>
+      <section className="nshome-section" aria-hidden="true">
+        <div className="nshome-sec-head"><div className="nshome-skel nshome-skel-title"/></div>
+        <div className="nshome-rail">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="nshome-live-card">
+              <div className="nshome-skel nshome-skel-card"/>
+              <div className="nshome-skel nshome-skel-line"/>
+            </div>
+          ))}
+        </div>
+      </section>
+    </>
   );
 }
 
@@ -186,16 +232,67 @@ export default function TvMobileHome() {
     setEmail(getSessionEmail());
     setHistory(getHistory());
   }, []);
+  // True until the first loadChannels() resolves — drives the skeleton
+  // hero/rail so the page never flashes empty while the playlist loads.
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const list = await loadChannels();
-      if (!cancelled) setChannels(list);
+      if (!cancelled) { setChannels(list); setLoading(false); }
     })();
     return () => { cancelled = true; };
   }, []);
 
+  // EPG hydration — once channels exist and the user has an XMLTV
+  // source, resolve the CURRENT programme per channel. `epgTick` bumps
+  // every minute so progress bars crawl forward without a refetch.
+  const [epgIndex, setEpgIndex] = useState<EpgIndex | null>(null);
+  const [epgTick, setEpgTick] = useState(0);
+  useEffect(() => {
+    if (channels.length === 0 || !getUserEpgUrl()) return;
+    let cancelled = false;
+    (async () => {
+      const idx = await loadEpgIndex();
+      if (!cancelled && idx && idx.byId.size > 0) setEpgIndex(idx);
+    })();
+    return () => { cancelled = true; };
+  }, [channels]);
+  useEffect(() => {
+    if (!epgIndex) return;
+    const iv = setInterval(() => setEpgTick((v) => v + 1), 60_000);
+    return () => clearInterval(iv);
+  }, [epgIndex]);
+
+  // Current-programme lookup used by every rail card + the hero.
+  const nowFor = useMemo(() => {
+    void epgTick; // recompute each minute
+    if (!epgIndex) return () => undefined;
+    const nowMs = Date.now();
+    return (c: M3UChannel): NowInfo | undefined => {
+      const progs = programmesFor(epgIndex, c);
+      const cur = progs.find((p) => p.start <= nowMs && p.stop > nowMs);
+      if (!cur) return undefined;
+      return {
+        title: cur.title,
+        progress: (nowMs - cur.start) / Math.max(1, cur.stop - cur.start),
+      };
+    };
+  }, [epgIndex, epgTick]);
+
+  // My List — favorite channels resolved against the loaded playlist.
+  const [favIds, setFavIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setFavIds(getFavorites());
+    return onFavoritesChange(() => setFavIds(getFavorites()));
+  }, []);
+  const favorites = useMemo(
+    () => channels.filter((c) => favIds.has(c.id)).slice(0, 12),
+    [channels, favIds],
+  );
+
   const hero = useMemo(() => pickHero(channels),     [channels]);
+  const heroNow = hero ? nowFor(hero) : undefined;
   const live = useMemo(() => pickList(channels, 12), [channels]);
   // Build the category rails once per playlist change. We keep only the
   // rails that actually have channels, so the home page grows with the
@@ -277,7 +374,24 @@ export default function TvMobileHome() {
             <div className="nshome-hero-content">
               <span className="nshome-hero-badge">{t('home.featured')}</span>
               <h2 className="nshome-hero-title">{hero.name}</h2>
-              <p className="nshome-hero-meta">{hero.category || t('home.cat.live')}</p>
+              {/* With an EPG: the current programme + a live progress
+                  bar. Without: the channel's category, as before. */}
+              {heroNow ? (
+                <>
+                  <p className="nshome-hero-meta nshome-hero-now">
+                    <span className="nshome-hero-now-label">{t('live.now')}</span>
+                    {heroNow.title}
+                  </p>
+                  <div className="nshome-hero-progress" aria-hidden="true">
+                    <div
+                      className="nshome-hero-progress-fill"
+                      style={{ width: `${Math.round(heroNow.progress * 100)}%` }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <p className="nshome-hero-meta">{hero.category || t('home.cat.live')}</p>
+              )}
               <div className="nshome-hero-cta">
                 <span className="nshome-btn nshome-btn-primary">
                   <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -291,7 +405,7 @@ export default function TvMobileHome() {
               </div>
             </div>
           </Link>
-        ) : (
+        ) : loading ? null : (
           <div className="nshome-welcome">
             <h3>{t('home.welcome.title')}</h3>
             <p>{t('home.welcome.sub')}</p>
@@ -302,6 +416,12 @@ export default function TvMobileHome() {
         )}
       </div>
 
+      {/* ===== skeletons while the playlist is still loading ===== */}
+      {loading && channels.length === 0 && <HomeSkeleton />}
+
+      {/* ===== my list (favorites) ===== */}
+      <Rail title={t('home.myList')} items={favorites} t={t} nowFor={nowFor} />
+
       {/* ===== continue watching (only if there's history) ===== */}
       {history.length > 0 && (
         <section className="nshome-section">
@@ -309,28 +429,32 @@ export default function TvMobileHome() {
             <h2>{t('home.continue')}</h2>
           </div>
           <div className="nshome-rail">
-            {history.slice(0, 10).map((h) => (
-              <RailCard
-                key={h.channelId}
-                href={`/tv/live?ch=${encodeURIComponent(h.number)}`}
-                name={h.name}
-                logoUrl={h.logoUrl}
-                t={t}
-              />
-            ))}
+            {history.slice(0, 10).map((h) => {
+              const ch = channels.find((c) => c.id === h.channelId);
+              return (
+                <RailCard
+                  key={h.channelId}
+                  href={`/tv/live?ch=${encodeURIComponent(h.number)}`}
+                  name={h.name}
+                  logoUrl={h.logoUrl}
+                  now={ch ? nowFor(ch) : undefined}
+                  t={t}
+                />
+              );
+            })}
           </div>
         </section>
       )}
 
       {/* ===== live now rail ===== */}
-      <Rail title={t('home.liveNow')} items={live} t={t} showLive />
+      <Rail title={t('home.liveNow')} items={live} t={t} showLive nowFor={nowFor} />
 
       {/* ===== category rails — one row per content type that the
            user's playlist actually contains (Sports / Movies / News /
            Docs / Kids). Gives the home the rich multi-row feel of a
            real streaming app without any placeholder content. ===== */}
       {catRails.map((r) => (
-        <Rail key={r.titleKey} title={t(r.titleKey)} items={r.items} t={t} />
+        <Rail key={r.titleKey} title={t(r.titleKey)} items={r.items} t={t} nowFor={nowFor} />
       ))}
 
       {/* ===== quick-access tiles =====

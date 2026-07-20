@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { Channel } from './types';
 import { userKey } from '@/lib/session';
+import { toggleFavorite } from '@/lib/favorites';
 import { useT } from '@/lib/i18n';
 
 interface Props {
@@ -199,11 +200,16 @@ export default function InfoBar(p: Props) {
   function doRecord() {
     if (!p.channel) return;
     addRecording(p.channel);
+    // Also flip the channel into My List so the bookmark surfaces on
+    // the home page's "My list" rail — one gesture, both effects.
+    const nowFav = toggleFavorite(p.channel.id);
     // Recordings are saved in this device's local storage only — there
     // is no DVR backend yet, so the entry is a reminder, not a real
     // scheduled record. The toast wording reflects that so the user
     // doesn't think a remote DVR is grabbing the programme.
-    flash(`Bookmarked · ${p.channel.now?.title ?? p.channel.name} (saved on this device)`);
+    flash(nowFav
+      ? `Added to My list · ${p.channel.now?.title ?? p.channel.name}`
+      : `Removed from My list · ${p.channel.name}`);
   }
   function toggleMute() {
     const v = videoEl();

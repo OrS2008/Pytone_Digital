@@ -482,3 +482,66 @@
   font-size: 0.72rem; font-weight: 800; letter-spacing: 0.5px;
   color: var(--ns-text);
 }
+
+/* ===== EPG progress bars =====
+   Thin live-programme progress along the bottom edge of card art and
+   under the hero's "now playing" line — the M6+/TF1+ live-card look. */
+.nshome-live-progress {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: 3px; z-index: 3;
+  background: rgba(255, 255, 255, 0.18);
+}
+.nshome-live-progress-fill {
+  height: 100%;
+  background: var(--ns-accent-grad);
+}
+.nshome-hero-now {
+  display: flex; align-items: center; gap: 0.5rem;
+  color: var(--ns-text) !important;
+}
+.nshome-hero-now-label {
+  flex-shrink: 0;
+  font-size: 0.6rem; font-weight: 800;
+  letter-spacing: 1px; text-transform: uppercase;
+  color: var(--ns-accent-2);
+  border: 1px solid var(--ns-accent-soft-border);
+  background: var(--ns-accent-soft);
+  border-radius: 0.35rem;
+  padding: 0.15rem 0.4rem;
+}
+.nshome-hero-progress {
+  width: min(70%, 16rem);
+  height: 3px; border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
+  margin: 0.5rem 0 0.95rem;
+  overflow: hidden;
+}
+.nshome-hero-progress-fill {
+  height: 100%;
+  background: var(--ns-accent-grad);
+}
+
+/* ===== skeleton loaders =====
+   Same footprint as the real hero/cards so content landing causes no
+   layout shift. Shimmer via a sliding highlight. */
+.nshome-skel {
+  position: relative;
+  overflow: hidden;
+  background: var(--ns-surface);
+  border-radius: 0.85rem;
+}
+.nshome-skel::after {
+  content: '';
+  position: absolute; inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 50%,
+    transparent 100%);
+  animation: nshomeShimmer 1.4s infinite;
+}
+@keyframes nshomeShimmer { to { transform: translateX(100%); } }
+.nshome-skel-hero  { width: 100%; min-height: 26rem; border-radius: 1.1rem; }
+.nshome-skel-title { width: 8rem; height: 1.1rem; border-radius: 0.4rem; }
+.nshome-skel-card  { width: 100%; height: 8rem; }
+.nshome-skel-line  { width: 70%; height: 0.8rem; margin-top: 0.5rem; border-radius: 0.3rem; }

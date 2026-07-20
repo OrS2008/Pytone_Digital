@@ -144,6 +144,12 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(!startUnmuted);
   const [pipActive, setPipActive] = useState(false);
+  // Cast / AirPlay availability via the Remote Playback API. Chrome
+  // exposes video.remote for src-based media (not MSE); Safari maps it
+  // to AirPlay, which works with native HLS — exactly our Safari path.
+  // The button only renders when a remote device is actually reachable,
+  // so users never see a dead control.
+  const [castAvailable, setCastAvailable] = useState(false);
   // Bumped whenever the user flips the Direct Streaming toggle. The
   // main stream-lifecycle effect depends on this, so the player
   // tears down and reattaches with the new mode — without it, the
@@ -325,6 +331,37 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     };
   }, [channel?.streamUrl, altsKey, autoPlay, modeVersion]);
 
+  // Watch remote-playback (Cast / AirPlay) device availability. The
+  // watcher resolves per-video-element; re-arm when the channel (and
+  // therefore the media attachment) changes.
+  useEffect(() => {
+    const v = videoRef.current;
+    type RemoteCapable = HTMLVideoElement & {
+      remote?: {
+        watchAvailability?: (cb: (a: boolean) => void) => Promise<number>;
+        cancelWatchAvailability?: (id?: number) => Promise<void>;
+        prompt: () => Promise<void>;
+      };
+    };
+    const remote = (v as RemoteCapable | null)?.remote;
+    if (!remote?.watchAvailability) { setCastAvailable(false); return; }
+    let watchId: number | null = null;
+    let cancelled = false;
+    remote.watchAvailability((available) => { if (!cancelled) setCastAvailable(available); })
+      .then((id) => { watchId = id; })
+      .catch(() => { /* NotSupported (e.g. MSE attachment) — keep hidden */ });
+    return () => {
+      cancelled = true;
+      if (watchId !== null) remote.cancelWatchAvailability?.(watchId).catch(() => {});
+      setCastAvailable(false);
+    };
+  }, [channel?.streamUrl]);
+
+  async function promptCast() {
+    const v = videoRef.current as (HTMLVideoElement & { remote?: { prompt: () => Promise<void> } }) | null;
+    try { await v?.remote?.prompt(); } catch { /* user dismissed / unsupported */ }
+  }
+
   // Subscribe to native PiP events on the <video> element through a
   // regular DOM listener — React's onEnter/LeavePictureInPicture props
   // aren't typed in the standard React typings.
@@ -442,6 +479,23 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
                 <path d="M16 3l3 3-3 3"/>
               </svg>
             </button>
+            {castAvailable && (
+              <button
+                className="player-tool"
+                onClick={promptCast}
+                title={t('live.cast')}
+                aria-label={t('live.cast')}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" strokeWidth="2"
+                     strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/>
+                  <path d="M2 12a9 9 0 0 1 8 8"/>
+                  <path d="M2 16a5 5 0 0 1 4 4"/>
+                  <line x1="2" y1="20" x2="2.01" y2="20"/>
+                </svg>
+              </button>
+            )}
             <button
               className="player-tool"
               onClick={togglePip}
