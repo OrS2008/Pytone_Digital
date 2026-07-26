@@ -10,8 +10,9 @@ type Props = {
 
 /**
  * Deterministic cinematic "plate" placeholder rendered from a dish hue.
- * Swap for a real <Image> when magazine photography is available — the aspect
- * box and rounded frame are already correct.
+ * Reads like moody, out-of-focus studio food photography. Swap for a real
+ * <Image> when magazine photography is available — the aspect box and rounded
+ * frame are already correct.
  */
 export function PlateArt({ hue, label, className, detailed = true }: Props) {
   return (
@@ -21,33 +22,45 @@ export function PlateArt({ hue, label, className, detailed = true }: Props) {
       role="img"
       aria-label={`${label} — plated`}
     >
-      {/* warm top light */}
+      {detailed && (
+        <svg
+          className="absolute inset-0 h-full w-full"
+          viewBox="0 0 200 200"
+          preserveAspectRatio="xMidYMid slice"
+          aria-hidden
+        >
+          <defs>
+            <radialGradient id={`rim-${hue}`} cx="50%" cy="52%" r="52%">
+              <stop offset="0%" stopColor="rgba(0,0,0,0)" />
+              <stop offset="82%" stopColor="rgba(0,0,0,0)" />
+              <stop offset="86%" stopColor="rgba(255,246,228,0.10)" />
+              <stop offset="100%" stopColor="rgba(0,0,0,0.32)" />
+            </radialGradient>
+          </defs>
+          {/* ceramic plate rim */}
+          <circle cx="100" cy="104" r="82" fill={`url(#rim-${hue})`} />
+          {/* steam */}
+          <g
+            className="animate-ember"
+            stroke="rgba(255,250,240,0.10)"
+            strokeWidth="2"
+            fill="none"
+            strokeLinecap="round"
+          >
+            <path d="M86 58 q7 -11 0 -22 q-7 -11 0 -22" />
+            <path d="M100 52 q7 -11 0 -22 q-7 -11 0 -22" />
+            <path d="M114 58 q7 -11 0 -22 q-7 -11 0 -22" />
+          </g>
+        </svg>
+      )}
+      {/* diagonal specular sweep */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(60% 45% at 50% 8%, rgba(255,240,210,0.28), transparent 70%)",
+            "linear-gradient(115deg, transparent 40%, rgba(255,248,232,0.06) 50%, transparent 60%)",
         }}
       />
-      {detailed && (
-        <svg className="absolute inset-0 h-full w-full opacity-[0.9]" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid slice" aria-hidden>
-          <defs>
-            <radialGradient id={`p-${hue}`} cx="50%" cy="55%" r="55%">
-              <stop offset="0%" stopColor="rgba(0,0,0,0)" />
-              <stop offset="78%" stopColor="rgba(0,0,0,0)" />
-              <stop offset="80%" stopColor="rgba(255,255,255,0.10)" />
-              <stop offset="100%" stopColor="rgba(0,0,0,0.35)" />
-            </radialGradient>
-          </defs>
-          <circle cx="100" cy="112" r="72" fill={`url(#p-${hue})`} />
-          {/* steam */}
-          <g className="animate-ember" stroke="rgba(255,255,255,0.14)" strokeWidth="2.4" fill="none" strokeLinecap="round">
-            <path d="M84 66 q8 -12 0 -24 q-8 -12 0 -24" />
-            <path d="M100 60 q8 -12 0 -24 q-8 -12 0 -24" />
-            <path d="M116 66 q8 -12 0 -24 q-8 -12 0 -24" />
-          </g>
-        </svg>
-      )}
       {/* grain */}
       <div className="grain-layer" />
     </div>

@@ -80,15 +80,33 @@ export function telLink(): string {
 }
 
 /**
- * Deterministic premium "plate" gradient for a menu item, used until real
- * photography is dropped in. Returns an inline CSS background value built from
- * the item's hue so every dish reads as a distinct, warm, cinematic plate.
+ * Deterministic premium "plate" for a menu item, used until real photography is
+ * dropped in. Rather than bright rainbow gradients, this renders a warm, moody,
+ * low-saturation scene that reads like out-of-focus studio food photography:
+ * a soft key light, a warm food "mound", depth shadow, and a dark ceramic
+ * vignette. Hues are mapped into appetizing bands (warm food / fresh greens /
+ * cool drinks) so nothing ever looks neon or artificial.
  */
 export function plateBackground(hue: number): string {
-  const h = hue;
+  const h = ((hue % 360) + 360) % 360;
+  const fresh = h >= 80 && h <= 165; // salads, herbs
+  const cool = h > 165 && h < 275; // drinks, night scenes
+
+  // dominant food hue, its shadow hue, and overall saturation
+  const key = fresh ? 96 : cool ? 205 : 24;
+  const shade = fresh ? 74 : cool ? 214 : 15;
+  const sat = fresh ? 30 : cool ? 22 : 46;
+
   return [
-    `radial-gradient(120% 120% at 30% 25%, hsl(${h} 65% 42% / 0.95), transparent 60%)`,
-    `radial-gradient(130% 130% at 75% 80%, hsl(${(h + 24) % 360} 70% 30%), transparent 65%)`,
-    `radial-gradient(90% 90% at 50% 50%, hsl(${(h + 12) % 360} 55% 22%), hsl(${h} 40% 10%))`,
+    // soft warm key light from top
+    `radial-gradient(75% 55% at 50% 10%, rgba(255,244,222,0.20), transparent 55%)`,
+    // the food, catching the light
+    `radial-gradient(78% 66% at 50% 44%, hsl(${key} ${sat}% 41%), transparent 72%)`,
+    // secondary mass / depth
+    `radial-gradient(62% 58% at 66% 74%, hsl(${shade} ${sat + 6}% 25%), transparent 66%)`,
+    // ceramic vignette
+    `radial-gradient(125% 105% at 50% 46%, transparent 52%, rgba(0,0,0,0.58))`,
+    // base ground
+    `linear-gradient(158deg, hsl(${shade} 30% 11%), hsl(${key} 22% 6%))`,
   ].join(", ");
 }
