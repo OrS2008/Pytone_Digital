@@ -192,7 +192,14 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     // the next candidate (or surface the user-facing error when
     // there is no next candidate).
     let stallTimer: ReturnType<typeof setTimeout> | null = null;
-    const STALL_MS = 5_000;
+    // Two budgets. While alternative candidates remain, moving on is
+    // cheap, so we give each one a short slot. On the FINAL candidate
+    // — and a live channel always has exactly one URL — the timer is
+    // a last-resort safety net only: it must never invent a failure
+    // for a stream that is merely slow to buffer or waiting on a play
+    // gesture. The guard in the callback enforces that.
+    const ALT_STALL_MS = 6_000;
+    const LAST_STALL_MS = 20_000;
     const canNative = video.canPlayType('application/vnd.apple.mpegurl') !== '';
 
     function isHlsUrl(u: string) { return /\.m3u8(\?|$)/i.test(u); }
@@ -211,10 +218,35 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     function onVideoPlaying() { clearStall(); }
     video.addEventListener('playing', onVideoPlaying);
 
+    // The error text has to match what was actually attempted. Only a
+    // catch-up request carries alternates, so live channels — which
+    // have a single URL — must not be told that "every catch-up URL
+    // format" failed.
+    function failAll() {
+      setErr(
+        candidates.length > 1
+          ? 'Stream error: every catch-up URL format failed on this provider.'
+          : 'Stream error: the channel did not respond.',
+      );
+    }
+
+    // Native HLS (Safari / iOS) has no hls.js ERROR channel, so the
+    // element's own error event is the only failure signal on that
+    // path. Without this the stall timer was doing double duty as an
+    // error detector, which is why it was tuned aggressively enough
+    // to misfire on healthy streams.
+    function onVideoError() {
+      if (cancelled || hls) return; // hls.js reports through its own handler
+      clearStall();
+      if (candidateIdx + 1 < candidates.length) tryCandidate(candidateIdx + 1);
+      else failAll();
+    }
+    video.addEventListener('error', onVideoError);
+
     async function tryCandidate(idx: number) {
       if (cancelled) return;
       if (idx >= candidates.length) {
-        setErr('Stream error: every catch-up URL format failed on this provider.');
+        failAll();
         return;
       }
       candidateIdx = idx;
@@ -230,11 +262,21 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
       // when no error event was emitted. Particularly important for
       // catch-up because some panels return a 200 OK on the archive
       // path with an empty / dead manifest.
+      const hasNext = idx + 1 < candidates.length;
       stallTimer = setTimeout(() => {
         if (cancelled) return;
         stallTimer = null;
-        tryCandidate(candidateIdx + 1);
-      }, STALL_MS);
+        if (hasNext) { tryCandidate(candidateIdx + 1); return; }
+        // Last candidate: distinguish a dead stream from a healthy one
+        // that simply hasn't started. `paused` means we are waiting on
+        // a play gesture — autoplay-with-sound is blocked on mobile,
+        // and the promise rejection is swallowed, so `playing` never
+        // fires. readyState >= HAVE_FUTURE_DATA means data is flowing.
+        // Neither is a stream failure; treating them as one is what
+        // made every live channel report a catch-up error.
+        if (video.paused || video.readyState >= 3) return;
+        failAll();
+      }, hasNext ? ALT_STALL_MS : LAST_STALL_MS);
 
       // Honour the requested initial mute state. Fullscreen renders
       // pass startUnmuted=true so the click that opened fullscreen
@@ -325,6 +367,7 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
       if (retryTimer) clearTimeout(retryTimer);
       clearStall();
       video.removeEventListener('playing', onVideoPlaying);
+      video.removeEventListener('error', onVideoError);
       destroyHls();
       video.removeAttribute('src');
       video.load();
