@@ -107,7 +107,25 @@ function splitExtInf(line: string): { head: string; name: string } | null {
       return { head: line.slice(0, i), name: line.slice(i + 1).trim() };
     }
   }
-  return null;
+  // No comma outside quotes. That means the line's quoting is malformed
+  // — one stray `"` in an attribute value leaves the scan "inside" a
+  // string for the rest of the line — and real provider playlists are
+  // full of such lines.
+  //
+  // Returning null here made parseExtInf return null, which made the
+  // following URL line hit `if (!pending) continue` and DELETED the
+  // channel outright. That is far worse than the bug this scan fixes: a
+  // playlist went from 12,747 channels to 1,492. Degrade instead. The
+  // first comma of any kind reproduces the old behaviour, so the name
+  // may be imperfect on a malformed line but the channel still exists.
+  const comma = line.indexOf(',');
+  if (comma < 0) {
+    // No comma at all: the entry has no display name. Still not a
+    // reason to drop it — the URL beneath it is a real channel. Parse
+    // the attributes and let the caller name it.
+    return { head: line, name: '' };
+  }
+  return { head: line.slice(0, comma), name: line.slice(comma + 1).trim() };
 }
 
 function parseExtInf(line: string): ExtInf | null {
@@ -133,6 +151,7 @@ function parseExtInf(line: string): ExtInf | null {
       case 'user-agent':         out.httpUserAgent     = v; break;
       case 'http-referrer':
       case 'http-referer':       out.httpReferrer      = v; break;
+      case 'tvg-name':           if (!out.name) out.name = v; break;
     }
   }
   return out;
@@ -204,7 +223,9 @@ export function parseM3U(text: string): M3UChannel[] {
     out.push({
       id,
       number,
-      name:          pending.name,
+      // Never blank: a malformed EXTINF still yields a usable row
+      // rather than an unnamed one the user cannot identify.
+      name:          pending.name || `Channel ${number}`,
       logoUrl:       pending.tvgLogo || '',
       category:      pending.group   || 'Uncategorised',
       streamUrl:     line,

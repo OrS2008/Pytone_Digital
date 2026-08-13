@@ -43,7 +43,7 @@ interface CacheEntry {
 // Bump this whenever parseM3U's output changes in a way that should be
 // visible immediately. Entries stamped with an older revision are
 // treated as a miss and re-parsed from the playlist.
-const PARSE_VERSION = 2;
+const PARSE_VERSION = 3;
 
 const MAX_AGE_MS = 30 * 60_000;
 // In-memory cache, keyed by tenant id (so two tenants on the same
