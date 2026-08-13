@@ -219,6 +219,14 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     function clearStall() {
       if (stallTimer) { clearTimeout(stallTimer); stallTimer = null; }
     }
+
+    // Why the current attempt died. "the channel did not respond" is a
+    // catch-all that reads the same whether the provider returned 403,
+    // the manifest was empty, the codec is unplayable, or nothing ever
+    // arrived — which makes a failing channel impossible to diagnose
+    // from the error card. hls.js hands us the specific reason; keep it.
+    let lastCause = '';
+    function noteCause(c: string) { if (c) lastCause = c; }
     // Fires once per attached candidate. We register it as a regular
     // DOM listener instead of relying on the <video onPlaying> prop
     // so the effect closure can manage it directly and so cleanup
@@ -236,11 +244,10 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     // have a single URL — must not be told that "every catch-up URL
     // format" failed.
     function failAll() {
-      setErr(
-        candidates.length > 1
-          ? 'Stream error: every catch-up URL format failed on this provider.'
-          : 'Stream error: the channel did not respond.',
-      );
+      const base = candidates.length > 1
+        ? 'every catch-up URL format failed on this provider'
+        : 'the channel did not respond';
+      setErr(`Stream error: ${base}${lastCause ? ` (${lastCause})` : ''}.`);
       // Every URL we know for this channel is exhausted — count it
       // against the channel's health.
       if (healthChannelId) reportFail(healthChannelId);
@@ -253,6 +260,14 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     // to misfire on healthy streams.
     function onVideoError() {
       if (cancelled || hls) return; // hls.js reports through its own handler
+      const me = video.error;
+      if (me) {
+        const kind = ({
+          1: 'aborted', 2: 'network error', 3: 'decode error',
+          4: 'format not supported',
+        } as Record<number, string>)[me.code] ?? `media error ${me.code}`;
+        noteCause(kind);
+      }
       clearStall();
       if (candidateIdx + 1 < candidates.length) tryCandidate(candidateIdx + 1);
       else failAll();
@@ -294,6 +309,7 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
         // Neither is a stream failure; treating them as one is what
         // made every live channel report a catch-up error.
         if (video.paused || video.readyState >= 3) return;
+        noteCause('no data within 20s');
         failAll();
       }, hasNext ? ALT_STALL_MS : LAST_STALL_MS);
 
@@ -328,7 +344,14 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
           });
           hls = h;
           h.on(Hls.Events.ERROR, (...args: unknown[]) => {
-            const data = args[1] as { fatal?: boolean; details?: string; type?: string } | undefined;
+            const data = args[1] as {
+              fatal?: boolean; details?: string; type?: string;
+              response?: { code?: number };
+            } | undefined;
+            if (data?.details) {
+              const code = data.response?.code;
+              noteCause(code ? `${data.details}, HTTP ${code}` : data.details);
+            }
             if (!data?.fatal) return;
             // Manifest didn't load (typically a 4xx from the upstream)
             // or parsed empty. Retrying the SAME URL won't change

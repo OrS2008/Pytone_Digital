@@ -190,9 +190,9 @@ async function fetchAndParse(url: string): Promise<LoadResult> {
 
   const channels = parseM3U(text);
   const stats = lastParseStats();
-  // A playlist that shrinks between deploys is indistinguishable from a
-  // parser that eats entries unless both numbers are recorded. Surface
-  // it loudly rather than leaving it to be guessed at from a count.
+  // A playlist that shrank because the user swapped their source is
+  // indistinguishable from a parser eating entries unless both numbers
+  // are recorded — which is exactly how one got mistaken for the other.
   if (stats.dropped > 0 || stats.orphanUrls > 0) {
     console.warn(
       `[playlist] ${stats.emitted} channels from ${stats.extinf} entries` +

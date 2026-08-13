@@ -113,10 +113,10 @@ function splitExtInf(line: string): { head: string; name: string } | null {
   // full of such lines.
   //
   // Returning null here made parseExtInf return null, which made the
-  // following URL line hit `if (!pending) continue` and DELETED the
-  // channel outright. That is far worse than the bug this scan fixes: a
-  // playlist went from 12,747 channels to 1,492. Degrade instead. The
-  // first comma of any kind reproduces the old behaviour, so the name
+  // following URL line hit `if (!pending) continue` and DELETE the
+  // channel outright. Deleting a row is never the right answer to
+  // malformed input from a third party — degrade instead. The first
+  // comma of any kind reproduces the pre-scan behaviour, so the name
   // may be imperfect on a malformed line but the channel still exists.
   const comma = line.indexOf(',');
   if (comma < 0) {
@@ -173,11 +173,11 @@ let lastStats: ParseStats = { extinf: 0, emitted: 0, dropped: 0, orphanUrls: 0 }
 /**
  * Stats for the most recent parseM3U call.
  *
- * This exists because a parser change silently deleted ~88% of a real
- * playlist (12,747 channels came back as 1,492) and nothing in the app
- * could tell the difference between "the parser dropped them" and "the
- * playlist got smaller". Counting the input entries alongside the
- * output makes that distinguishable instead of a guess.
+ * A playlist count dropping sharply was diagnosed as a parser fault and
+ * turned out to be the user swapping their source for a smaller one.
+ * Nothing in the app could tell those apart, so the conclusion came
+ * from inference rather than measurement. Counting input entries
+ * alongside the output makes the distinction observable.
  */
 export function lastParseStats(): ParseStats { return lastStats; }
 
