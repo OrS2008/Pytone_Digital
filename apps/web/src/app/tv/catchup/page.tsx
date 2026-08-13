@@ -387,7 +387,13 @@ function ChannelDetail({ channel, epgIndex, epgState, onBack }: DetailProps) {
   // Filter to just the programmes that aired during the selected day,
   // and only those that have already started (catch-up != upcoming).
   const dayProgs = useMemo(() => {
-    const dayStart = startOfDay(days[selectedDay]);
+    // `days` is empty until the post-mount effect sets `today`, and
+    // startOfDay(undefined) yields NaN rather than throwing — every
+    // comparison against it is false, so the list rendered as "no
+    // programmes" for a frame before correcting itself.
+    const day = days[selectedDay];
+    if (!day) return [];
+    const dayStart = startOfDay(day);
     const dayEnd   = dayStart + 86_400_000;
     const now      = Date.now();
     return allProgs.filter((p) => p.start >= dayStart && p.start < dayEnd && p.start <= now);

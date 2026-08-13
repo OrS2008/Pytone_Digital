@@ -175,9 +175,14 @@ export default function LivePage() {
   // expanded catch-up URL. If the channel doesn't support it, we
   // surface a friendly explanation in the meta strip and just play
   // the live edge.
-  const playable: Channel | undefined = useMemo(() => {
-    if (!active) return undefined;
-    if (!catchupMs) { return active; }
+  // The build attempt is kept separate from `playable` so its `reason`
+  // survives. buildCatchupUrl writes a specific explanation for every
+  // failure ("playlist doesn't declare a catch-up archive", "unknown
+  // catch-up kind: …") and that string used to be dropped on the floor
+  // here, leaving a past-programme deeplink to silently play the live
+  // edge with nothing on screen to say why.
+  const catchupAttempt = useMemo(() => {
+    if (!active || !catchupMs) return null;
     const programme = active.now && active.now.start.getTime() <= catchupMs && active.now.stop.getTime() > catchupMs
       ? active.now
       : active.next1 && active.next1.start.getTime() <= catchupMs && active.next1.stop.getTime() > catchupMs
@@ -204,11 +209,16 @@ export default function LivePage() {
       durationMin,
       catchupId: programme?.catchupId,
     });
-    if (!built.url) {
-      return active; // fall through to live edge; banner explains why
-    }
-    return { ...active, streamUrl: built.url, streamUrlAlts: built.fallbacks };
+    return built;
   }, [active, catchupMs, catchupDurMin]);
+
+  const playable: Channel | undefined = useMemo(() => {
+    if (!active) return undefined;
+    // No archive URL → fall through to the live edge; the banner
+    // below explains why.
+    if (!catchupAttempt?.url) return active;
+    return { ...active, streamUrl: catchupAttempt.url, streamUrlAlts: catchupAttempt.fallbacks };
+  }, [active, catchupAttempt]);
 
   // When the catchup builder can't produce a real archive URL (no
   // catchup attributes, unrecognised provider shape) we silently fall
@@ -216,17 +226,23 @@ export default function LivePage() {
   // experience is "the past programme didn't open — we're showing
   // live now" rather than a wall of red.
   useEffect(() => {
-    if (!active || !catchupMs) { setCatchupError(null); return; }
-    if (playable && playable.streamUrl !== active.streamUrl) {
+    if (!active || !catchupMs) return;
+    if (catchupAttempt?.url) {
       setCatchupError(null);          // a real catchup URL was built
-    } else {
-      // No archive URL → clear the catchup request entirely so the
-      // player binds to the live edge and the "Replaying from X"
-      // banner disappears.
-      setCatchupError(null);
-      setCatchupMs(0);
+      return;
     }
-  }, [active, catchupMs, playable]);
+    // No archive URL → drop the catch-up request so the player binds
+    // to the live edge, but keep the reason so the banner can say what
+    // happened instead of silently switching to live.
+    setCatchupError(
+      catchupAttempt?.reason
+        ?? "Catch-up isn't available for this channel — playing live instead.",
+    );
+    setCatchupMs(0);
+  }, [active, catchupMs, catchupAttempt]);
+
+  // A new channel (or an explicit return-to-live) clears the notice.
+  useEffect(() => { setCatchupError(null); }, [activeIdx]);
 
   useEffect(() => {
     let cancelled = false;
@@ -629,11 +645,11 @@ export default function LivePage() {
                     <div>Pick a channel from the list to start watching.</div>
                   </div>
                 )}
-                {catchupMs > 0 && (
+                {(catchupMs > 0 || catchupError) && (
                   <CatchupBanner
                     startMs={catchupMs}
                     error={catchupError}
-                    onReturnLive={() => setCatchupMs(0)}
+                    onReturnLive={() => { setCatchupMs(0); setCatchupError(null); }}
                     diagnostic={activeCatchupUrl}
                   />
                 )}
@@ -716,11 +732,11 @@ export default function LivePage() {
               startUnmuted
               onCandidateChange={(info) => setActiveCatchupUrl(info)}
             />
-            {catchupMs > 0 && (
+            {(catchupMs > 0 || catchupError) && (
               <CatchupBanner
                 startMs={catchupMs}
                 error={catchupError}
-                onReturnLive={() => setCatchupMs(0)}
+                onReturnLive={() => { setCatchupMs(0); setCatchupError(null); }}
                 fullscreen
                 diagnostic={activeCatchupUrl}
               />
@@ -814,8 +830,16 @@ function CatchupBanner({
           backdropFilter: 'blur(8px)',
         }}
       >
-        <span style={{ fontWeight: 700 }}>⏪</span>
-        <span style={{ maxWidth: 480, lineHeight: 1.35 }}>Replaying from {label}</span>
+        {/* Two modes. With an error we are NOT replaying — the archive
+            URL couldn't be built and playback fell back to the live
+            edge — so showing "Replaying from …" would be a lie. The
+            `error` prop used to be accepted here and never rendered,
+            which is why buildCatchupUrl's explanations never reached
+            anyone. */}
+        <span style={{ fontWeight: 700 }}>{error ? '⚠' : '⏪'}</span>
+        <span style={{ maxWidth: 480, lineHeight: 1.35 }}>
+          {error ?? `Replaying from ${label}`}
+        </span>
         <button
           onClick={onReturnLive}
           style={{
@@ -825,7 +849,10 @@ function CatchupBanner({
             cursor: 'pointer',
           }}
         >
-          ▶ Return to live
+          {/* In error mode playback already fell back to live, so
+              "Return to live" would offer something that has already
+              happened. The button just dismisses the notice. */}
+          {error ? 'Dismiss' : '▶ Return to live'}
         </button>
       </div>
       {/* Diagnostic panel: shows the exact timeshift URL the player is
