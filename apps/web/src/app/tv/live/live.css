@@ -1108,3 +1108,34 @@
   .player-surface .placeholder-meta { color: #5A6275; }
   .player-surface .placeholder-meta .ch-num { color: #1F202A; }
 }
+
+/* Dead-channel notice above the rail. Hidden channels must always be
+   visible as a count with a way back — an auto-hide the user cannot
+   see or undo is indistinguishable from the app losing their channels. */
+.live-hidden-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--ns-text-dim, #b9c0cc);
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.live-hidden-note span { flex: 1 1 auto; min-width: 0; }
+.live-hidden-note button {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--ns-text, #fff);
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+.live-hidden-note button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
+.live-hidden-note button:disabled { opacity: 0.55; cursor: default; }

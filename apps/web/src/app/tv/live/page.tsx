@@ -31,6 +31,7 @@ import { loadEpgIndex, hydrateChannels, getUserEpgUrl } from '@/lib/epgCache';
 import { proxiedStreamUrl } from '@/lib/streamProxy';
 import { buildCatchupUrl } from '@/lib/catchup';
 import { maskSourceUrl } from '@/lib/maskUrl';
+import { hiddenIds, onHealthChange, probeHidden, restoreAll } from '@/lib/channelHealth';
 import { useT } from '@/lib/i18n';
 import './live.css';
 
@@ -91,8 +92,58 @@ export default function LivePage() {
   // scratch, which is SLOWER than hydrating cleanly). A useLayoutEffect
   // below swaps in the cached playlist + deep-link params before the
   // first paint, so the user never sees the empty state flash.
-  const [channels, setChannels] = useState<Channel[]>([]);
+  // `allChannels` is the playlist as parsed. `channels` is what the UI
+  // works with: the same list minus channels the dead-channel detector
+  // has hidden. Every index in this page (activeIdx, tune(), the rail's
+  // keyboard navigation, the ?ch= deeplink lookup) addresses the
+  // FILTERED list, so deriving it here keeps all of that consistent
+  // without touching the index arithmetic.
+  const [allChannels, setChannels] = useState<Channel[]>([]);
+  const [hiddenHealth, setHiddenHealth] = useState<Set<string>>(() => new Set());
+  const [autoHideDead, setAutoHideDead] = useState(true);
+  useEffect(() => {
+    try {
+      // Default on; only an explicit '0' disables. Matches Toggle's
+      // raw '1' / '0' encoding.
+      setAutoHideDead(localStorage.getItem(userKey('prefs.autoHideDead')) !== '0');
+    } catch { /* ignore */ }
+    setHiddenHealth(hiddenIds());
+    return onHealthChange(() => setHiddenHealth(hiddenIds()));
+  }, []);
+  const channels = useMemo(
+    () => (autoHideDead && hiddenHealth.size > 0
+      ? allChannels.filter((c) => !hiddenHealth.has(c.id))
+      : allChannels),
+    [allChannels, hiddenHealth, autoHideDead],
+  );
+  const hiddenCount = allChannels.length - channels.length;
+  const [recheckBusy, setRecheckBusy] = useState(false);
+
+  // Re-probe hidden channels in the background so ones that recover
+  // come back on their own. Cooldown-gated inside probeHidden, and it
+  // only ever touches channels that are already hidden.
+  useEffect(() => {
+    if (!autoHideDead || allChannels.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const targets = allChannels.map((c) => ({ id: c.id, streamUrl: c.streamUrl || '' }));
+      const r = await probeHidden(targets);
+      if (!cancelled && r.restored > 0) setHiddenHealth(hiddenIds());
+    })();
+    return () => { cancelled = true; };
+  }, [allChannels, autoHideDead]);
   const [activeIdx, setActiveIdx] = useState(0);
+
+  // A channel disappearing (it just crossed the failure threshold, or
+  // the user re-enabled hiding) can leave activeIdx past the end of the
+  // shorter list. Pull it back so `active` never goes undefined under a
+  // playing session.
+  useEffect(() => {
+    if (channels.length > 0 && activeIdx >= channels.length) {
+      setActiveIdx(channels.length - 1);
+    }
+  }, [channels.length, activeIdx]);
+
   const [infoVisible, setInfoVisible] = useState(true);
   const [watching, setWatching] = useState(false);
   // Tracks whether the layout effect found a warm cache — the network
@@ -158,7 +209,11 @@ export default function LivePage() {
       setChannels(cached);
       setLoad({ kind: 'ready', count: cached.length, sourceTitle: getUserSourceUrl()?.title || 'My playlist' });
       if (want) {
-        const idx = cached.findIndex((c) => String(c.number) === want);
+        // activeIdx addresses the FILTERED list, so resolve the
+        // deeplink against the same filtering the render applies.
+        const hid = hiddenIds();
+        const idx = cached.filter((c) => !hid.has(c.id))
+                          .findIndex((c) => String(c.number) === want);
         if (idx >= 0) {
           setActiveIdx(idx);
           if (!preview) setWatching(true);
@@ -283,7 +338,9 @@ export default function LivePage() {
       const startMsUrl  = Number(params?.get('start')) || 0;
       const durMinUrl   = Number(params?.get('dur'))   || 0;
       if (want) {
-        const idx = result.channels.findIndex((c) => String(c.number) === want);
+        const hid = hiddenIds();
+        const idx = result.channels.filter((c) => !hid.has(c.id))
+                                   .findIndex((c) => String(c.number) === want);
         if (idx >= 0) {
           setActiveIdx(idx);
           // Belt-and-suspenders: also set catchupMs/durMin here in case
@@ -613,6 +670,34 @@ export default function LivePage() {
         )}
 
         <div className="live-body" style={channels.length === 0 ? { display: 'none' } : undefined}>
+          {hiddenCount > 0 && (
+            <div className="live-hidden-note" role="status">
+              <span>
+                {hiddenCount === 1
+                  ? '1 channel hidden — it failed to play repeatedly.'
+                  : `${hiddenCount} channels hidden — they failed to play repeatedly.`}
+              </span>
+              <button
+                type="button"
+                onClick={async () => {
+                  setRecheckBusy(true);
+                  const targets = allChannels.map((c) => ({ id: c.id, streamUrl: c.streamUrl || '' }));
+                  await probeHidden(targets, { force: true });
+                  setHiddenHealth(hiddenIds());
+                  setRecheckBusy(false);
+                }}
+                disabled={recheckBusy}
+              >
+                {recheckBusy ? 'Checking…' : 'Recheck now'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { restoreAll(); setHiddenHealth(new Set()); }}
+              >
+                Show all
+              </button>
+            </div>
+          )}
           <ChannelRail
             channels={channels}
             activeIdx={activeIdx}
@@ -637,6 +722,7 @@ export default function LivePage() {
                   <PlayerSurface
                     channel={playable}
                     autoPlay
+                    healthChannelId={catchupMs ? undefined : active?.id}
                     onCandidateChange={(info) => setActiveCatchupUrl(info)}
                   />
                 ) : (
@@ -730,6 +816,7 @@ export default function LivePage() {
               channel={playable}
               autoPlay
               startUnmuted
+              healthChannelId={catchupMs ? undefined : active?.id}
               onCandidateChange={(info) => setActiveCatchupUrl(info)}
             />
             {(catchupMs > 0 || catchupError) && (

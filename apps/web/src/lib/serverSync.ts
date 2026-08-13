@@ -35,6 +35,7 @@ export const SYNCED_KEYS: readonly string[] = [
   'prefs.subtitleLang',     // preferred hls.js subtitle track ('off' disables)
   'prefs.maxQuality',       // auto | 1080 | 720 | ... | audio
   'prefs.spoilerProtection',// hide live scores in EPG / rail
+  'prefs.autoHideDead',     // auto-hide channels that repeatedly fail to play
   'prefs.ratingCap',        // parental rating cap (parental page)
   'parental.profiles',      // household profile list
   'parental.blocked',       // channel block list

@@ -94,6 +94,20 @@ export default function Preferences() {
         </div>
         <div className="ac-toggle-row">
           <div>
+            <div className="ac-toggle-title">Hide channels that don&apos;t play</div>
+            <div className="ac-toggle-desc">
+              After a channel fails to start three separate times it is
+              hidden from the channel list. Nothing is deleted: the live
+              screen shows how many are hidden, rechecks them in the
+              background, and puts any that start working again straight
+              back. Turn this off to always see every channel in your
+              playlist.
+            </div>
+          </div>
+          <Toggle persistKey="prefs.autoHideDead" initialOn />
+        </div>
+        <div className="ac-toggle-row">
+          <div>
             <div className="ac-toggle-title">Spoiler protection for sport</div>
             <div className="ac-toggle-desc">
               Hides live scores and result-bearing programme titles in the

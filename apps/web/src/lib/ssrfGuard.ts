@@ -69,11 +69,31 @@ function canonicaliseIPv4(host: string): string | null {
     if (!Number.isInteger(v) || v < 0) return null;
     nums.push(v);
   }
-  // Standard 4-octet dotted quad.
-  if (nums.length === 4 && nums.every((n) => n <= 255)) {
-    return nums.join('.');
-  }
-  return null;
+  // inet_aton accepts SHORT dotted forms, where the final part absorbs
+  // whatever octets are missing:
+  //   a.b     -> a . (b as 24 bits)      127.1       -> 127.0.0.1
+  //   a.b.c   -> a . b . (c as 16 bits)  172.16.1    -> 172.16.0.1
+  // Returning null for these treated them as DNS names, and
+  // dohResolvesToPrivate() skips anything matching /^[\d.]+$/ as
+  // "already checked" — so both layers passed and fetch() then dialled
+  // the loopback / RFC1918 address the short form denotes.
+  const n = nums.length;
+  const last = nums[n - 1];
+  const head = nums.slice(0, n - 1);
+  if (head.some((v) => v > 255)) return null;
+  const maxLast = [0xffffffff, 0xffffff, 0xffff, 0xff][n - 1];
+  if (last > maxLast) return null;
+  // Pack: leading parts are literal octets, the last fills the rest.
+  // The n-1 leading octets sit at the top; `last` fills the remaining
+  // 5-n octets below them.
+  const packed = (head.reduce((acc, v) => (acc << 8) | v, 0) * Math.pow(2, 8 * (5 - n))) + last;
+  if (!Number.isInteger(packed) || packed < 0 || packed > 0xffffffff) return null;
+  return [
+    Math.floor(packed / 0x1000000) & 255,
+    (packed >>> 16) & 255,
+    (packed >>> 8) & 255,
+    packed & 255,
+  ].join('.');
 }
 
 // True when a canonical "a.b.c.d" IPv4 is in a private / reserved /

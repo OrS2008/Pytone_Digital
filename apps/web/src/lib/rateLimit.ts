@@ -55,9 +55,14 @@ export async function rateLimit(
 // Best-effort caller fingerprint: Cloudflare's trusted client IP, with
 // a fallback so we still bucket *something* when it's absent.
 export function callerIp(req: Request): string {
-  return req.headers.get('cf-connecting-ip')
-      || req.headers.get('x-real-ip')
-      || 'unknown';
+  // ONLY cf-connecting-ip, which Cloudflare's edge sets and a client
+  // cannot forge. x-real-ip used to be a fallback, but it is entirely
+  // client-supplied: varying it per request would mint a fresh counter
+  // bucket every time and defeat the limiter outright. /api/stream
+  // already reasons this way about x-forwarded-for. When the header is
+  // absent every caller shares the 'unknown' bucket — stricter than
+  // intended, which is the correct direction for a limiter to fail.
+  return req.headers.get('cf-connecting-ip') || 'unknown';
 }
 
 export function tooManyRequests(retryAfter: number): Response {

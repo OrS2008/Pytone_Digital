@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Channel } from './types';
 import { proxiedStreamUrl, onStreamModeChange } from '@/lib/streamProxy';
 import { userKey } from '@/lib/session';
+import { reportOk, reportFail } from '@/lib/channelHealth';
 import { useT } from '@/lib/i18n';
 
 /*
@@ -39,6 +40,14 @@ interface Props {
    * the URL into a browser to verify the panel's response.
    */
   onCandidateChange?: (info: { idx: number; total: number; url: string }) => void;
+  /**
+   * Channel id to attribute playback outcomes to, for the dead-channel
+   * detector in lib/channelHealth. Only set for LIVE playback: a
+   * catch-up attempt failing says nothing about whether the channel's
+   * live stream works, and attributing it would hide a working channel
+   * because its provider has no DVR.
+   */
+  healthChannelId?: string;
 }
 
 interface HlsInstance {
@@ -136,7 +145,7 @@ function applyPreferences(h: HlsInstance): void {
   }
 }
 
-export default function PlayerSurface({ channel, autoPlay = true, startUnmuted = false, onCandidateChange }: Props) {
+export default function PlayerSurface({ channel, autoPlay = true, startUnmuted = false, onCandidateChange, healthChannelId }: Props) {
   const { t } = useT();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -214,7 +223,12 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     // DOM listener instead of relying on the <video onPlaying> prop
     // so the effect closure can manage it directly and so cleanup
     // is deterministic when we switch candidates.
-    function onVideoPlaying() { clearStall(); }
+    function onVideoPlaying() {
+      clearStall();
+      // Frames are on screen: this stream demonstrably works, which
+      // clears any accumulated failures for it.
+      if (healthChannelId) reportOk(healthChannelId);
+    }
     video.addEventListener('playing', onVideoPlaying);
 
     // The error text has to match what was actually attempted. Only a
@@ -227,6 +241,9 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
           ? 'Stream error: every catch-up URL format failed on this provider.'
           : 'Stream error: the channel did not respond.',
       );
+      // Every URL we know for this channel is exhausted — count it
+      // against the channel's health.
+      if (healthChannelId) reportFail(healthChannelId);
     }
 
     // Native HLS (Safari / iOS) has no hls.js ERROR channel, so the
@@ -374,7 +391,7 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
       video.removeAttribute('src');
       video.load();
     };
-  }, [channel?.streamUrl, altsKey, autoPlay, modeVersion]);
+  }, [channel?.streamUrl, altsKey, autoPlay, modeVersion, healthChannelId]);
 
   // Watch remote-playback (Cast / AirPlay) device availability. The
   // watcher resolves per-video-element; re-arm when the channel (and
