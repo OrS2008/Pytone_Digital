@@ -73,6 +73,11 @@ export async function POST(req: NextRequest) {
     await handle(event);
     return NextResponse.json({ received: true });
   } catch (e) {
+    // Release the dedupe entry: it was claimed before handling, so
+    // leaving it in place would make Stripe's retry match the
+    // already-seen check above and 200 as a duplicate — silently
+    // dropping the state change the retry exists to deliver.
+    forgetEvent(event.id);
     if (e instanceof BillingNotConfiguredError) {
       return NextResponse.json({ error: e.message }, { status: 503 });
     }
@@ -96,6 +101,10 @@ function seenEvent(id: string): boolean {
   if (SEEN.has(id)) return true;
   SEEN.set(id, now);
   return false;
+}
+// Undo a seenEvent() claim so a failed delivery stays retryable.
+function forgetEvent(id: string): void {
+  SEEN.delete(id);
 }
 
 async function handle(event: Stripe.Event) {

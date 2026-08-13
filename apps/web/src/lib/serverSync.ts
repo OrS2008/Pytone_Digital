@@ -31,6 +31,9 @@ export const SYNCED_KEYS: readonly string[] = [
   'prefs.appearance',       // appearance / subtitle styling
   'prefs.notifications',    // notification toggles
   'prefs.streamMode',       // 'proxy' (default) or 'direct' — see streamProxy.ts
+  'prefs.audioLang',        // preferred hls.js audio track
+  'prefs.subtitleLang',     // preferred hls.js subtitle track ('off' disables)
+  'prefs.maxQuality',       // auto | 1080 | 720 | ... | audio
   'prefs.spoilerProtection',// hide live scores in EPG / rail
   'prefs.ratingCap',        // parental rating cap (parental page)
   'parental.profiles',      // household profile list

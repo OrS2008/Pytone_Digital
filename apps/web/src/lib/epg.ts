@@ -156,7 +156,14 @@ export function normaliseChannelName(name: string): string {
 // vice-versa). "nationalgeographichd" → "nationalgeographic".
 const QUALITY_TAIL = /(hd|fhd|uhd|sd|4k|hevc|h265|h264|hdr|dolby|atmos|ch\d+|backup|alt\d?|tr|en|us|uk|il|isr)+$/;
 export function stripQualityTags(name: string): string {
-  return name.replace(QUALITY_TAIL, '') || name;
+  const stripped = name.replace(QUALITY_TAIL, '');
+  // Several alternatives above are common two-letter endings (en, us,
+  // il, tr), so short names get eaten: "ten" → "t", "isr" → "". A
+  // stub like that is not a channel name, and because it becomes a
+  // key in the fuzzy name→id index it would happily match an
+  // unrelated channel and show the wrong programmes. Anything under
+  // three characters is treated as over-stripped and discarded.
+  return stripped.length >= 3 ? stripped : name;
 }
 
 // Walk every <channel id="..."><display-name>...</display-name></channel>

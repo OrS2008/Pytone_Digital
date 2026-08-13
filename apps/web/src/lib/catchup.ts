@@ -179,12 +179,17 @@ function parseFlussonicLiveUrl(streamUrl: string): FlussonicParts | null {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
   const parts = url.pathname.split('/').filter(Boolean);
   if (parts.length < 2) return null;
-  const last = parts[parts.length - 1].toLowerCase();
+  const lastRaw = parts[parts.length - 1];
+  const last = lastRaw.toLowerCase();
   // Flussonic always names the live playlist video.m3u8 / index.m3u8
   // / mono.m3u8 / playlist.m3u8. If the last segment doesn't end
   // in .m3u8 / .ts this isn't a Flussonic URL.
   if (!/\.m3u8$/.test(last) && !/\.ts$/.test(last)) return null;
-  const playlistName = last; // keep original case
+  // Match case-insensitively but rebuild from the ORIGINAL segment:
+  // this name goes back into the archive URL, and origin servers are
+  // case-sensitive about paths. Assigning the lowercased copy here
+  // silently rewrote e.g. Video.m3u8 to video.m3u8.
+  const playlistName = lastRaw;
   const stream = parts[parts.length - 2];
   // Stream segment must not look like an Xtream numeric SID — those
   // belong to parseXtreamLiveUrl. Flussonic stream names are
@@ -360,12 +365,14 @@ function collectAllCandidates(req: CatchupRequest): string[] {
   //    PATH (e.g. `.../video-${start}-${duration}.m3u8`); templates
   //    that only put placeholders in the query string get demoted
   //    to last (they often silently serve live).
-  if (ch.catchupSource) {
-    const expanded = expandTemplate(ch.catchupSource, req);
-    if (/\$\{|\?/.test(ch.catchupSource)) {
-      const hasPathPlaceholder = /\/[^?]*\$?\{[A-Za-z]/.test(ch.catchupSource);
-      if (hasPathPlaceholder) push(expanded);
-    }
+  //    The gate here used to also require the template to contain
+  //    `${` or `?`. Both this module's docs and expandTemplate accept
+  //    the bare `{start}` form, so a perfectly good DVR path template
+  //    like `.../video-{utc}-{duration}.m3u8` failed that test and got
+  //    demoted to step 4 — tried only after ~17 guessed URLs had each
+  //    404'd. hasPathPlaceholder is the check that actually matters.
+  if (ch.catchupSource && /\/[^?]*\$?\{[A-Za-z]/.test(ch.catchupSource)) {
+    push(expandTemplate(ch.catchupSource, req));
   }
 
   // 2. Xtream candidates for /USER/PASS/SID-shaped live URLs —

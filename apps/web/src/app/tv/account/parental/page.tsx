@@ -272,6 +272,10 @@ export default function Parental() {
 // useParentalPin hook (see lib/parental.ts) — any screen that wants to
 // gate access wraps itself with it. Clearing the PIN reverts to the
 // previous "filters only" behaviour.
+const PIN_KEY = 'parental.pinHash';
+const UNLOCK_KEY = 'parental.unlockedUntil';
+const LEGACY_PIN_KEY = 'ns.parental.pinHash';
+
 function ParentalPin() {
   const [hasPin,  setHasPin]  = useState(false);
   const [pin,     setPin]     = useState('');
@@ -279,8 +283,20 @@ function ParentalPin() {
   const [msg,     setMsg]     = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
-    try { setHasPin(!!localStorage.getItem('ns.parental.pinHash')); }
-    catch { /* ignore */ }
+    try {
+      // The PIN used to live under a single global key while the rest
+      // of parental control (parental.blocked, parental.profiles,
+      // prefs.ratingCap) is per-tenant — so two accounts sharing a
+      // browser shared one PIN, and whoever set it gated the other.
+      // Adopt any legacy value into this tenant's key on first read so
+      // an already-configured PIN keeps working.
+      const legacy = localStorage.getItem(LEGACY_PIN_KEY);
+      if (legacy && !localStorage.getItem(userKey(PIN_KEY))) {
+        localStorage.setItem(userKey(PIN_KEY), legacy);
+        localStorage.removeItem(LEGACY_PIN_KEY);
+      }
+      setHasPin(!!localStorage.getItem(userKey(PIN_KEY)));
+    } catch { /* ignore */ }
   }, []);
 
   async function save(e: React.FormEvent) {
@@ -296,7 +312,7 @@ function ParentalPin() {
     }
     const hash = await sha256Hex(pin);
     try {
-      localStorage.setItem('ns.parental.pinHash', hash);
+      localStorage.setItem(userKey(PIN_KEY), hash);
       setHasPin(true);
       setPin(''); setConfirm('');
       setMsg({ ok: true, text: 'PIN saved. The app will now ask for it before showing blocked channels.' });
@@ -306,10 +322,14 @@ function ParentalPin() {
   }
 
   function clear() {
-    if (!confirm && !window.confirm('Remove the PIN? Blocked channels will become hidden-only again.')) return;
+    // `confirm` here is the confirm-PIN input's state, which shadows
+    // window.confirm. Guarding on it meant that whenever that field
+    // had any text the `&&` short-circuited and the PIN was removed
+    // with no prompt at all.
+    if (!window.confirm('Remove the PIN? Blocked channels will become hidden-only again.')) return;
     try {
-      localStorage.removeItem('ns.parental.pinHash');
-      localStorage.removeItem('ns.parental.unlockedUntil');
+      localStorage.removeItem(userKey(PIN_KEY));
+      localStorage.removeItem(userKey(UNLOCK_KEY));
       setHasPin(false);
       setMsg({ ok: true, text: 'PIN removed.' });
     } catch { /* ignore */ }
