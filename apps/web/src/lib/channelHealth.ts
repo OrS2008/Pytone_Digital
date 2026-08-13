@@ -73,6 +73,12 @@ export interface HealthRecord {
   lastFailAt: number;
   /** Last time a probe / playback confirmed the stream works. */
   lastOkAt: number;
+  /**
+   * The stream reached us but this browser cannot decode it. Recorded
+   * separately because probes will keep reporting it healthy — the
+   * fault is local and permanent, not a liveness problem.
+   */
+  unplayable?: boolean;
 }
 
 type Store = Record<string, HealthRecord>;
@@ -119,25 +125,49 @@ export function reportOk(channelId: string, source: HealthSource = 'playback'): 
   if (!channelId) return;
   const store = read();
   const prev = store[channelId];
+  // A probe cannot clear an unplayable verdict: it only proves the
+  // provider is serving bytes, which was never in question.
+  if (source === 'probe' && prev?.unplayable) return;
   const playFails = source === 'playback' ? 0 : (prev?.playFails ?? 0);
   // Nothing recorded and nothing to forget — skip the write so routine
   // channel-surfing doesn't hit localStorage on every tune.
   if (prev && prev.fails === 0 && (prev.playFails ?? 0) === playFails) return;
-  store[channelId] = { fails: 0, playFails, lastFailAt: prev?.lastFailAt ?? 0, lastOkAt: Date.now() };
+  store[channelId] = {
+    fails: 0, playFails,
+    lastFailAt: prev?.lastFailAt ?? 0, lastOkAt: Date.now(),
+    // Real playback succeeding is the only thing that can disprove it.
+    unplayable: source === 'playback' ? false : prev?.unplayable,
+  };
   write(store);
 }
 
-/** Record a failure. Returns true if this crossed the hide threshold. */
-export function reportFail(channelId: string, source: HealthSource = 'playback'): boolean {
+/**
+ * Record a failure. Returns true if this crossed the hide threshold.
+ *
+ * `permanent` marks a failure that repetition cannot inform — the
+ * decisive case being a codec this browser cannot decode. MPEG-2 video
+ * and AC-3 audio are everywhere in IPTV and neither plays through MSE,
+ * so the stream is perfectly healthy at the provider (every probe will
+ * keep saying so) and still unplayable here, forever. Making the user
+ * hit that three times to learn it once is pointless, so it counts
+ * straight to the threshold.
+ */
+export function reportFail(
+  channelId: string,
+  source: HealthSource = 'playback',
+  opts?: { permanent?: boolean },
+): boolean {
   if (!channelId) return false;
   const store = read();
   const prev = store[channelId] ?? { fails: 0, playFails: 0, lastFailAt: 0, lastOkAt: 0 };
   const wasHidden = isHiddenRecord(prev);
+  const step = opts?.permanent ? FAIL_THRESHOLD : 1;
   const rec: HealthRecord = {
-    fails:      source === 'probe'    ? prev.fails + 1 : prev.fails,
-    playFails:  source === 'playback' ? (prev.playFails ?? 0) + 1 : (prev.playFails ?? 0),
+    fails:      source === 'probe'    ? prev.fails + (opts?.permanent ? PROBE_FAIL_THRESHOLD : 1) : prev.fails,
+    playFails:  source === 'playback' ? (prev.playFails ?? 0) + step : (prev.playFails ?? 0),
     lastFailAt: Date.now(),
     lastOkAt:   prev.lastOkAt,
+    unplayable: opts?.permanent ? true : prev.unplayable,
   };
   store[channelId] = rec;
   write(store);
@@ -148,6 +178,7 @@ export function reportFail(channelId: string, source: HealthSource = 'playback')
 // playbacks are what the user actually experienced, and failed probes
 // are the proactive scan doing its job before they ever try it.
 function isHiddenRecord(rec: HealthRecord): boolean {
+  if (rec.unplayable) return true;
   return rec.fails >= PROBE_FAIL_THRESHOLD || (rec.playFails ?? 0) >= FAIL_THRESHOLD;
 }
 
@@ -328,7 +359,29 @@ export interface SweepResult {
   total:     number;
 }
 
-async function probeBatch(batch: ProbeTarget[]): Promise<Map<string, boolean>> {
+// hls.js transmuxes MPEG-TS into fMP4 before handing it to MSE, so the
+// support question is asked against video/mp4 with the declared codecs.
+// Cached because a playlist reuses a handful of codec strings across
+// thousands of channels.
+const codecSupport = new Map<string, boolean>();
+function browserCanPlay(codecs: string): boolean {
+  const cached = codecSupport.get(codecs);
+  if (cached !== undefined) return cached;
+  let ok = true;
+  try {
+    const MS = (globalThis as { MediaSource?: { isTypeSupported?: (t: string) => boolean } }).MediaSource;
+    // No MediaSource (or no way to ask) means we cannot rule anything
+    // out — never guess "unplayable" without evidence.
+    if (MS?.isTypeSupported) ok = MS.isTypeSupported(`video/mp4; codecs="${codecs}"`);
+  } catch { ok = true; }
+  codecSupport.set(codecs, ok);
+  return ok;
+}
+
+async function probeBatch(
+  batch: ProbeTarget[],
+  unplayable: Set<string>,
+): Promise<Map<string, boolean>> {
   const out = new Map<string, boolean>();
   try {
     const r = await fetch('/api/stream/probe', {
@@ -344,8 +397,22 @@ async function probeBatch(batch: ProbeTarget[]): Promise<Map<string, boolean>> {
       console.warn(`[sweep] probe endpoint returned ${r.status}; batch skipped`);
       return out;
     }
-    const j = await r.json() as { results?: Array<{ id: string; ok: boolean }> };
-    for (const v of j.results ?? []) out.set(v.id, !!v.ok);
+    const j = await r.json() as {
+      results?: Array<{ id: string; ok: boolean; codecs?: string }>;
+    };
+    for (const v of j.results ?? []) {
+      // The edge can only say the bytes arrive. Whether THIS browser can
+      // decode them is a local question, so it is answered here: a
+      // channel advertising codecs MSE rejects is unplayable no matter
+      // how healthy the provider is, and saying so now spares the user
+      // discovering it by opening the channel.
+      if (v.ok && v.codecs && !browserCanPlay(v.codecs)) {
+        out.set(v.id, false);
+        unplayable.add(v.id);
+        continue;
+      }
+      out.set(v.id, !!v.ok);
+    }
   } catch (e) {
     console.warn('[sweep] probe request failed:', (e as Error).message);
   }
@@ -387,7 +454,8 @@ export async function sweepNextBatch(
     }
     if (slices.length === 0) break;
 
-    const verdictSets = await Promise.all(slices.map(probeBatch));
+    const unplayable = new Set<string>();
+    const verdictSets = await Promise.all(slices.map((sl) => probeBatch(sl, unplayable)));
 
     let advanced = 0;
     for (let i = 0; i < slices.length; i++) {
@@ -410,7 +478,9 @@ export async function sweepNextBatch(
       }
       for (const t of answered) {
         if (verdicts.get(t.id)) reportOk(t.id, 'probe');
-        else                    reportFail(t.id, 'probe');
+        // A codec this browser rejects is permanent — no number of
+        // repeat probes makes it decodable.
+        else reportFail(t.id, 'probe', { permanent: unplayable.has(t.id) });
       }
       checked += answered.length;
       failed  += bad;

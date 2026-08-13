@@ -177,8 +177,11 @@ export default function LivePage() {
       try {
         const r = await sweepNextBatch(probeTargets, rounds ? { rounds } : undefined);
         if (!cancelled) {
-          if (!r.discarded) setHiddenHealth(hiddenIds());
+          setHiddenHealth(hiddenIds());
           setScanned(scannedCount());
+          if (r.discarded && r.checked === 0) {
+            console.warn('[sweep] tick recorded nothing — every batch was discarded');
+          }
         }
       } finally {
         sweepBusyRef.current = false;
@@ -735,17 +738,22 @@ export default function LivePage() {
           />
         )}
 
-        {(hiddenCount > 0 || (autoHideDead && scanned > 0 && scanned < allChannels.length)) && (
+        {(hiddenCount > 0 || (autoHideDead && allChannels.length > 0)) && (
           <div className="live-hidden-note" role="status">
               <span>
                 {hiddenCount > 0
                   ? (hiddenCount === 1
-                      ? '1 channel hidden — it failed to play repeatedly.'
-                      : `${hiddenCount} channels hidden — they failed to play repeatedly.`)
+                      ? '1 channel hidden — it could not play.'
+                      : `${hiddenCount} channels hidden — they could not play.`)
                   : 'Checking channels in the background.'}
-                {autoHideDead && allChannels.length > 0 && scanned < allChannels.length && (
+                {/* Always shown while scanning is on, including at zero.
+                    Hiding the counter until it moved made a scan that
+                    was not running look identical to one that was. */}
+                {autoHideDead && allChannels.length > 0 && (
                   <span style={{ opacity: 0.65 }}>
-                    {` Checked ${Math.min(scanned, allChannels.length).toLocaleString()} of ${allChannels.length.toLocaleString()}.`}
+                    {scanned >= allChannels.length
+                      ? ` Checked all ${allChannels.length.toLocaleString()}.`
+                      : ` Checked ${Math.min(scanned, allChannels.length).toLocaleString()} of ${allChannels.length.toLocaleString()}.`}
                   </span>
                 )}
               </span>

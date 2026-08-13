@@ -226,7 +226,16 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     // arrived — which makes a failing channel impossible to diagnose
     // from the error card. hls.js hands us the specific reason; keep it.
     let lastCause = '';
-    function noteCause(c: string) { if (c) lastCause = c; }
+    // Whether the last cause is one that repetition cannot inform. A
+    // codec this browser cannot decode is the same answer every time,
+    // and every probe will keep reporting the stream healthy because
+    // the bytes do arrive — the fault is local and permanent.
+    let lastCausePermanent = false;
+    function noteCause(c: string, permanent = false) {
+      if (!c) return;
+      lastCause = c;
+      lastCausePermanent = permanent;
+    }
     // Fires once per attached candidate. We register it as a regular
     // DOM listener instead of relying on the <video onPlaying> prop
     // so the effect closure can manage it directly and so cleanup
@@ -250,7 +259,9 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
       setErr(`Stream error: ${base}${lastCause ? ` (${lastCause})` : ''}.`);
       // Every URL we know for this channel is exhausted — count it
       // against the channel's health.
-      if (healthChannelId) reportFail(healthChannelId);
+      if (healthChannelId) {
+        reportFail(healthChannelId, 'playback', { permanent: lastCausePermanent });
+      }
     }
 
     // Native HLS (Safari / iOS) has no hls.js ERROR channel, so the
@@ -266,7 +277,9 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
           1: 'aborted', 2: 'network error', 3: 'decode error',
           4: 'format not supported',
         } as Record<number, string>)[me.code] ?? `media error ${me.code}`;
-        noteCause(kind);
+        // 3 (decode) and 4 (unsupported) are both statements about this
+        // browser's codec support, not about the provider.
+        noteCause(kind, me.code === 3 || me.code === 4);
       }
       clearStall();
       if (candidateIdx + 1 < candidates.length) tryCandidate(candidateIdx + 1);
@@ -350,7 +363,19 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
             } | undefined;
             if (data?.details) {
               const code = data.response?.code;
-              noteCause(code ? `${data.details}, HTTP ${code}` : data.details);
+              // hls.js reports an undecodable stream through these two:
+              // the manifest advertises codecs MSE rejects, or the
+              // SourceBuffer refuses the codec once transmuxed. Neither
+              // improves on retry — MPEG-2 video and AC-3 audio are
+              // common in IPTV and unsupported in browsers.
+              const codecFailure =
+                data.details === 'manifestIncompatibleCodecsError' ||
+                data.details === 'bufferAddCodecError' ||
+                data.details === 'bufferIncompatibleCodecsError';
+              noteCause(
+                code ? `${data.details}, HTTP ${code}` : data.details,
+                codecFailure,
+              );
             }
             if (!data?.fatal) return;
             // Manifest didn't load (typically a 4xx from the upstream)

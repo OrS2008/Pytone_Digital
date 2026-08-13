@@ -85,7 +85,26 @@ const DEFAULT_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36';
 
 interface ProbeItem { id: string; url: string; ua?: unknown; ref?: unknown }
-interface ProbeVerdict { id: string; ok: boolean; status?: number }
+interface ProbeVerdict {
+  id: string;
+  ok: boolean;
+  status?: number;
+  /**
+   * CODECS from the master playlist's #EXT-X-STREAM-INF, when it
+   * declares one. The edge cannot decide playability — that depends on
+   * the viewer's browser — so we hand the string back and let the
+   * client ask MediaSource.isTypeSupported(). This is what lets the
+   * scan catch a channel the browser can never decode without the user
+   * having to discover it by opening it.
+   */
+  codecs?: string;
+}
+
+// CODECS="avc1.4d401f,mp4a.40.2" off the first #EXT-X-STREAM-INF.
+function declaredCodecs(manifest: string): string | undefined {
+  const m = /#EXT-X-STREAM-INF:[^\n]*CODECS="([^"]+)"/i.exec(manifest);
+  return m ? m[1] : undefined;
+}
 
 // Fetch a URL and return its opening bytes, or null when it doesn't
 // answer 2xx. Only SNIFF_BYTES are read; the rest of the stream is
@@ -167,8 +186,9 @@ async function probeOne(item: ProbeItem, budget: { used: number }): Promise<Prob
     // URI (through one level of master → variant) and confirm the media
     // itself is really there, so the scan reaches the same verdict the
     // player would.
+    const codecs = declaredCodecs(top.text);
     let mediaUrl = firstMediaUri(top.text, manifestUrl);
-    if (!mediaUrl) return { id: item.id, ok: false, status: top.status };
+    if (!mediaUrl) return { id: item.id, ok: false, status: top.status, codecs };
 
     if (/\.m3u8(\?|$)/i.test(mediaUrl)) {
       const variantCheck = validateUpstreamUrl(mediaUrl);
@@ -188,7 +208,7 @@ async function probeOne(item: ProbeItem, budget: { used: number }): Promise<Prob
     const seg = await fetchHead(segCheck.url.toString(), headers, ac.signal, budget, {
       range: `bytes=0-${SNIFF_BYTES - 1}`,
     });
-    return { id: item.id, ok: !!seg, status: seg?.status ?? top.status };
+    return { id: item.id, ok: !!seg, status: seg?.status ?? top.status, codecs };
   } catch (e) {
     if (e instanceof SsrfBlocked) return { id: item.id, ok: false };
     return { id: item.id, ok: false };
