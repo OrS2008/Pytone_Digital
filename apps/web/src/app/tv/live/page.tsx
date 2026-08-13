@@ -31,7 +31,7 @@ import { loadEpgIndex, hydrateChannels, getUserEpgUrl } from '@/lib/epgCache';
 import { proxiedStreamUrl } from '@/lib/streamProxy';
 import { buildCatchupUrl } from '@/lib/catchup';
 import { maskSourceUrl } from '@/lib/maskUrl';
-import { hiddenIds, onHealthChange, probeHidden, restoreAll } from '@/lib/channelHealth';
+import { hiddenIds, onHealthChange, probeHidden, restoreAll, sweepNextBatch } from '@/lib/channelHealth';
 import { useT } from '@/lib/i18n';
 import './live.css';
 
@@ -61,6 +61,9 @@ function currentFullscreenElement(): Element | null {
   const doc = document as FsCapableDocument;
   return doc.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
 }
+
+// How often the rolling playlist sweep fires.
+const SWEEP_INTERVAL_MS = 5 * 60_000;
 
 type LoadState =
   | { kind: 'idle' }
@@ -119,19 +122,62 @@ export default function LivePage() {
   const hiddenCount = allChannels.length - channels.length;
   const [recheckBusy, setRecheckBusy] = useState(false);
 
+  const probeTargets = useMemo(
+    () => allChannels.map((c) => ({
+      id: c.id,
+      streamUrl: c.streamUrl || '',
+      httpUserAgent: c.httpUserAgent,
+      httpReferrer: c.httpReferrer,
+    })),
+    [allChannels],
+  );
+
   // Re-probe hidden channels in the background so ones that recover
   // come back on their own. Cooldown-gated inside probeHidden, and it
   // only ever touches channels that are already hidden.
   useEffect(() => {
-    if (!autoHideDead || allChannels.length === 0) return;
+    if (!autoHideDead || probeTargets.length === 0) return;
     let cancelled = false;
     (async () => {
-      const targets = allChannels.map((c) => ({ id: c.id, streamUrl: c.streamUrl || '', httpUserAgent: c.httpUserAgent, httpReferrer: c.httpReferrer }));
-      const r = await probeHidden(targets);
+      const r = await probeHidden(probeTargets);
       if (!cancelled && r.restored > 0) setHiddenHealth(hiddenIds());
     })();
     return () => { cancelled = true; };
-  }, [allChannels, autoHideDead]);
+  }, [probeTargets, autoHideDead]);
+
+  // Rolling proactive sweep: every 5 minutes, verify the next slice of
+  // the playlist so dead channels are found without the user having to
+  // open them first. A slice rather than the whole list — see the note
+  // on sweepNextBatch; a full 12k-channel scan on this interval would
+  // look like scraping to the provider.
+  //
+  // Held back while watching (the probes would compete with the stream
+  // for bandwidth) and while the tab is hidden (no reason to spend a
+  // phone's data and battery on a screen nobody is looking at).
+  const sweepBusyRef = useRef(false);
+  useEffect(() => {
+    if (!autoHideDead || probeTargets.length === 0) return;
+    let cancelled = false;
+
+    async function runSweep() {
+      if (cancelled || sweepBusyRef.current) return;
+      if (watchingRef.current) return;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      sweepBusyRef.current = true;
+      try {
+        const r = await sweepNextBatch(probeTargets);
+        if (!cancelled && !r.discarded) setHiddenHealth(hiddenIds());
+      } finally {
+        sweepBusyRef.current = false;
+      }
+    }
+
+    const iv = setInterval(runSweep, SWEEP_INTERVAL_MS);
+    // Give the playlist a moment to settle before the first batch so the
+    // sweep never competes with the initial channel + EPG load.
+    const kickoff = setTimeout(runSweep, 20_000);
+    return () => { cancelled = true; clearInterval(iv); clearTimeout(kickoff); };
+  }, [probeTargets, autoHideDead]);
   const [activeIdx, setActiveIdx] = useState(0);
 
   // A channel disappearing (it just crossed the failure threshold, or
@@ -688,8 +734,7 @@ export default function LivePage() {
                 type="button"
                 onClick={async () => {
                   setRecheckBusy(true);
-                  const targets = allChannels.map((c) => ({ id: c.id, streamUrl: c.streamUrl || '', httpUserAgent: c.httpUserAgent, httpReferrer: c.httpReferrer }));
-                  await probeHidden(targets, { force: true });
+                  await probeHidden(probeTargets, { force: true });
                   setHiddenHealth(hiddenIds());
                   setRecheckBusy(false);
                 }}

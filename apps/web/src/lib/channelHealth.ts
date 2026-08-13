@@ -215,6 +215,113 @@ export interface ProbeResult {
   restored: number;
 }
 
+// ---------------------------------------------------------------------
+// Rolling background sweep
+// ---------------------------------------------------------------------
+
+// The passive detector only ever learns about channels the user opened.
+// The sweep closes that gap by checking the playlist on its own — but it
+// does so a slice at a time, advancing a cursor, rather than scanning
+// everything on each pass.
+//
+// That shape is not a compromise on thoroughness, it is what makes the
+// feature safe to run at all. These playlists carry ~12k channels, and a
+// full scan every five minutes would mean ~144k upstream requests an
+// hour against the provider. That is indistinguishable from scraping,
+// and it is the sort of traffic IPTV resellers suspend accounts for. A
+// rolling slice still reaches every channel; it just takes hours
+// instead of minutes, and costs the provider almost nothing.
+const SWEEP_BATCH = 25;
+const SWEEP_CONCURRENCY = 3;
+const CURSOR_KEY = 'channelHealth.sweepCursor';
+
+// If nearly everything in a batch fails, the batch is not evidence about
+// the channels — it is evidence about us. Wi-Fi dropped, the provider is
+// rate-limiting the sweep, the whole account is suspended. Recording
+// those failures would march the entire playlist to the hide threshold
+// in a few passes and empty the channel list. Above this rate the batch
+// is discarded.
+const SWEEP_BAD_BATCH_RATE = 0.8;
+
+function sweepCursor(): number {
+  if (typeof window === 'undefined') return 0;
+  try { return Number(localStorage.getItem(userKey(CURSOR_KEY))) || 0; }
+  catch { return 0; }
+}
+
+function setSweepCursor(n: number): void {
+  try { localStorage.setItem(userKey(CURSOR_KEY), String(n)); }
+  catch { /* ignore */ }
+}
+
+export interface SweepResult {
+  checked:   number;
+  failed:    number;
+  restored:  number;
+  /** True when the batch was thrown away as a network-wide failure. */
+  discarded: boolean;
+  /** Position after this batch, for progress display. */
+  cursor:    number;
+  total:     number;
+}
+
+/**
+ * Check the next slice of the playlist and fold the results into each
+ * channel's health record. Wraps back to the start at the end, so
+ * leaving the page open keeps re-verifying in the background.
+ */
+export async function sweepNextBatch(
+  channels: ProbeTarget[],
+  opts?: { batch?: number },
+): Promise<SweepResult> {
+  const total = channels.length;
+  if (total === 0) return { checked: 0, failed: 0, restored: 0, discarded: false, cursor: 0, total: 0 };
+
+  const size = Math.min(opts?.batch ?? SWEEP_BATCH, total);
+  const start = sweepCursor() % total;
+  const batch: ProbeTarget[] = [];
+  for (let i = 0; i < size; i++) {
+    const c = channels[(start + i) % total];
+    if (c?.streamUrl) batch.push(c);
+  }
+  const nextCursor = (start + size) % total;
+  setSweepCursor(nextCursor);
+  if (batch.length === 0) {
+    return { checked: 0, failed: 0, restored: 0, discarded: false, cursor: nextCursor, total };
+  }
+
+  const before = hiddenIds();
+  const results: Array<{ t: ProbeTarget; ok: boolean }> = [];
+  let cursor = 0;
+  async function worker() {
+    for (;;) {
+      const i = cursor++;
+      if (i >= batch.length) return;
+      const t = batch[i];
+      results.push({ t, ok: await probeOne(t) });
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(SWEEP_CONCURRENCY, batch.length) }, worker),
+  );
+
+  const failed = results.filter((r) => !r.ok).length;
+  // Five is the smallest batch where a rate is meaningful; below that a
+  // couple of genuinely dead channels would trip the guard.
+  if (batch.length >= 5 && failed / batch.length >= SWEEP_BAD_BATCH_RATE) {
+    return { checked: batch.length, failed, restored: 0, discarded: true, cursor: nextCursor, total };
+  }
+
+  for (const r of results) {
+    if (r.ok) reportOk(r.t.id);
+    else      reportFail(r.t.id);
+  }
+  const after = hiddenIds();
+  let restored = 0;
+  for (const id of before) if (!after.has(id)) restored += 1;
+  return { checked: batch.length, failed, restored, discarded: false, cursor: nextCursor, total };
+}
+
 /**
  * Re-check hidden channels and restore the ones that respond.
  *
