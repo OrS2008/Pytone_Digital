@@ -108,6 +108,15 @@ export function parseM3U(text: string): M3UChannel[] {
   // below to inherit it. Without inheriting, we'd think nothing on the
   // playlist supports DVR.
   const defaults: Pick<ExtInf, 'catchupKind' | 'catchupSource' | 'catchupDays' | 'catchupCorrection'> = {};
+  // tvg-id is an EPG pointer, not an identity: the SD / HD / FHD
+  // variants of one channel almost always carry the same value. Using
+  // it verbatim as `id` collided the React key in the (windowed)
+  // channel rail and made My List treat every variant as one entry —
+  // favouriting BeIN HD lit up BeIN FHD too. The first occurrence
+  // keeps the bare value so favourites saved before this still
+  // resolve; later ones get a positional suffix.
+  const usedIds = new Set<string>();
+  let sawExplicitNumber = false;
 
   for (const raw of lines) {
     const line = raw.trim();
@@ -133,9 +142,13 @@ export function parseM3U(text: string): M3UChannel[] {
     if (!pending) continue;             // url with no preceding EXTINF, skip
 
     positional += 1;
+    if (pending.tvgChno != null) sawExplicitNumber = true;
     const number = pending.tvgChno ?? positional;
+    let id = pending.tvgId || `ch-${positional}`;
+    if (usedIds.has(id)) id = `${id}#${positional}`;
+    usedIds.add(id);
     out.push({
-      id:            pending.tvgId || `ch-${positional}`,
+      id,
       number,
       name:          pending.name,
       logoUrl:       pending.tvgLogo || '',
@@ -150,9 +163,15 @@ export function parseM3U(text: string): M3UChannel[] {
     pending = null;
   }
 
-  // Sort by tvg-chno when the playlist provided explicit numbers; otherwise
-  // preserve playlist order (positional ordering already in `out`).
-  if (out.some((c) => c.number !== c.number)) { /* keep file order */ }
+  // Sort by tvg-chno when the playlist provided explicit numbers;
+  // otherwise preserve playlist order (already encoded in `positional`).
+  // The guard here used to read `c.number !== c.number`, which is only
+  // ever true for NaN — and tvg-chno is parsed with `Number(v) ||
+  // undefined`, so it never is. The condition was dead and the sort it
+  // guarded was never written, leaving the rail's channel numbers out
+  // of order against the list they label. Array#sort is stable, so
+  // entries sharing a number keep their relative file order.
+  if (sawExplicitNumber) out.sort((a, b) => a.number - b.number);
 
   return out;
 }

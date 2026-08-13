@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Channel } from './types';
 import { proxiedStreamUrl, onStreamModeChange } from '@/lib/streamProxy';
+import { userKey } from '@/lib/session';
 import { useT } from '@/lib/i18n';
 
 /*
@@ -68,29 +69,23 @@ interface HlsCtor {
 
 const RECONNECT_DELAYS_MS = [800, 2400, 6000]; // 3 retries, expanding backoff.
 
-// Read the user's playback preferences directly out of localStorage —
-// the player runs as a child of the live page where the prefs hooks
-// don't reach. We can't depend on usePersisted here because the
-// player exists outside the React tree the toggle writes from.
+// Read the user's playback preferences directly out of localStorage.
+// usePersisted is a hook and the values are needed inside the imperative
+// stream-lifecycle effect, so we read the store by hand — but the KEY
+// must come from the shared userKey() helper. A local re-implementation
+// of the tenant hash lived here and used a different algorithm from
+// session.ts, so every lookup landed on a name nothing ever wrote and
+// all three preferences below were silently inert.
 function readPreference(key: string): string {
   if (typeof window === 'undefined') return '';
   try {
-    const raw = localStorage.getItem(`ns:${userTenantHash()}:${key}`);
+    const raw = localStorage.getItem(userKey(key));
     if (raw == null) return '';
     // Tolerate both JSON-stringified ("foo") and raw (foo) values —
     // usePersisted writes JSON, Toggle writes raw, both end up here.
     try { return JSON.parse(raw) as string; }
     catch { return raw; }
   } catch { return ''; }
-}
-function userTenantHash(): string {
-  try {
-    const email = (localStorage.getItem('ns.session.email') || '').toLowerCase().trim();
-    if (!email) return 'anon';
-    let h = 0;
-    for (let i = 0; i < email.length; i++) h = ((h << 5) - h + email.charCodeAt(i)) | 0;
-    return 'u' + (h >>> 0).toString(36);
-  } catch { return 'anon'; }
 }
 
 // Apply prefs.audioLang / prefs.subtitleLang / prefs.maxQuality to a
@@ -120,7 +115,11 @@ function applyPreferences(h: HlsInstance): void {
   const maxQ = readPreference('prefs.maxQuality');
   if (maxQ && maxQ !== 'auto' && h.levels?.length) {
     if (maxQ === 'audio') {
-      h.autoLevelCapping = -1; // hls.js picks whatever's lowest, often audio-only
+      // Level 0 is the lowest-bitrate rendition — audio-only when the
+      // provider ships one. -1 is hls.js's "no cap" sentinel, so the
+      // old value here selected the HIGHEST quality: the exact
+      // opposite of what the setting asks for.
+      h.autoLevelCapping = 0;
     } else {
       const want = Number(maxQ);
       // Find the index of the highest level whose height <= want.
@@ -283,7 +282,10 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
       // (a user gesture) satisfies the autoplay-with-sound policy.
       video.muted = !startUnmuted;
       try {
-        const saved = localStorage.getItem('player.volume');
+        // InfoBar's slider persists through userKey(); reading the bare
+        // name here meant the restore never found it and every channel
+        // change reset the volume to the element default.
+        const saved = localStorage.getItem(userKey('player.volume'));
         const v = saved !== null ? Number(saved) : NaN;
         if (isFinite(v) && v >= 0 && v <= 1) video.volume = v;
       } catch { /* ignore */ }

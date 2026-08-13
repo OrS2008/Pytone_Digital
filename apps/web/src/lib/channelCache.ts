@@ -59,12 +59,23 @@ function writeSessionCache(entry: CacheEntry) {
 // Returns the cached channels synchronously if we have anything for
 // the active tenant. Used by every route to render the user's list
 // instantly on mount.
-export function getCachedChannels(): M3UChannel[] | null {
+// The entry is only valid if it was parsed from the playlist that is
+// configured right now. A source change this tab didn't perform —
+// most commonly syncDown() rewriting the synced `sources.live` key
+// from another device — otherwise left the previous playlist on
+// screen until the 30-minute TTL lapsed. Callers that already know
+// the URL can pass it to skip the localStorage re-read; everyone else
+// gets the check for free, which matters because these call sites
+// paint synchronously before the async reload lands.
+// loadEpgIndex has always compared its stored url this way.
+export function getCachedChannels(forUrl?: string): M3UChannel[] | null {
+  const wanted = forUrl ?? getUserSourceUrl()?.url;
+  const fresh = (e: CacheEntry) => (wanted == null || e.url === wanted ? e.channels : null);
   const key = memKey();
   const mem = MEM.get(key);
-  if (mem) return mem.channels;
+  if (mem) return fresh(mem);
   const sess = readSessionCache();
-  if (sess) { MEM.set(key, sess); return sess.channels; }
+  if (sess) { MEM.set(key, sess); return fresh(sess); }
   return null;
 }
 
@@ -174,11 +185,14 @@ async function fetchAndParse(url: string): Promise<LoadResult> {
 // rich result so callers can surface fetch / parse errors instead of
 // swallowing them as "no channels".
 export async function loadChannelsResult(): Promise<LoadResult> {
-  const cached = getCachedChannels();
-  if (cached && cached.length > 0) return { channels: cached };
-
+  // Resolve the configured source before consulting the cache, so a
+  // cache entry parsed from a different playlist is rejected rather
+  // than served.
   const src = getUserSourceUrl();
   if (!src) return { channels: [] };  // no source configured — not an error
+
+  const cached = getCachedChannels(src.url);
+  if (cached && cached.length > 0) return { channels: cached };
 
   const flightKey = memKey() + '|' + src.url;
   const existing = INFLIGHT.get(flightKey);
