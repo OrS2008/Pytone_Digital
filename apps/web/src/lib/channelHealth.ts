@@ -231,9 +231,16 @@ export interface ProbeResult {
 // and it is the sort of traffic IPTV resellers suspend accounts for. A
 // rolling slice still reaches every channel; it just takes hours
 // instead of minutes, and costs the provider almost nothing.
-const SWEEP_BATCH = 25;
-const SWEEP_CONCURRENCY = 3;
+// The sweep runs against /api/stream/probe, which checks a whole batch
+// edge-side and answers with verdicts. That is what makes covering a
+// real playlist practical: probing one channel per browser request
+// needed ~12.7k round trips, so the slice that fit in a sane request
+// budget (25 per five minutes) would have taken over forty hours to
+// finish a single pass — the user would never see it complete.
+const SWEEP_BATCH = 60;          // matches the endpoint's MAX_ITEMS
+const SWEEP_BATCHES_PER_TICK = 4; // ~240 channels per tick
 const CURSOR_KEY = 'channelHealth.sweepCursor';
+const SCANNED_KEY = 'channelHealth.scanned';
 
 // If nearly everything in a batch fails, the batch is not evidence about
 // the channels — it is evidence about us. Wi-Fi dropped, the provider is
@@ -254,72 +261,104 @@ function setSweepCursor(n: number): void {
   catch { /* ignore */ }
 }
 
+/** How many channels this device has checked at least once. */
+export function scannedCount(): number {
+  if (typeof window === 'undefined') return 0;
+  try { return Number(localStorage.getItem(userKey(SCANNED_KEY))) || 0; }
+  catch { return 0; }
+}
+
+function bumpScanned(n: number): void {
+  try { localStorage.setItem(userKey(SCANNED_KEY), String(scannedCount() + n)); }
+  catch { /* ignore */ }
+}
+
 export interface SweepResult {
   checked:   number;
   failed:    number;
   restored:  number;
-  /** True when the batch was thrown away as a network-wide failure. */
+  /** True when a batch was thrown away as a network-wide failure. */
   discarded: boolean;
-  /** Position after this batch, for progress display. */
   cursor:    number;
   total:     number;
 }
 
+async function probeBatch(batch: ProbeTarget[]): Promise<Map<string, boolean>> {
+  const out = new Map<string, boolean>();
+  try {
+    const r = await fetch('/api/stream/probe', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        items: batch.map((t) => ({
+          id: t.id, url: t.streamUrl, ua: t.httpUserAgent, ref: t.httpReferrer,
+        })),
+      }),
+    });
+    if (!r.ok) return out;
+    const j = await r.json() as { results?: Array<{ id: string; ok: boolean }> };
+    for (const v of j.results ?? []) out.set(v.id, !!v.ok);
+  } catch { /* offline — treated as "no verdict", see caller */ }
+  return out;
+}
+
 /**
  * Check the next slice of the playlist and fold the results into each
- * channel's health record. Wraps back to the start at the end, so
- * leaving the page open keeps re-verifying in the background.
+ * channel's health record. Wraps at the end, so leaving the page open
+ * keeps re-verifying in the background.
  */
 export async function sweepNextBatch(
   channels: ProbeTarget[],
-  opts?: { batch?: number },
+  opts?: { batches?: number },
 ): Promise<SweepResult> {
   const total = channels.length;
   if (total === 0) return { checked: 0, failed: 0, restored: 0, discarded: false, cursor: 0, total: 0 };
 
-  const size = Math.min(opts?.batch ?? SWEEP_BATCH, total);
-  const start = sweepCursor() % total;
-  const batch: ProbeTarget[] = [];
-  for (let i = 0; i < size; i++) {
-    const c = channels[(start + i) % total];
-    if (c?.streamUrl) batch.push(c);
-  }
-  const nextCursor = (start + size) % total;
-  setSweepCursor(nextCursor);
-  if (batch.length === 0) {
-    return { checked: 0, failed: 0, restored: 0, discarded: false, cursor: nextCursor, total };
-  }
-
   const before = hiddenIds();
-  const results: Array<{ t: ProbeTarget; ok: boolean }> = [];
-  let cursor = 0;
-  async function worker() {
-    for (;;) {
-      const i = cursor++;
-      if (i >= batch.length) return;
-      const t = batch[i];
-      results.push({ t, ok: await probeOne(t) });
+  const rounds = opts?.batches ?? SWEEP_BATCHES_PER_TICK;
+  let checked = 0;
+  let failed = 0;
+  let discarded = false;
+  let cursor = sweepCursor() % total;
+
+  for (let round = 0; round < rounds; round++) {
+    const batch: ProbeTarget[] = [];
+    for (let i = 0; i < SWEEP_BATCH && batch.length < total; i++) {
+      const c = channels[(cursor + i) % total];
+      if (c?.streamUrl) batch.push(c);
     }
-  }
-  await Promise.all(
-    Array.from({ length: Math.min(SWEEP_CONCURRENCY, batch.length) }, worker),
-  );
+    cursor = (cursor + SWEEP_BATCH) % total;
+    setSweepCursor(cursor);
+    if (batch.length === 0) break;
 
-  const failed = results.filter((r) => !r.ok).length;
-  // Five is the smallest batch where a rate is meaningful; below that a
-  // couple of genuinely dead channels would trip the guard.
-  if (batch.length >= 5 && failed / batch.length >= SWEEP_BAD_BATCH_RATE) {
-    return { checked: batch.length, failed, restored: 0, discarded: true, cursor: nextCursor, total };
+    const verdicts = await probeBatch(batch);
+    // No verdicts at all means the request itself failed — we are
+    // offline or the endpoint is down. That says nothing about any
+    // channel, so nothing is recorded.
+    if (verdicts.size === 0) { discarded = true; break; }
+
+    const answered = batch.filter((t) => verdicts.has(t.id));
+    const bad = answered.filter((t) => !verdicts.get(t.id)).length;
+    // Five is the smallest batch where a rate is meaningful; below that
+    // a couple of genuinely dead channels would trip the guard.
+    if (answered.length >= 5 && bad / answered.length >= SWEEP_BAD_BATCH_RATE) {
+      discarded = true;
+      break;
+    }
+
+    for (const t of answered) {
+      if (verdicts.get(t.id)) reportOk(t.id);
+      else                    reportFail(t.id);
+    }
+    checked += answered.length;
+    failed  += bad;
+    bumpScanned(answered.length);
   }
 
-  for (const r of results) {
-    if (r.ok) reportOk(r.t.id);
-    else      reportFail(r.t.id);
-  }
   const after = hiddenIds();
   let restored = 0;
   for (const id of before) if (!after.has(id)) restored += 1;
-  return { checked: batch.length, failed, restored, discarded: false, cursor: nextCursor, total };
+  return { checked, failed, restored, discarded, cursor, total };
 }
 
 /**

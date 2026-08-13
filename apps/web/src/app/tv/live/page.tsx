@@ -31,7 +31,7 @@ import { loadEpgIndex, hydrateChannels, getUserEpgUrl } from '@/lib/epgCache';
 import { proxiedStreamUrl } from '@/lib/streamProxy';
 import { buildCatchupUrl } from '@/lib/catchup';
 import { maskSourceUrl } from '@/lib/maskUrl';
-import { hiddenIds, onHealthChange, probeHidden, restoreAll, sweepNextBatch } from '@/lib/channelHealth';
+import { hiddenIds, onHealthChange, probeHidden, restoreAll, sweepNextBatch, scannedCount } from '@/lib/channelHealth';
 import { useT } from '@/lib/i18n';
 import './live.css';
 
@@ -63,7 +63,11 @@ function currentFullscreenElement(): Element | null {
 }
 
 // How often the rolling playlist sweep fires.
-const SWEEP_INTERVAL_MS = 5 * 60_000;
+// Ticks are short because each one now covers ~240 channels through the
+// batch endpoint rather than 25 through individual proxy round trips.
+// A 12.7k playlist finishes a full pass in roughly an hour of open page
+// instead of the forty-plus hours the per-request shape needed.
+const SWEEP_INTERVAL_MS = 60_000;
 
 type LoadState =
   | { kind: 'idle' }
@@ -121,6 +125,8 @@ export default function LivePage() {
   );
   const hiddenCount = allChannels.length - channels.length;
   const [recheckBusy, setRecheckBusy] = useState(false);
+  const [scanned, setScanned] = useState(0);
+  useEffect(() => { setScanned(scannedCount()); }, []);
 
   const probeTargets = useMemo(
     () => allChannels.map((c) => ({
@@ -166,7 +172,10 @@ export default function LivePage() {
       sweepBusyRef.current = true;
       try {
         const r = await sweepNextBatch(probeTargets);
-        if (!cancelled && !r.discarded) setHiddenHealth(hiddenIds());
+        if (!cancelled) {
+          if (!r.discarded) setHiddenHealth(hiddenIds());
+          setScanned(scannedCount());
+        }
       } finally {
         sweepBusyRef.current = false;
       }
@@ -175,7 +184,7 @@ export default function LivePage() {
     const iv = setInterval(runSweep, SWEEP_INTERVAL_MS);
     // Give the playlist a moment to settle before the first batch so the
     // sweep never competes with the initial channel + EPG load.
-    const kickoff = setTimeout(runSweep, 20_000);
+    const kickoff = setTimeout(runSweep, 4_000);
     return () => { cancelled = true; clearInterval(iv); clearTimeout(kickoff); };
   }, [probeTargets, autoHideDead]);
   const [activeIdx, setActiveIdx] = useState(0);
@@ -722,12 +731,19 @@ export default function LivePage() {
           />
         )}
 
-        {hiddenCount > 0 && (
+        {(hiddenCount > 0 || (autoHideDead && scanned > 0 && scanned < allChannels.length)) && (
           <div className="live-hidden-note" role="status">
               <span>
-                {hiddenCount === 1
-                  ? '1 channel hidden — it failed to play repeatedly.'
-                  : `${hiddenCount} channels hidden — they failed to play repeatedly.`}
+                {hiddenCount > 0
+                  ? (hiddenCount === 1
+                      ? '1 channel hidden — it failed to play repeatedly.'
+                      : `${hiddenCount} channels hidden — they failed to play repeatedly.`)
+                  : 'Checking channels in the background.'}
+                {autoHideDead && allChannels.length > 0 && scanned < allChannels.length && (
+                  <span style={{ opacity: 0.65 }}>
+                    {` Checked ${Math.min(scanned, allChannels.length).toLocaleString()} of ${allChannels.length.toLocaleString()}.`}
+                  </span>
+                )}
               </span>
               <button
                 type="button"
