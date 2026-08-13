@@ -157,6 +157,30 @@ function parseExtInf(line: string): ExtInf | null {
   return out;
 }
 
+export interface ParseStats {
+  /** `#EXTINF:` lines seen in the playlist. */
+  extinf: number;
+  /** Channels actually emitted. */
+  emitted: number;
+  /** EXTINF entries that produced no channel. Should always be 0. */
+  dropped: number;
+  /** URL lines with no preceding EXTINF (structurally orphaned). */
+  orphanUrls: number;
+}
+
+let lastStats: ParseStats = { extinf: 0, emitted: 0, dropped: 0, orphanUrls: 0 };
+
+/**
+ * Stats for the most recent parseM3U call.
+ *
+ * This exists because a parser change silently deleted ~88% of a real
+ * playlist (12,747 channels came back as 1,492) and nothing in the app
+ * could tell the difference between "the parser dropped them" and "the
+ * playlist got smaller". Counting the input entries alongside the
+ * output makes that distinguishable instead of a guess.
+ */
+export function lastParseStats(): ParseStats { return lastStats; }
+
 export function parseM3U(text: string): M3UChannel[] {
   const lines = text.split(/\r?\n/);
   const out: M3UChannel[] = [];
@@ -176,6 +200,8 @@ export function parseM3U(text: string): M3UChannel[] {
   // resolve; later ones get a positional suffix.
   const usedIds = new Set<string>();
   let sawExplicitNumber = false;
+  let extinfSeen = 0;
+  let orphanUrls = 0;
 
   for (const raw of lines) {
     const line = raw.trim();
@@ -196,7 +222,7 @@ export function parseM3U(text: string): M3UChannel[] {
       }
       continue;
     }
-    if (line.startsWith('#EXTINF:')) { pending = parseExtInf(line); continue; }
+    if (line.startsWith('#EXTINF:')) { extinfSeen += 1; pending = parseExtInf(line); continue; }
     if (line.startsWith('#EXTVLCOPT:')) {
       // The other half of the header convention. VLC-style options
       // attach to the EXTINF above them, so they are folded into the
@@ -212,7 +238,7 @@ export function parseM3U(text: string): M3UChannel[] {
       continue;
     }
     if (line.startsWith('#')) continue; // ignore other directives (EXTGRP, etc.)
-    if (!pending) continue;             // url with no preceding EXTINF, skip
+    if (!pending) { orphanUrls += 1; continue; } // url with no preceding EXTINF
 
     positional += 1;
     if (pending.tvgChno != null) sawExplicitNumber = true;
@@ -249,6 +275,15 @@ export function parseM3U(text: string): M3UChannel[] {
   // of order against the list they label. Array#sort is stable, so
   // entries sharing a number keep their relative file order.
   if (sawExplicitNumber) out.sort((a, b) => a.number - b.number);
+
+  lastStats = {
+    extinf: extinfSeen,
+    emitted: out.length,
+    // An EXTINF whose URL line never arrived is a truncated playlist,
+    // not a parser drop, so only count entries we saw a URL for.
+    dropped: Math.max(0, Math.min(extinfSeen, extinfSeen) - out.length),
+    orphanUrls,
+  };
 
   return out;
 }

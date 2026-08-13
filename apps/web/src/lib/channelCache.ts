@@ -18,7 +18,7 @@
 // the same browser still see two completely separate lists.
 
 import type { M3UChannel } from './m3u';
-import { parseM3U } from './m3u';
+import { parseM3U, lastParseStats, type ParseStats } from './m3u';
 import { userKey } from './session';
 
 interface StoredSource { id: string; kind: string; title: string; sub: string; stat: string }
@@ -145,6 +145,8 @@ export function localM3UKey(id: string): string {
 export interface LoadResult {
   channels: M3UChannel[];
   error?:   string;
+  /** Input-vs-output counts for the parse that produced `channels`. */
+  stats?:   ParseStats;
 }
 
 // Fetch + parse + cache. Idempotent in flight — concurrent callers
@@ -187,6 +189,19 @@ async function fetchAndParse(url: string): Promise<LoadResult> {
   }
 
   const channels = parseM3U(text);
+  const stats = lastParseStats();
+  // A playlist that shrinks between deploys is indistinguishable from a
+  // parser that eats entries unless both numbers are recorded. Surface
+  // it loudly rather than leaving it to be guessed at from a count.
+  if (stats.dropped > 0 || stats.orphanUrls > 0) {
+    console.warn(
+      `[playlist] ${stats.emitted} channels from ${stats.extinf} entries` +
+      ` — ${stats.dropped} dropped, ${stats.orphanUrls} URLs without an EXTINF.` +
+      ' Bytes received: ' + text.length,
+    );
+  } else {
+    console.info(`[playlist] ${stats.emitted} channels from ${stats.extinf} entries, ${text.length} bytes.`);
+  }
   if (channels.length === 0) {
     return {
       channels: [],
@@ -196,7 +211,7 @@ async function fetchAndParse(url: string): Promise<LoadResult> {
   const entry: CacheEntry = { url, fetchedAt: Date.now(), channels, v: PARSE_VERSION };
   MEM.set(memKey(), entry);
   writeSessionCache(entry);
-  return { channels };
+  return { channels, stats };
 }
 
 // Loads channels for the currently-configured live source. Returns a
