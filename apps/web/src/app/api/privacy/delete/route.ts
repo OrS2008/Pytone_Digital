@@ -24,9 +24,11 @@ import { requireKV } from '@/lib/cfEnv';
 import {
   clearSessionCookieHeader,
   destroySession,
+  listSessionsForUser,
   readSession,
   readSessionCookie,
 } from '@/lib/auth/serverSession';
+import { rateLimit, tooManyRequests } from '@/lib/rateLimit';
 import {
   firebaseSignin,
   firebaseDeleteAccount,
@@ -51,6 +53,15 @@ export async function POST(req: NextRequest) {
 
   const password = typeof body.password === 'string' ? body.password : '';
   if (!password) return NextResponse.json({ error: 'password_required' }, { status: 400 });
+
+  // The Firebase sign-in below turns this route into a password oracle:
+  // a stolen session could otherwise brute-force the account password
+  // here at full speed. Same budget and account-keying as
+  // change-password, which has the identical exposure.
+  {
+    const rl = await rateLimit(kv, 'privacy-delete', session.userId, 10, 900);
+    if (!rl.ok) return tooManyRequests(rl.retryAfter);
+  }
 
   // Re-authenticate against Firebase to (a) confirm the requester owns
   // the account, and (b) get an idToken to authorise accounts:delete.
@@ -80,12 +91,19 @@ export async function POST(req: NextRequest) {
     throw e;
   }
 
+  // Revoke EVERY session, not just this device's. "Delete forever" that
+  // leaves the user's other phones and TVs holding live session tokens
+  // is not erasure — those ids stay valid in KV until their 30-day TTL
+  // lapses. change-password already fans out this way; the destructive
+  // route has more reason to, not less.
   const emailKey = session.email.toLowerCase().trim();
+  const allSessionIds = await listSessionsForUser(kv, session.userId);
+  if (!allSessionIds.includes(sid)) allSessionIds.push(sid);
   await Promise.allSettled([
     kv.delete(`user:${emailKey}`),
     kv.delete(`settings:${session.userId}`),
     kv.delete(`history:${session.userId}`),
-    destroySession(kv, sid),
+    ...allSessionIds.map((id) => destroySession(kv, id)),
   ]);
 
   const headers = new Headers({ 'content-type': 'application/json; charset=utf-8' });

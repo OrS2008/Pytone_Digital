@@ -27,7 +27,23 @@ interface CacheEntry {
   url:       string;          // the M3U URL we parsed
   fetchedAt: number;
   channels:  M3UChannel[];
+  /** parseM3U revision that produced `channels` — see PARSE_VERSION. */
+  v?:        number;
 }
+
+// What is cached here is the OUTPUT of parseM3U, not the playlist text.
+// That means a fix to the parser does not reach anyone holding a warm
+// cache until it ages out, and for up to MAX_AGE_MS they keep seeing
+// results the old code produced — with no way to tell why. That is
+// exactly what happened when the EXTINF comma split was fixed: the
+// deploy was live, but channels kept rendering with user-agent
+// fragments for their names because the entry predating the fix was
+// still being served.
+//
+// Bump this whenever parseM3U's output changes in a way that should be
+// visible immediately. Entries stamped with an older revision are
+// treated as a miss and re-parsed from the playlist.
+const PARSE_VERSION = 2;
 
 const MAX_AGE_MS = 30 * 60_000;
 // In-memory cache, keyed by tenant id (so two tenants on the same
@@ -47,6 +63,7 @@ function readSessionCache(): CacheEntry | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as CacheEntry;
     if (Date.now() - parsed.fetchedAt > MAX_AGE_MS) return null;
+    if (parsed.v !== PARSE_VERSION) return null;
     return parsed;
   } catch { return null; }
 }
@@ -70,7 +87,8 @@ function writeSessionCache(entry: CacheEntry) {
 // loadEpgIndex has always compared its stored url this way.
 export function getCachedChannels(forUrl?: string): M3UChannel[] | null {
   const wanted = forUrl ?? getUserSourceUrl()?.url;
-  const fresh = (e: CacheEntry) => (wanted == null || e.url === wanted ? e.channels : null);
+  const fresh = (e: CacheEntry) =>
+    (e.v === PARSE_VERSION && (wanted == null || e.url === wanted)) ? e.channels : null;
   const key = memKey();
   const mem = MEM.get(key);
   if (mem) return fresh(mem);
@@ -175,7 +193,7 @@ async function fetchAndParse(url: string): Promise<LoadResult> {
       error: 'Playlist contained no channels. The file may be empty or use a non-standard format.',
     };
   }
-  const entry: CacheEntry = { url, fetchedAt: Date.now(), channels };
+  const entry: CacheEntry = { url, fetchedAt: Date.now(), channels, v: PARSE_VERSION };
   MEM.set(memKey(), entry);
   writeSessionCache(entry);
   return { channels };

@@ -722,9 +722,8 @@ export default function LivePage() {
           />
         )}
 
-        <div className="live-body" style={channels.length === 0 ? { display: 'none' } : undefined}>
-          {hiddenCount > 0 && (
-            <div className="live-hidden-note" role="status">
+        {hiddenCount > 0 && (
+          <div className="live-hidden-note" role="status">
               <span>
                 {hiddenCount === 1
                   ? '1 channel hidden — it failed to play repeatedly.'
@@ -750,6 +749,7 @@ export default function LivePage() {
               </button>
             </div>
           )}
+        <div className="live-body" style={channels.length === 0 ? { display: 'none' } : undefined}>
           <ChannelRail
             channels={channels}
             activeIdx={activeIdx}
