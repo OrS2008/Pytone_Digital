@@ -270,7 +270,10 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
       destroyHls();
       clearStall();
       const upstream  = candidates[idx];
-      const proxiedUrl = proxiedStreamUrl(upstream);
+      const proxiedUrl = proxiedStreamUrl(upstream, {
+        userAgent: channel?.httpUserAgent,
+        referrer:  channel?.httpReferrer,
+      });
       onCandidateChange?.({ idx, total: candidates.length, url: upstream });
 
       // Arm the stall timer for THIS candidate. If `playing` doesn't

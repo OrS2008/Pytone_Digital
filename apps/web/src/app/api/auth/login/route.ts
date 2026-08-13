@@ -129,7 +129,12 @@ export async function POST(req: NextRequest) {
 
   const sid = await createSession(kv, user.userId, user.email, {
     userAgent: req.headers.get('user-agent') ?? undefined,
-    ip:        req.headers.get('cf-connecting-ip') ?? req.headers.get('x-forwarded-for') ?? undefined,
+    // cf-connecting-ip only. x-forwarded-for is client-supplied, and
+    // this value is shown on the Devices screen — the surface a user
+    // checks to spot an unfamiliar sign-in. Honouring the forgeable
+    // header let a stolen-credential session paint itself with any
+    // address it liked. /api/stream already refuses to trust it.
+    ip:        req.headers.get('cf-connecting-ip') ?? undefined,
   });
 
   // Once a real session is in hand the pre-verify handle is dead

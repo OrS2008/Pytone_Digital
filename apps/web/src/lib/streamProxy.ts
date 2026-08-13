@@ -59,11 +59,25 @@ export function onStreamModeChange(handler: () => void): () => void {
   };
 }
 
-export function proxiedStreamUrl(upstream: string): string {
+export interface UpstreamHeaders {
+  /** `http-user-agent` from the playlist entry, when it declared one. */
+  userAgent?: string;
+  /** `http-referrer` from the playlist entry. */
+  referrer?: string;
+}
+
+export function proxiedStreamUrl(upstream: string, headers?: UpstreamHeaders): string {
   if (!upstream) return upstream;
   if (upstream.startsWith('/api/stream?')) return upstream;
   if (!/^https?:\/\//i.test(upstream)) return upstream;
   const mode = getStreamMode();
-  const suffix = mode === 'direct' ? '&mode=direct' : '';
-  return `/api/stream?url=${encodeURIComponent(upstream)}${suffix}`;
+  let out = `/api/stream?url=${encodeURIComponent(upstream)}`;
+  if (mode === 'direct') out += '&mode=direct';
+  // Forward the playlist's declared request headers so the proxy asks
+  // the upstream the way the provider says to ask. Panels that gate on
+  // User-Agent answer anything else with a 403 or an empty manifest,
+  // which the player can only report as a dead channel.
+  if (headers?.userAgent) out += `&ua=${encodeURIComponent(headers.userAgent)}`;
+  if (headers?.referrer)  out += `&ref=${encodeURIComponent(headers.referrer)}`;
+  return out;
 }

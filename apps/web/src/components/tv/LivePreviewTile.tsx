@@ -162,7 +162,10 @@ export default function LivePreviewTile({ channel, staticOnly, className }: Prop
       }, 8_000);
 
       try {
-        const streamUrl = proxiedStreamUrl(channel.streamUrl);
+        const streamUrl = proxiedStreamUrl(channel.streamUrl, {
+          userAgent: channel.httpUserAgent,
+          referrer:  channel.httpReferrer,
+        });
         const isHls    = /\.m3u8(\?|$)/i.test(channel.streamUrl);
         const canNative = video.canPlayType('application/vnd.apple.mpegurl') !== '';
 
@@ -251,7 +254,10 @@ export default function LivePreviewTile({ channel, staticOnly, className }: Prop
       video.muted = true;
       video.playsInline = true;
 
-      const streamUrl = proxiedStreamUrl(channel.streamUrl);
+      const streamUrl = proxiedStreamUrl(channel.streamUrl, {
+        userAgent: channel.httpUserAgent,
+        referrer:  channel.httpReferrer,
+      });
       const isHls    = /\.m3u8(\?|$)/i.test(channel.streamUrl);
       const canNative = video.canPlayType('application/vnd.apple.mpegurl') !== '';
 

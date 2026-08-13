@@ -45,8 +45,12 @@ function isAllowedCaller(req: NextRequest): boolean {
 
 type RewriteMode = 'proxy' | 'direct';
 
-function rewriteOne(absUrl: string, mode: RewriteMode): string {
-  if (mode !== 'direct') return `/api/stream?url=${encodeURIComponent(absUrl)}`;
+// `extra` carries the sanitised &ua= / &ref= pair forward. Segments and
+// nested manifests re-enter this route, and an upstream that gates on
+// User-Agent would reject every one of them if only the first request
+// carried the header.
+function rewriteOne(absUrl: string, mode: RewriteMode, extra: string): string {
+  if (mode !== 'direct') return `/api/stream?url=${encodeURIComponent(absUrl)}${extra}`;
   // Direct mode: segments + keys go to the provider's CDN, but NESTED
   // manifests (variant playlists inside a master, audio rendition
   // playlists) stay proxied so we can rewrite their inner segment URLs
@@ -57,7 +61,7 @@ function rewriteOne(absUrl: string, mode: RewriteMode): string {
   // CORS on a real IPTV CDN, which is the whole reason direct mode is
   // a win.
   if (/\.m3u8(\?|$)/i.test(absUrl)) {
-    return `/api/stream?url=${encodeURIComponent(absUrl)}&mode=direct`;
+    return `/api/stream?url=${encodeURIComponent(absUrl)}&mode=direct${extra}`;
   }
   return absUrl;
 }
@@ -115,7 +119,7 @@ function looksLikeArchiveRequest(upstreamUrl: URL, req: NextRequest): boolean {
 // Operates on text content only; if the body isn't an M3U we pass it
 // through untouched. Relative URLs are resolved against the manifest's
 // own absolute URL first.
-function rewriteManifest(text: string, manifestUrl: string, mode: RewriteMode): string {
+function rewriteManifest(text: string, manifestUrl: string, mode: RewriteMode, extra: string): string {
   const base = new URL(manifestUrl);
   const out: string[] = [];
   for (const rawLine of text.split(/\r?\n/)) {
@@ -129,7 +133,7 @@ function rewriteManifest(text: string, manifestUrl: string, mode: RewriteMode): 
       const uriMatched = line.replace(/URI="([^"]+)"/g, (_m, uri: string) => {
         try {
           const abs = new URL(uri, base).toString();
-          return `URI="${rewriteOne(abs, mode)}"`;
+          return `URI="${rewriteOne(abs, mode, extra)}"`;
         } catch { return _m; }
       });
       out.push(uriMatched);
@@ -140,7 +144,7 @@ function rewriteManifest(text: string, manifestUrl: string, mode: RewriteMode): 
     // against the manifest's URL.
     try {
       const abs = new URL(trimmed, base).toString();
-      out.push(rewriteOne(abs, mode));
+      out.push(rewriteOne(abs, mode, extra));
     } catch {
       out.push(line);
     }
@@ -168,9 +172,33 @@ export async function GET(req: NextRequest) {
   // bot. Mimic a recent Chrome on the request to the provider's
   // servers; the response still flows back to whatever client opened
   // /api/stream.
+  // A playlist can declare the exact User-Agent / Referer its edges
+  // expect (`http-user-agent=` on the EXTINF line, or #EXTVLCOPT).
+  // Panels that gate on it answer anything else with a 403 or an empty
+  // manifest, which the player can only surface as a dead channel — so
+  // when the playlist tells us how to ask, we ask that way and fall
+  // back to a plain Chrome string otherwise.
+  //
+  // These values arrive as query params and become OUTBOUND HEADERS, so
+  // they are sanitised rather than trusted: anything with CR/LF could
+  // otherwise inject additional headers into the upstream request.
+  function safeHeaderValue(raw: string | null): string | null {
+    if (!raw) return null;
+    const v = raw.trim();
+    if (!v || v.length > 512) return null;
+    if (/[\r\n\0]/.test(v)) return null;
+    // Header field values are limited to visible ASCII + space/tab.
+    if (!/^[\t\x20-\x7e]+$/.test(v)) return null;
+    return v;
+  }
+  const wantUa  = safeHeaderValue(req.nextUrl.searchParams.get('ua'));
+  const wantRef = safeHeaderValue(req.nextUrl.searchParams.get('ref'));
+
   const headers: Record<string, string> = {
-    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    'user-agent': wantUa
+      ?? 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
   };
+  if (wantRef) headers['referer'] = wantRef;
   // Forward the end-user's real IP so providers that IP-gate their
   // DVR (Flussonic with allow_X_Forwarded_For; lots of IPTV reseller
   // panels) can see the actual subscriber instead of Cloudflare's
@@ -246,7 +274,10 @@ export async function GET(req: NextRequest) {
     // request URL — otherwise redirect-based streams (short links,
     // load-balancers) resolve every segment against the wrong host
     // and nothing plays.
-    const rewritten = rewriteManifest(text, finalUrl, mode);
+    const passthrough =
+      (wantUa  ? `&ua=${encodeURIComponent(wantUa)}`   : '') +
+      (wantRef ? `&ref=${encodeURIComponent(wantRef)}` : '');
+    const rewritten = rewriteManifest(text, finalUrl, mode, passthrough);
     return new Response(rewritten, {
       status: 200,
       headers: {

@@ -38,6 +38,8 @@ export interface Channel {
   tvgId?: string;
   catchupKind?: string;
   catchupSource?: string;
+  httpUserAgent?: string;
+  httpReferrer?: string;
   catchupDays?: number;
   /** Signed minute offset to compensate for EPG/timeshift timezone drift. */
   catchupCorrection?: number;

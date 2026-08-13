@@ -126,7 +126,7 @@ export default function LivePage() {
     if (!autoHideDead || allChannels.length === 0) return;
     let cancelled = false;
     (async () => {
-      const targets = allChannels.map((c) => ({ id: c.id, streamUrl: c.streamUrl || '' }));
+      const targets = allChannels.map((c) => ({ id: c.id, streamUrl: c.streamUrl || '', httpUserAgent: c.httpUserAgent, httpReferrer: c.httpReferrer }));
       const r = await probeHidden(targets);
       if (!cancelled && r.restored > 0) setHiddenHealth(hiddenIds());
     })();
@@ -533,11 +533,18 @@ export default function LivePage() {
     } catch { /* ignore */ }
     if (!prefetchOn) return;
 
+    // Map over the channels, not bare URLs, so the prefetch warms the
+    // SAME request the player will make — including the playlist's
+    // declared User-Agent. (Passing proxiedStreamUrl to .map directly
+    // also handed it the array index as its options argument.)
     const neighbours = [activeIdx - 1, activeIdx + 1]
       .filter((i) => i >= 0 && i < channels.length)
-      .map((i) => channels[i]?.streamUrl)
-      .filter((u): u is string => typeof u === 'string' && /\.m3u8(\?|$)/i.test(u))
-      .map(proxiedStreamUrl);
+      .map((i) => channels[i])
+      .filter((c): c is Channel => !!c && typeof c.streamUrl === 'string' && /\.m3u8(\?|$)/i.test(c.streamUrl))
+      .map((c) => proxiedStreamUrl(c.streamUrl ?? '', {
+        userAgent: c.httpUserAgent,
+        referrer:  c.httpReferrer,
+      }));
 
     const controllers = neighbours.map((url) => {
       const ac = new AbortController();
@@ -681,7 +688,7 @@ export default function LivePage() {
                 type="button"
                 onClick={async () => {
                   setRecheckBusy(true);
-                  const targets = allChannels.map((c) => ({ id: c.id, streamUrl: c.streamUrl || '' }));
+                  const targets = allChannels.map((c) => ({ id: c.id, streamUrl: c.streamUrl || '', httpUserAgent: c.httpUserAgent, httpReferrer: c.httpReferrer }));
                   await probeHidden(targets, { force: true });
                   setHiddenHealth(hiddenIds());
                   setRecheckBusy(false);

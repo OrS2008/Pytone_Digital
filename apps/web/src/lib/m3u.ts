@@ -37,6 +37,13 @@ export interface M3UChannel {
   catchupSource?: string;
   catchupDays?: number;
   catchupCorrection?: number; // minutes, signed
+  /** Provider-declared request headers. Many panels gate their edges on
+   *  a specific User-Agent (and sometimes Referer) and answer anything
+   *  else with a 403 or an empty manifest — which reads to the player as
+   *  a dead channel. Carried through to /api/stream so the proxy asks
+   *  the way the playlist says to ask. */
+  httpUserAgent?: string;
+  httpReferrer?: string;
 }
 
 interface ExtInf {
@@ -49,6 +56,8 @@ interface ExtInf {
   catchupSource?: string;
   catchupDays?: number;
   catchupCorrection?: number;
+  httpUserAgent?: string;
+  httpReferrer?: string;
 }
 
 // "+02:00" / "-01:30" / "+3" / "-2" / "120" / "-90" — pvr.iptvsimple
@@ -73,12 +82,39 @@ function parseCatchupCorrection(raw: string): number | undefined {
 const ATTR = /([\w-]+)="([^"]*)"/g;
 
 
+// Split an EXTINF line into its attribute head and its display name.
+//
+// The separator is the first comma that is NOT inside a quoted
+// attribute value. Using indexOf(',') is wrong on any playlist that
+// carries a browser user-agent, because those contain a comma of their
+// own:
+//
+//   #EXTINF:-1 http-user-agent="Mozilla/5.0 (… (KHTML, like Gecko) …)"
+//              group-title="General",1+1 International
+//                              ^ real separator
+//                     ^ indexOf(',') stopped here
+//
+// Splitting at the inner comma truncated the head, so every attribute
+// after the user-agent — group-title, and catchup / catchup-source
+// when they trail it — silently vanished, and the channel name came
+// out as the tail of the user-agent string.
+function splitExtInf(line: string): { head: string; name: string } | null {
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQuotes = !inQuotes; continue; }
+    if (ch === ',' && !inQuotes) {
+      return { head: line.slice(0, i), name: line.slice(i + 1).trim() };
+    }
+  }
+  return null;
+}
+
 function parseExtInf(line: string): ExtInf | null {
   // `#EXTINF:-1 tvg-id="..." ...,Channel name`
-  const comma = line.indexOf(',');
-  if (comma < 0) return null;
-  const head = line.slice(0, comma);
-  const name = line.slice(comma + 1).trim();
+  const split = splitExtInf(line);
+  if (!split) return null;
+  const { head, name } = split;
   const out: ExtInf = { name };
   let m: RegExpExecArray | null;
   while ((m = ATTR.exec(head)) !== null) {
@@ -93,6 +129,10 @@ function parseExtInf(line: string): ExtInf | null {
       case 'catchup-source':     out.catchupSource     = v; break;
       case 'catchup-days':       out.catchupDays       = Number(v) || undefined; break;
       case 'catchup-correction': out.catchupCorrection = parseCatchupCorrection(v); break;
+      case 'http-user-agent':
+      case 'user-agent':         out.httpUserAgent     = v; break;
+      case 'http-referrer':
+      case 'http-referer':       out.httpReferrer      = v; break;
     }
   }
   return out;
@@ -138,7 +178,21 @@ export function parseM3U(text: string): M3UChannel[] {
       continue;
     }
     if (line.startsWith('#EXTINF:')) { pending = parseExtInf(line); continue; }
-    if (line.startsWith('#')) continue; // ignore other directives (EXTGRP, EXTVLCOPT, etc.)
+    if (line.startsWith('#EXTVLCOPT:')) {
+      // The other half of the header convention. VLC-style options
+      // attach to the EXTINF above them, so they are folded into the
+      // pending entry rather than skipped with the other directives.
+      const opt = line.slice('#EXTVLCOPT:'.length);
+      const eq = opt.indexOf('=');
+      if (pending && eq > 0) {
+        const k = opt.slice(0, eq).trim().toLowerCase();
+        const v = opt.slice(eq + 1).trim();
+        if (k === 'http-user-agent') pending.httpUserAgent = v;
+        if (k === 'http-referrer' || k === 'http-referer') pending.httpReferrer = v;
+      }
+      continue;
+    }
+    if (line.startsWith('#')) continue; // ignore other directives (EXTGRP, etc.)
     if (!pending) continue;             // url with no preceding EXTINF, skip
 
     positional += 1;
@@ -159,6 +213,8 @@ export function parseM3U(text: string): M3UChannel[] {
       catchupSource:     pending.catchupSource     ?? defaults.catchupSource,
       catchupDays:       pending.catchupDays       ?? defaults.catchupDays,
       catchupCorrection: pending.catchupCorrection ?? defaults.catchupCorrection,
+      httpUserAgent:     pending.httpUserAgent,
+      httpReferrer:      pending.httpReferrer,
     });
     pending = null;
   }

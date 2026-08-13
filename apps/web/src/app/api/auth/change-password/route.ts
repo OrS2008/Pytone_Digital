@@ -18,6 +18,8 @@ import {
   FirebaseNotConfiguredError,
 } from '@/lib/firebaseAuth';
 
+import { rateLimit, tooManyRequests } from '@/lib/rateLimit';
+
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +30,16 @@ export async function POST(req: NextRequest) {
   const sid = readSessionCookie(req);
   const session = sid ? await readSession(kv, sid) : null;
   if (!session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
+  // This route checks currentPassword, which makes it a password
+  // oracle: whoever holds a session can otherwise brute-force the
+  // account password here at full speed and escalate a borrowed
+  // session into a full takeover. Keyed by account rather than IP so
+  // the budget follows the target, not the attacker's address.
+  {
+    const rl = await rateLimit(kv, 'change-pw', session.userId, 10, 900);
+    if (!rl.ok) return tooManyRequests(rl.retryAfter);
+  }
 
   let body: { currentPassword?: unknown; newPassword?: unknown };
   try { body = await req.json(); }

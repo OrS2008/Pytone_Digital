@@ -168,7 +168,7 @@ export function probeDue(): boolean {
   return Date.now() - lastProbeAt() > PROBE_COOLDOWN_MS;
 }
 
-async function probeOne(streamUrl: string): Promise<boolean> {
+async function probeOne(t: ProbeTarget): Promise<boolean> {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), PROBE_TIMEOUT_MS);
   try {
@@ -176,7 +176,7 @@ async function probeOne(streamUrl: string): Promise<boolean> {
     // user-agent / client-IP forwarding all apply exactly as they do
     // during real playback — otherwise the probe would answer a
     // different question than the one we are asking.
-    const r = await fetch(proxyUrlFor(streamUrl), { signal: ac.signal, cache: 'no-store' });
+    const r = await fetch(proxyUrlFor(t), { signal: ac.signal, cache: 'no-store' });
     if (!r.ok) return false;
     const body = await r.text();
     // A manifest that parses as HLS is proof the upstream is serving.
@@ -194,8 +194,20 @@ async function probeOne(streamUrl: string): Promise<boolean> {
 // upstream serving this manifest?", and in direct mode the browser
 // would fetch it cross-origin and a missing CORS header would fail the
 // request for a reason that has nothing to do with the stream's health.
-function proxyUrlFor(streamUrl: string): string {
-  return `/api/stream?url=${encodeURIComponent(streamUrl)}`;
+function proxyUrlFor(t: ProbeTarget): string {
+  let out = `/api/stream?url=${encodeURIComponent(t.streamUrl)}`;
+  // Ask exactly the way playback asks. A channel whose provider gates
+  // on User-Agent would fail every probe and never come back.
+  if (t.httpUserAgent) out += `&ua=${encodeURIComponent(t.httpUserAgent)}`;
+  if (t.httpReferrer)  out += `&ref=${encodeURIComponent(t.httpReferrer)}`;
+  return out;
+}
+
+export interface ProbeTarget {
+  id: string;
+  streamUrl: string;
+  httpUserAgent?: string;
+  httpReferrer?: string;
 }
 
 export interface ProbeResult {
@@ -211,7 +223,7 @@ export interface ProbeResult {
  * would read as the button being broken.
  */
 export async function probeHidden(
-  channels: Array<{ id: string; streamUrl: string }>,
+  channels: ProbeTarget[],
   opts?: { force?: boolean; max?: number },
 ): Promise<ProbeResult> {
   if (!opts?.force && !probeDue()) return { checked: 0, restored: 0 };
@@ -229,7 +241,7 @@ export async function probeHidden(
       const i = cursor++;
       if (i >= targets.length) return;
       const t = targets[i];
-      if (await probeOne(t.streamUrl)) {
+      if (await probeOne(t)) {
         restore(t.id);
         restored += 1;
       }

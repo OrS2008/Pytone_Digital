@@ -28,12 +28,23 @@ import {
   FirebaseNotConfiguredError,
 } from '@/lib/firebaseAuth';
 
+import { rateLimit, callerIp, tooManyRequests } from '@/lib/rateLimit';
+
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   const kv = requireKV();
   if (kv instanceof Response) return kv;
+
+  // Same email-bombing threat forgot-password already throttles: this
+  // endpoint sends a Firebase VERIFY_EMAIL message, so an unthrottled
+  // caller can flood a victim's inbox and burn the project's send
+  // quota. Matched to that route's budget — 5 per 15 min per IP.
+  {
+    const rl = await rateLimit(kv, 'resend-verify', callerIp(req), 5, 900);
+    if (!rl.ok) return tooManyRequests(rl.retryAfter);
+  }
 
   const cookie = readPreverifyCookie(req);
   const handle = await readPreverifyHandle(kv, cookie);

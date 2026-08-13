@@ -109,7 +109,10 @@ export default function TvHero() {
     let hls: HlsInstance | null = null;
 
     (async () => {
-      const streamUrl = proxiedStreamUrl(current_channel.streamUrl);
+      const streamUrl = proxiedStreamUrl(current_channel.streamUrl, {
+        userAgent: current_channel.httpUserAgent,
+        referrer:  current_channel.httpReferrer,
+      });
       const isHls    = /\.m3u8(\?|$)/i.test(current_channel.streamUrl);
       const canNative = video.canPlayType('application/vnd.apple.mpegurl') !== '';
       const onFatal = () => { if (!cancelled) setPreviewFailed(true); };
