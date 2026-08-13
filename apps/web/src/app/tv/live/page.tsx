@@ -62,11 +62,10 @@ function currentFullscreenElement(): Element | null {
   return doc.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
 }
 
-// How often the rolling playlist sweep fires.
-// Ticks are short because each one now covers ~240 channels through the
-// batch endpoint rather than 25 through individual proxy round trips.
-// A 12.7k playlist finishes a full pass in roughly an hour of open page
-// instead of the forty-plus hours the per-request shape needed.
+// How often the rolling playlist sweep fires. Each tick covers ~108
+// channels across nine small batch requests, so a 1,500-channel
+// playlist completes a pass in about fourteen minutes and a dead
+// channel drops out after two.
 const SWEEP_INTERVAL_MS = 60_000;
 
 type LoadState =
@@ -151,15 +150,10 @@ export default function LivePage() {
     return () => { cancelled = true; };
   }, [probeTargets, autoHideDead]);
 
-  // Rolling proactive sweep: every 5 minutes, verify the next slice of
-  // the playlist so dead channels are found without the user having to
-  // open them first. A slice rather than the whole list — see the note
-  // on sweepNextBatch; a full 12k-channel scan on this interval would
-  // look like scraping to the provider.
-  //
-  // Held back while watching (the probes would compete with the stream
-  // for bandwidth) and while the tab is hidden (no reason to spend a
-  // phone's data and battery on a screen nobody is looking at).
+  // Rolling proactive sweep: verify the next slice of the playlist every
+  // minute so dead channels are found without the user opening them
+  // first. A slice rather than the whole list, because each request is
+  // bounded by the platform's subrequest budget — see sweepNextBatch.
   const sweepBusyRef = useRef(false);
   useEffect(() => {
     if (!autoHideDead || probeTargets.length === 0) return;
@@ -167,11 +161,21 @@ export default function LivePage() {
 
     async function runSweep() {
       if (cancelled || sweepBusyRef.current) return;
-      if (watchingRef.current) return;
+      // Background tabs get their timers throttled anyway, and there is
+      // no reason to spend a phone's data on a screen nobody is looking
+      // at.
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      // While watching, keep going but at a third of the rate. Stopping
+      // outright meant that anyone who left a channel playing — which is
+      // the normal way to use this — got no scanning at all, which is
+      // most of why it looked like nothing happened on its own. These
+      // are short manifest and range requests at concurrency four, not
+      // sustained streams, so a reduced rate stays clear of the
+      // connection caps IPTV panels enforce.
+      const rounds = watchingRef.current ? 1 : undefined;
       sweepBusyRef.current = true;
       try {
-        const r = await sweepNextBatch(probeTargets);
+        const r = await sweepNextBatch(probeTargets, rounds ? { rounds } : undefined);
         if (!cancelled) {
           if (!r.discarded) setHiddenHealth(hiddenIds());
           setScanned(scannedCount());

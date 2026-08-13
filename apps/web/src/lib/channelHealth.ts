@@ -30,8 +30,22 @@ import { userKey } from './session';
 
 const KEY = 'channelHealth';
 
-// How many failures before a channel is hidden.
+// How many failures before a channel is hidden. The two sources get
+// different bars because they are not equally noisy.
+//
+// Playback failures happen on the user's own connection and can be
+// caused by things that have nothing to do with the stream — a mobile
+// blip, an autoplay policy, a tab throttled in the background. Three
+// keeps a bad moment from hiding a working channel.
+//
+// Probe failures are server-side, deliberate, minutes apart, and each
+// batch is already discarded wholesale if most of it fails — so a
+// failure that survives that guard sat in a batch where other channels
+// answered fine. Two such checks is strong evidence, and halving the
+// bar halves the time an obviously dead channel stays in the list:
+// at three, a channel needed three full passes of the playlist.
 export const FAIL_THRESHOLD = 3;
+export const PROBE_FAIL_THRESHOLD = 2;
 
 // A failure record older than this is discarded on read. Providers fix
 // things; a channel that failed a fortnight ago deserves another try
@@ -130,11 +144,11 @@ export function reportFail(channelId: string, source: HealthSource = 'playback')
   return !wasHidden && isHiddenRecord(rec);
 }
 
-// Either kind of evidence can hide a channel on its own: three failed
-// playbacks is what the user actually experienced, and three failed
-// probes is the proactive scan doing its job before they ever try it.
+// Either kind of evidence can hide a channel on its own: failed
+// playbacks are what the user actually experienced, and failed probes
+// are the proactive scan doing its job before they ever try it.
 function isHiddenRecord(rec: HealthRecord): boolean {
-  return rec.fails >= FAIL_THRESHOLD || (rec.playFails ?? 0) >= FAIL_THRESHOLD;
+  return rec.fails >= PROBE_FAIL_THRESHOLD || (rec.playFails ?? 0) >= FAIL_THRESHOLD;
 }
 
 /** Ids that have failed often enough to be hidden. */
@@ -267,8 +281,9 @@ export interface ProbeResult {
 // needed ~12.7k round trips, so the slice that fit in a sane request
 // budget (25 per five minutes) would have taken over forty hours to
 // finish a single pass — the user would never see it complete.
-const SWEEP_BATCH = 60;          // matches the endpoint's MAX_ITEMS
-const SWEEP_BATCHES_PER_TICK = 4; // ~240 channels per tick
+const SWEEP_BATCH = 12;            // matches the endpoint's MAX_ITEMS
+const SWEEP_PARALLEL = 3;          // batches in flight at once
+const SWEEP_ROUNDS_PER_TICK = 3;   // => ~108 channels per tick
 const CURSOR_KEY = 'channelHealth.sweepCursor';
 const SCANNED_KEY = 'channelHealth.scanned';
 
@@ -307,7 +322,7 @@ export interface SweepResult {
   checked:   number;
   failed:    number;
   restored:  number;
-  /** True when a batch was thrown away as a network-wide failure. */
+  /** True when at least one batch was thrown away as a network fault. */
   discarded: boolean;
   cursor:    number;
   total:     number;
@@ -325,10 +340,15 @@ async function probeBatch(batch: ProbeTarget[]): Promise<Map<string, boolean>> {
         })),
       }),
     });
-    if (!r.ok) return out;
+    if (!r.ok) {
+      console.warn(`[sweep] probe endpoint returned ${r.status}; batch skipped`);
+      return out;
+    }
     const j = await r.json() as { results?: Array<{ id: string; ok: boolean }> };
     for (const v of j.results ?? []) out.set(v.id, !!v.ok);
-  } catch { /* offline — treated as "no verdict", see caller */ }
+  } catch (e) {
+    console.warn('[sweep] probe request failed:', (e as Error).message);
+  }
   return out;
 }
 
@@ -339,50 +359,71 @@ async function probeBatch(batch: ProbeTarget[]): Promise<Map<string, boolean>> {
  */
 export async function sweepNextBatch(
   channels: ProbeTarget[],
-  opts?: { batches?: number },
+  opts?: { rounds?: number },
 ): Promise<SweepResult> {
   const total = channels.length;
   if (total === 0) return { checked: 0, failed: 0, restored: 0, discarded: false, cursor: 0, total: 0 };
 
   const before = hiddenIds();
-  const rounds = opts?.batches ?? SWEEP_BATCHES_PER_TICK;
+  const rounds = opts?.rounds ?? SWEEP_ROUNDS_PER_TICK;
   let checked = 0;
   let failed = 0;
   let discarded = false;
   let cursor = sweepCursor() % total;
 
   for (let round = 0; round < rounds; round++) {
-    const batch: ProbeTarget[] = [];
-    for (let i = 0; i < SWEEP_BATCH && batch.length < total; i++) {
-      const c = channels[(cursor + i) % total];
-      if (c?.streamUrl) batch.push(c);
+    // Slice several batches and run them together. Each request stays
+    // small enough for the platform's subrequest budget; the throughput
+    // comes from running a few of them at once rather than from asking
+    // any single one to do too much.
+    const slices: ProbeTarget[][] = [];
+    for (let b = 0; b < SWEEP_PARALLEL; b++) {
+      const slice: ProbeTarget[] = [];
+      for (let i = 0; i < SWEEP_BATCH; i++) {
+        const c = channels[(cursor + slices.length * SWEEP_BATCH + i) % total];
+        if (c?.streamUrl) slice.push(c);
+      }
+      if (slice.length) slices.push(slice);
     }
-    cursor = (cursor + SWEEP_BATCH) % total;
+    if (slices.length === 0) break;
+
+    const verdictSets = await Promise.all(slices.map(probeBatch));
+
+    let advanced = 0;
+    for (let i = 0; i < slices.length; i++) {
+      const slice = slices[i];
+      const verdicts = verdictSets[i];
+      const answered = slice.filter((t) => verdicts.has(t.id));
+      if (answered.length === 0) {
+        // The request itself failed, or the server ran out of budget
+        // before reaching this slice. Either way it says nothing about
+        // these channels — record nothing and do not step over them.
+        discarded = true;
+        continue;
+      }
+      const bad = answered.filter((t) => !verdicts.get(t.id)).length;
+      // Five is the smallest batch where a rate is meaningful; below
+      // that a couple of genuinely dead channels would trip the guard.
+      if (answered.length >= 5 && bad / answered.length >= SWEEP_BAD_BATCH_RATE) {
+        discarded = true;
+        continue;
+      }
+      for (const t of answered) {
+        if (verdicts.get(t.id)) reportOk(t.id, 'probe');
+        else                    reportFail(t.id, 'probe');
+      }
+      checked += answered.length;
+      failed  += bad;
+      bumpScanned(answered.length);
+      advanced += answered.length;
+    }
+
+    // Advance only over channels that actually got a verdict, so a
+    // budget-truncated response is retried next tick instead of being
+    // silently skipped forever.
+    if (advanced === 0) break;
+    cursor = (cursor + advanced) % total;
     setSweepCursor(cursor);
-    if (batch.length === 0) break;
-
-    const verdicts = await probeBatch(batch);
-    // No verdicts at all means the request itself failed — we are
-    // offline or the endpoint is down. That says nothing about any
-    // channel, so nothing is recorded.
-    if (verdicts.size === 0) { discarded = true; break; }
-
-    const answered = batch.filter((t) => verdicts.has(t.id));
-    const bad = answered.filter((t) => !verdicts.get(t.id)).length;
-    // Five is the smallest batch where a rate is meaningful; below that
-    // a couple of genuinely dead channels would trip the guard.
-    if (answered.length >= 5 && bad / answered.length >= SWEEP_BAD_BATCH_RATE) {
-      discarded = true;
-      break;
-    }
-
-    for (const t of answered) {
-      if (verdicts.get(t.id)) reportOk(t.id, 'probe');
-      else                    reportFail(t.id, 'probe');
-    }
-    checked += answered.length;
-    failed  += bad;
-    bumpScanned(answered.length);
   }
 
   const after = hiddenIds();

@@ -33,14 +33,27 @@ import { validateUpstreamUrl, safeFetch, SsrfBlocked } from '@/lib/ssrfGuard';
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-// Per-request ceiling. Keeps one call's fan-out bounded regardless of
-// what the client asks for.
-const MAX_ITEMS = 60;
+// Per-request ceiling.
+//
+// The binding constraint is the platform, not us: a Workers/Pages
+// invocation may issue only 50 subrequests (1000 on paid plans), and
+// every upstream fetch here counts. Verifying one channel costs up to
+// three — manifest, variant, segment — so a 60-item batch asked for
+// 180 at minimum and blew the limit four times over. The invocation
+// then failed outright, the client saw a non-ok response, discarded the
+// whole batch, and recorded nothing. That is why the scan appeared to
+// do nothing on its own no matter how long the page stayed open.
+const MAX_ITEMS = 12;
+// Hard subrequest budget, kept under the free-plan ceiling with room
+// for redirects. When it runs out we return the verdicts we did reach
+// instead of failing: a partial answer is real information, a thrown
+// invocation is none.
+const MAX_SUBREQUESTS = 42;
 // How many upstream fetches run at once within a batch. Deliberately
 // modest: IPTV panels routinely cap concurrent connections per account,
 // and a probe burst that trips that cap would look to the provider like
 // abuse and to the user like their subscription breaking.
-const CONCURRENCY = 6;
+const CONCURRENCY = 4;
 const PROBE_TIMEOUT_MS = 6_000;
 // We only need the opening bytes to tell an HLS manifest from an error
 // page, so the body read is capped instead of buffering whole playlists
@@ -81,12 +94,16 @@ async function fetchHead(
   url: string,
   headers: Record<string, string>,
   signal: AbortSignal,
+  budget: { used: number },
   extra?: Record<string, string>,
 ): Promise<{ status: number; text: string } | null> {
+  // One redirect only. Each hop is another subrequest against the
+  // platform budget, and IPTV manifests rarely need more than one.
+  budget.used += 2;
   const { response } = await safeFetch(
     url,
     { headers: { ...headers, ...extra } },
-    { maxRedirects: 3, signal },
+    { maxRedirects: 1, signal },
   );
   if (!response.ok && response.status !== 206) {
     try { await response.body?.cancel(); } catch { /* ignore */ }
@@ -124,7 +141,7 @@ function firstMediaUri(manifest: string, base: string): string | null {
   return null;
 }
 
-async function probeOne(item: ProbeItem): Promise<ProbeVerdict> {
+async function probeOne(item: ProbeItem, budget: { used: number }): Promise<ProbeVerdict> {
   const check = validateUpstreamUrl(item.url);
   if ('reason' in check) return { id: item.id, ok: false };
 
@@ -138,7 +155,7 @@ async function probeOne(item: ProbeItem): Promise<ProbeVerdict> {
   const timer = setTimeout(() => ac.abort(), PROBE_TIMEOUT_MS);
   try {
     const manifestUrl = check.url.toString();
-    const top = await fetchHead(manifestUrl, headers, ac.signal);
+    const top = await fetchHead(manifestUrl, headers, ac.signal, budget);
     if (!top || !looksLikeManifest(top.text)) {
       return { id: item.id, ok: false, status: top?.status };
     }
@@ -156,7 +173,7 @@ async function probeOne(item: ProbeItem): Promise<ProbeVerdict> {
     if (/\.m3u8(\?|$)/i.test(mediaUrl)) {
       const variantCheck = validateUpstreamUrl(mediaUrl);
       if ('reason' in variantCheck) return { id: item.id, ok: false };
-      const variant = await fetchHead(variantCheck.url.toString(), headers, ac.signal);
+      const variant = await fetchHead(variantCheck.url.toString(), headers, ac.signal, budget);
       if (!variant || !looksLikeManifest(variant.text)) {
         return { id: item.id, ok: false, status: variant?.status };
       }
@@ -168,7 +185,7 @@ async function probeOne(item: ProbeItem): Promise<ProbeVerdict> {
     if ('reason' in segCheck) return { id: item.id, ok: false };
     // Ranged so we pull a couple of KB rather than a whole segment —
     // across a 12k playlist the difference is gigabytes.
-    const seg = await fetchHead(segCheck.url.toString(), headers, ac.signal, {
+    const seg = await fetchHead(segCheck.url.toString(), headers, ac.signal, budget, {
       range: `bytes=0-${SNIFF_BYTES - 1}`,
     });
     return { id: item.id, ok: !!seg, status: seg?.status ?? top.status };
@@ -201,21 +218,28 @@ export async function POST(req: NextRequest) {
   }
   if (items.length === 0) return NextResponse.json({ results: [] });
 
+  const budget = { used: 0 };
   const results: ProbeVerdict[] = [];
   let cursor = 0;
   async function worker() {
     for (;;) {
       const i = cursor++;
       if (i >= items.length) return;
-      results.push(await probeOne(items[i]));
+      // Six is the worst case for one channel (three URLs, one redirect
+      // each). Stop starting new work rather than being killed mid-item.
+      if (budget.used + 6 > MAX_SUBREQUESTS) return;
+      results.push(await probeOne(items[i], budget));
     }
   }
   await Promise.all(
     Array.from({ length: Math.min(CONCURRENCY, items.length) }, worker),
   );
 
+  // `checked` lets the client advance its cursor by what was actually
+  // answered. Advancing by the requested batch size would permanently
+  // skip whatever the budget cut short.
   return NextResponse.json(
-    { results },
+    { results, checked: results.length, requested: items.length },
     { headers: { 'cache-control': 'no-store' } },
   );
 }
