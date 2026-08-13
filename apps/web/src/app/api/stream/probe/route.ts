@@ -74,6 +74,56 @@ const DEFAULT_UA =
 interface ProbeItem { id: string; url: string; ua?: unknown; ref?: unknown }
 interface ProbeVerdict { id: string; ok: boolean; status?: number }
 
+// Fetch a URL and return its opening bytes, or null when it doesn't
+// answer 2xx. Only SNIFF_BYTES are read; the rest of the stream is
+// cancelled rather than buffered.
+async function fetchHead(
+  url: string,
+  headers: Record<string, string>,
+  signal: AbortSignal,
+  extra?: Record<string, string>,
+): Promise<{ status: number; text: string } | null> {
+  const { response } = await safeFetch(
+    url,
+    { headers: { ...headers, ...extra } },
+    { maxRedirects: 3, signal },
+  );
+  if (!response.ok && response.status !== 206) {
+    try { await response.body?.cancel(); } catch { /* ignore */ }
+    return null;
+  }
+  const body = response.body;
+  if (!body) return { status: response.status, text: '' };
+  const reader = body.getReader();
+  let text = '';
+  try {
+    while (text.length < SNIFF_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      text += new TextDecoder().decode(value, { stream: true });
+    }
+  } finally {
+    try { await reader.cancel(); } catch { /* already closed */ }
+  }
+  return { status: response.status, text };
+}
+
+function looksLikeManifest(text: string): boolean {
+  return /#EXTM3U/.test(text) || /#EXT-X-/.test(text);
+}
+
+// First playable URI in a manifest: the first line that isn't blank and
+// isn't a tag. In a master playlist that's a variant .m3u8; in a media
+// playlist it's a segment.
+function firstMediaUri(manifest: string, base: string): string | null {
+  for (const raw of manifest.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    try { return new URL(line, base).toString(); } catch { return null; }
+  }
+  return null;
+}
+
 async function probeOne(item: ProbeItem): Promise<ProbeVerdict> {
   const check = validateUpstreamUrl(item.url);
   if ('reason' in check) return { id: item.id, ok: false };
@@ -87,30 +137,41 @@ async function probeOne(item: ProbeItem): Promise<ProbeVerdict> {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), PROBE_TIMEOUT_MS);
   try {
-    const { response } = await safeFetch(
-      check.url.toString(),
-      { headers },
-      { maxRedirects: 3, signal: ac.signal },
-    );
-    if (!response.ok) return { id: item.id, ok: false, status: response.status };
-
-    const body = response.body;
-    if (!body) return { id: item.id, ok: false, status: response.status };
-
-    // Read only the opening chunk, then drop the rest.
-    const reader = body.getReader();
-    let sniff = '';
-    try {
-      while (sniff.length < SNIFF_BYTES) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        sniff += new TextDecoder().decode(value, { stream: true });
-      }
-    } finally {
-      try { await reader.cancel(); } catch { /* already closed */ }
+    const manifestUrl = check.url.toString();
+    const top = await fetchHead(manifestUrl, headers, ac.signal);
+    if (!top || !looksLikeManifest(top.text)) {
+      return { id: item.id, ok: false, status: top?.status };
     }
-    const ok = /#EXTM3U/.test(sniff) || /#EXT-X-/.test(sniff);
-    return { id: item.id, ok, status: response.status };
+
+    // A served manifest is NOT proof the channel plays. Dead IPTV
+    // entries very often keep answering with a perfectly well-formed
+    // playlist whose segments 404 — they pass a manifest-only check and
+    // then fail the moment the player asks for media. Follow the first
+    // URI (through one level of master → variant) and confirm the media
+    // itself is really there, so the scan reaches the same verdict the
+    // player would.
+    let mediaUrl = firstMediaUri(top.text, manifestUrl);
+    if (!mediaUrl) return { id: item.id, ok: false, status: top.status };
+
+    if (/\.m3u8(\?|$)/i.test(mediaUrl)) {
+      const variantCheck = validateUpstreamUrl(mediaUrl);
+      if ('reason' in variantCheck) return { id: item.id, ok: false };
+      const variant = await fetchHead(variantCheck.url.toString(), headers, ac.signal);
+      if (!variant || !looksLikeManifest(variant.text)) {
+        return { id: item.id, ok: false, status: variant?.status };
+      }
+      mediaUrl = firstMediaUri(variant.text, variantCheck.url.toString());
+      if (!mediaUrl) return { id: item.id, ok: false, status: variant.status };
+    }
+
+    const segCheck = validateUpstreamUrl(mediaUrl);
+    if ('reason' in segCheck) return { id: item.id, ok: false };
+    // Ranged so we pull a couple of KB rather than a whole segment —
+    // across a 12k playlist the difference is gigabytes.
+    const seg = await fetchHead(segCheck.url.toString(), headers, ac.signal, {
+      range: `bytes=0-${SNIFF_BYTES - 1}`,
+    });
+    return { id: item.id, ok: !!seg, status: seg?.status ?? top.status };
   } catch (e) {
     if (e instanceof SsrfBlocked) return { id: item.id, ok: false };
     return { id: item.id, ok: false };

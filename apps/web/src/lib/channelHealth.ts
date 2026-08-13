@@ -38,9 +38,23 @@ export const FAIL_THRESHOLD = 3;
 // even if nobody has explicitly re-probed it.
 const RECORD_TTL_MS = 14 * 24 * 60 * 60_000;
 
+// Evidence is tracked per SOURCE, because a probe and the player do not
+// ask the same question. The probe asks whether the manifest loads; the
+// player asks whether the manifest loads AND the segments play. Plenty
+// of dead IPTV channels still serve a valid-looking manifest whose
+// segments 404, so they pass a probe and fail playback.
+//
+// Folding both into one counter meant a probe success wiped the failures
+// real playback had recorded, and such a channel could never reach the
+// hide threshold no matter how many times it failed on screen. A probe
+// success is the weaker claim and only clears what probes recorded.
+export type HealthSource = 'probe' | 'playback';
+
 export interface HealthRecord {
-  /** Consecutive failures since the last success. */
+  /** Consecutive probe failures since the last probe success. */
   fails: number;
+  /** Consecutive playback failures since the last successful playback. */
+  playFails?: number;
   /** When the most recent failure happened (epoch ms). */
   lastFailAt: number;
   /** Last time a probe / playback confirmed the stream works. */
@@ -80,38 +94,54 @@ function write(store: Store): void {
   listeners.forEach((l) => { try { l(); } catch { /* a listener must not break the writer */ } });
 }
 
-/** Record that a channel played. Clears any failure history outright. */
-export function reportOk(channelId: string): void {
+/**
+ * Record that a channel worked.
+ *
+ * Playback success is proof end-to-end and clears everything. A probe
+ * success only clears probe evidence — it says the manifest is being
+ * served, which is no answer to segments that never load.
+ */
+export function reportOk(channelId: string, source: HealthSource = 'playback'): void {
   if (!channelId) return;
   const store = read();
   const prev = store[channelId];
-  // Already recorded as healthy and nothing to forget — skip the write
-  // so routine channel-surfing doesn't hit localStorage on every tune.
-  if (prev && prev.fails === 0) return;
-  store[channelId] = { fails: 0, lastFailAt: 0, lastOkAt: Date.now() };
+  const playFails = source === 'playback' ? 0 : (prev?.playFails ?? 0);
+  // Nothing recorded and nothing to forget — skip the write so routine
+  // channel-surfing doesn't hit localStorage on every tune.
+  if (prev && prev.fails === 0 && (prev.playFails ?? 0) === playFails) return;
+  store[channelId] = { fails: 0, playFails, lastFailAt: prev?.lastFailAt ?? 0, lastOkAt: Date.now() };
   write(store);
 }
 
-/** Record a playback failure. Returns true if this crossed the threshold. */
-export function reportFail(channelId: string): boolean {
+/** Record a failure. Returns true if this crossed the hide threshold. */
+export function reportFail(channelId: string, source: HealthSource = 'playback'): boolean {
   if (!channelId) return false;
   const store = read();
-  const prev = store[channelId] ?? { fails: 0, lastFailAt: 0, lastOkAt: 0 };
+  const prev = store[channelId] ?? { fails: 0, playFails: 0, lastFailAt: 0, lastOkAt: 0 };
+  const wasHidden = isHiddenRecord(prev);
   const rec: HealthRecord = {
-    fails: prev.fails + 1,
+    fails:      source === 'probe'    ? prev.fails + 1 : prev.fails,
+    playFails:  source === 'playback' ? (prev.playFails ?? 0) + 1 : (prev.playFails ?? 0),
     lastFailAt: Date.now(),
-    lastOkAt: prev.lastOkAt,
+    lastOkAt:   prev.lastOkAt,
   };
   store[channelId] = rec;
   write(store);
-  return prev.fails < FAIL_THRESHOLD && rec.fails >= FAIL_THRESHOLD;
+  return !wasHidden && isHiddenRecord(rec);
+}
+
+// Either kind of evidence can hide a channel on its own: three failed
+// playbacks is what the user actually experienced, and three failed
+// probes is the proactive scan doing its job before they ever try it.
+function isHiddenRecord(rec: HealthRecord): boolean {
+  return rec.fails >= FAIL_THRESHOLD || (rec.playFails ?? 0) >= FAIL_THRESHOLD;
 }
 
 /** Ids that have failed often enough to be hidden. */
 export function hiddenIds(): Set<string> {
   const out = new Set<string>();
   for (const [id, rec] of Object.entries(read())) {
-    if (rec.fails >= FAIL_THRESHOLD) out.add(id);
+    if (isHiddenRecord(rec)) out.add(id);
   }
   return out;
 }
@@ -347,8 +377,8 @@ export async function sweepNextBatch(
     }
 
     for (const t of answered) {
-      if (verdicts.get(t.id)) reportOk(t.id);
-      else                    reportFail(t.id);
+      if (verdicts.get(t.id)) reportOk(t.id, 'probe');
+      else                    reportFail(t.id, 'probe');
     }
     checked += answered.length;
     failed  += bad;
