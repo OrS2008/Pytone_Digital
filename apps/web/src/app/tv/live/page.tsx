@@ -31,7 +31,7 @@ import { loadEpgIndex, hydrateChannels, getUserEpgUrl } from '@/lib/epgCache';
 import { proxiedStreamUrl } from '@/lib/streamProxy';
 import { buildCatchupUrl } from '@/lib/catchup';
 import { maskSourceUrl } from '@/lib/maskUrl';
-import { hiddenIds, onHealthChange, probeHidden, restoreAll, sweepNextBatch, scannedCount } from '@/lib/channelHealth';
+import { hiddenIds, onHealthChange, probeHidden, restoreAll, sweepNextBatch, scannedCount, MAX_HIDDEN_FRACTION } from '@/lib/channelHealth';
 import { useT } from '@/lib/i18n';
 import './live.css';
 
@@ -116,12 +116,17 @@ export default function LivePage() {
     setHiddenHealth(hiddenIds());
     return onHealthChange(() => setHiddenHealth(hiddenIds()));
   }, []);
-  const channels = useMemo(
-    () => (autoHideDead && hiddenHealth.size > 0
-      ? allChannels.filter((c) => !hiddenHealth.has(c.id))
-      : allChannels),
-    [allChannels, hiddenHealth, autoHideDead],
-  );
+  const channels = useMemo(() => {
+    if (!autoHideDead || hiddenHealth.size === 0) return allChannels;
+    // Circuit breaker. If the verdicts want to hide most of the
+    // playlist, the likelier explanation is a fault on our side than a
+    // subscription that stopped working, so none of them are applied.
+    if (hiddenHealth.size > allChannels.length * MAX_HIDDEN_FRACTION) return allChannels;
+    return allChannels.filter((c) => !hiddenHealth.has(c.id));
+  }, [allChannels, hiddenHealth, autoHideDead]);
+  const breakerTripped =
+    autoHideDead && allChannels.length > 0 &&
+    hiddenHealth.size > allChannels.length * MAX_HIDDEN_FRACTION;
   const hiddenCount = allChannels.length - channels.length;
   const [recheckBusy, setRecheckBusy] = useState(false);
   const [scanned, setScanned] = useState(0);
@@ -738,14 +743,16 @@ export default function LivePage() {
           />
         )}
 
-        {(hiddenCount > 0 || (autoHideDead && allChannels.length > 0)) && (
+        {(hiddenCount > 0 || breakerTripped || (autoHideDead && allChannels.length > 0)) && (
           <div className="live-hidden-note" role="status">
               <span>
-                {hiddenCount > 0
-                  ? (hiddenCount === 1
-                      ? '1 channel hidden — it could not play.'
-                      : `${hiddenCount} channels hidden — they could not play.`)
-                  : 'Checking channels in the background.'}
+                {breakerTripped
+                  ? `Too many channels looked broken (${hiddenHealth.size.toLocaleString()} of ${allChannels.length.toLocaleString()}), so nothing is being hidden. That is far more likely to be a fault on our side than on yours.`
+                  : hiddenCount > 0
+                    ? (hiddenCount === 1
+                        ? '1 channel hidden — it could not play.'
+                        : `${hiddenCount} channels hidden — they could not play.`)
+                    : 'Checking channels in the background.'}
                 {/* Always shown while scanning is on, including at zero.
                     Hiding the counter until it moved made a scan that
                     was not running look identical to one that was. */}

@@ -29,6 +29,26 @@
 import { userKey } from './session';
 
 const KEY = 'channelHealth';
+// Bumped when a defect made the stored verdicts untrustworthy. A
+// mismatch discards the store outright, so a bad rollout heals itself
+// instead of leaving every affected user to find the restore button.
+// v2: the CODECS pre-check marked large numbers of working channels
+// permanently unplayable.
+const SCHEMA_KEY = 'channelHealth.schema';
+const SCHEMA_VERSION = 2;
+
+/**
+ * Above this share of the playlist, hiding is refused wholesale.
+ *
+ * A detector that can empty someone's channel list is worse than no
+ * detector, and it very nearly did: one bad heuristic marked most of a
+ * playlist unplayable and the per-batch guard never fired because the
+ * failures were spread evenly rather than concentrated. This is the
+ * backstop for the whole class — whatever the cause, if most of a
+ * playlist looks dead, the far likelier explanation is that we are
+ * wrong, not that the user's subscription is.
+ */
+export const MAX_HIDDEN_FRACTION = 0.35;
 
 // How many failures before a channel is hidden. The two sources get
 // different bars because they are not equally noisy.
@@ -89,6 +109,11 @@ const listeners = new Set<Listener>();
 function read(): Store {
   if (typeof window === 'undefined') return {};
   try {
+    if (localStorage.getItem(userKey(SCHEMA_KEY)) !== String(SCHEMA_VERSION)) {
+      localStorage.removeItem(userKey(KEY));
+      localStorage.setItem(userKey(SCHEMA_KEY), String(SCHEMA_VERSION));
+      return {};
+    }
     const raw = localStorage.getItem(userKey(KEY));
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Store;
@@ -182,11 +207,25 @@ function isHiddenRecord(rec: HealthRecord): boolean {
   return rec.fails >= PROBE_FAIL_THRESHOLD || (rec.playFails ?? 0) >= FAIL_THRESHOLD;
 }
 
-/** Ids that have failed often enough to be hidden. */
-export function hiddenIds(): Set<string> {
+/**
+ * Ids that have failed often enough to be hidden.
+ *
+ * `total`, when given, engages the circuit breaker: if the verdicts
+ * would hide more than MAX_HIDDEN_FRACTION of the playlist, none are
+ * applied. Callers that only want the raw set (diagnostics, the restore
+ * button) can omit it.
+ */
+export function hiddenIds(total?: number): Set<string> {
   const out = new Set<string>();
   for (const [id, rec] of Object.entries(read())) {
     if (isHiddenRecord(rec)) out.add(id);
+  }
+  if (total && total > 0 && out.size > total * MAX_HIDDEN_FRACTION) {
+    console.warn(
+      `[health] refusing to hide ${out.size} of ${total} channels ` +
+      `(over ${Math.round(MAX_HIDDEN_FRACTION * 100)}%) — treating this as our fault, not the playlist's.`,
+    );
+    return new Set();
   }
   return out;
 }
@@ -359,29 +398,21 @@ export interface SweepResult {
   total:     number;
 }
 
-// hls.js transmuxes MPEG-TS into fMP4 before handing it to MSE, so the
-// support question is asked against video/mp4 with the declared codecs.
-// Cached because a playlist reuses a handful of codec strings across
-// thousands of channels.
-const codecSupport = new Map<string, boolean>();
-function browserCanPlay(codecs: string): boolean {
-  const cached = codecSupport.get(codecs);
-  if (cached !== undefined) return cached;
-  let ok = true;
-  try {
-    const MS = (globalThis as { MediaSource?: { isTypeSupported?: (t: string) => boolean } }).MediaSource;
-    // No MediaSource (or no way to ask) means we cannot rule anything
-    // out — never guess "unplayable" without evidence.
-    if (MS?.isTypeSupported) ok = MS.isTypeSupported(`video/mp4; codecs="${codecs}"`);
-  } catch { ok = true; }
-  codecSupport.set(codecs, ok);
-  return ok;
-}
+// NOTE: a CODECS-based pre-check used to live here, asking
+// MediaSource.isTypeSupported() about the string the master playlist
+// advertises. It was removed because it condemned working channels in
+// bulk. IPTV playlists overwhelmingly carry legacy dotted-decimal codec
+// strings — avc1.66.30, avc1.77.30 — and isTypeSupported rejects those
+// on sight, while hls.js plays the very same content because it
+// normalises them to the RFC 6381 form first. So a negative answer said
+// nothing about playability, and combined with the permanent
+// "unplayable" mark it hid large parts of a playlist that played fine
+// and left no way back short of a manual restore.
+//
+// Whether this browser can decode a stream is now decided only where it
+// is actually known: by the player, when playback really fails.
 
-async function probeBatch(
-  batch: ProbeTarget[],
-  unplayable: Set<string>,
-): Promise<Map<string, boolean>> {
+async function probeBatch(batch: ProbeTarget[]): Promise<Map<string, boolean>> {
   const out = new Map<string, boolean>();
   try {
     const r = await fetch('/api/stream/probe', {
@@ -400,19 +431,7 @@ async function probeBatch(
     const j = await r.json() as {
       results?: Array<{ id: string; ok: boolean; codecs?: string }>;
     };
-    for (const v of j.results ?? []) {
-      // The edge can only say the bytes arrive. Whether THIS browser can
-      // decode them is a local question, so it is answered here: a
-      // channel advertising codecs MSE rejects is unplayable no matter
-      // how healthy the provider is, and saying so now spares the user
-      // discovering it by opening the channel.
-      if (v.ok && v.codecs && !browserCanPlay(v.codecs)) {
-        out.set(v.id, false);
-        unplayable.add(v.id);
-        continue;
-      }
-      out.set(v.id, !!v.ok);
-    }
+    for (const v of j.results ?? []) out.set(v.id, !!v.ok);
   } catch (e) {
     console.warn('[sweep] probe request failed:', (e as Error).message);
   }
@@ -454,8 +473,7 @@ export async function sweepNextBatch(
     }
     if (slices.length === 0) break;
 
-    const unplayable = new Set<string>();
-    const verdictSets = await Promise.all(slices.map((sl) => probeBatch(sl, unplayable)));
+    const verdictSets = await Promise.all(slices.map(probeBatch));
 
     let advanced = 0;
     for (let i = 0; i < slices.length; i++) {
@@ -478,9 +496,7 @@ export async function sweepNextBatch(
       }
       for (const t of answered) {
         if (verdicts.get(t.id)) reportOk(t.id, 'probe');
-        // A codec this browser rejects is permanent — no number of
-        // repeat probes makes it decodable.
-        else reportFail(t.id, 'probe', { permanent: unplayable.has(t.id) });
+        else                    reportFail(t.id, 'probe');
       }
       checked += answered.length;
       failed  += bad;
