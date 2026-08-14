@@ -54,11 +54,20 @@ const MAX_SUBREQUESTS = 42;
 // and a probe burst that trips that cap would look to the provider like
 // abuse and to the user like their subscription breaking.
 const CONCURRENCY = 4;
-const PROBE_TIMEOUT_MS = 6_000;
+// Per-FETCH, not for the whole chain. One shared 6-second budget had to
+// cover manifest + variant + segment, so an ordinary slow provider blew
+// it midway and the channel was recorded dead for being slow rather
+// than for being absent.
+const FETCH_TIMEOUT_MS = 7_000;
+// Overall ceiling for one channel, so a batch cannot stall indefinitely.
+const ITEM_DEADLINE_MS = 18_000;
 // We only need the opening bytes to tell an HLS manifest from an error
 // page, so the body read is capped instead of buffering whole playlists
 // for thousands of channels.
 const SNIFF_BYTES = 2048;
+// Manifests get a larger read so the segment list is visible far enough
+// to pick a recent entry rather than the oldest one in the window.
+const MANIFEST_SNIFF_BYTES = 8192;
 
 function isAllowedCaller(req: NextRequest): boolean {
   const ref = req.headers.get('origin') || req.headers.get('referer') || '';
@@ -87,81 +96,117 @@ const DEFAULT_UA =
 interface ProbeItem { id: string; url: string; ua?: unknown; ref?: unknown }
 interface ProbeVerdict {
   id: string;
-  ok: boolean;
-  status?: number;
   /**
-   * CODECS from the master playlist's #EXT-X-STREAM-INF, when it
-   * declares one. The edge cannot decide playability — that depends on
-   * the viewer's browser — so we hand the string back and let the
-   * client ask MediaSource.isTypeSupported(). This is what lets the
-   * scan catch a channel the browser can never decode without the user
-   * having to discover it by opening it.
+   * true  — the stream answered and served media.
+   * false — the upstream gave a definite negative.
+   * null  — no verdict. A timeout, an aborted connection, a DNS
+   *         failure: these say something about latency or about our own
+   *         network, and nothing at all about whether the channel
+   *         exists. Treating them as "dead" is what made the scan
+   *         condemn working channels for being slow, so they are
+   *         reported as unknown and the client records nothing.
    */
-  codecs?: string;
-}
-
-// CODECS="avc1.4d401f,mp4a.40.2" off the first #EXT-X-STREAM-INF.
-function declaredCodecs(manifest: string): string | undefined {
-  const m = /#EXT-X-STREAM-INF:[^\n]*CODECS="([^"]+)"/i.exec(manifest);
-  return m ? m[1] : undefined;
+  ok: boolean | null;
+  status?: number;
 }
 
 // Fetch a URL and return its opening bytes, or null when it doesn't
 // answer 2xx. Only SNIFF_BYTES are read; the rest of the stream is
 // cancelled rather than buffered.
+type FetchOutcome =
+  | { kind: 'ok'; status: number; text: string }
+  | { kind: 'refused'; status: number }   // definite negative from upstream
+  | { kind: 'unknown' };                  // timeout / transport failure
+
 async function fetchHead(
   url: string,
   headers: Record<string, string>,
-  signal: AbortSignal,
   budget: { used: number },
-  extra?: Record<string, string>,
-): Promise<{ status: number; text: string } | null> {
+  opts?: { extra?: Record<string, string>; maxBytes?: number },
+): Promise<FetchOutcome> {
   // One redirect only. Each hop is another subrequest against the
   // platform budget, and IPTV manifests rarely need more than one.
   budget.used += 2;
-  const { response } = await safeFetch(
-    url,
-    { headers: { ...headers, ...extra } },
-    { maxRedirects: 1, signal },
-  );
+  // Its own timer, so a slow first hop no longer eats the whole item's
+  // allowance and fails the hops after it.
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+  let response: Response;
+  try {
+    const r = await safeFetch(
+      url,
+      { headers: { ...headers, ...opts?.extra } },
+      { maxRedirects: 1, signal: ac.signal },
+    );
+    response = r.response;
+  } catch {
+    // Aborted, refused, DNS failure — no information about the channel.
+    return { kind: 'unknown' };
+  } finally {
+    clearTimeout(timer);
+  }
+  // 206 is a served range; 416 means the server rejected OUR range but
+  // the resource is plainly there, which is a yes for our purposes.
+  if (response.status === 416) {
+    try { await response.body?.cancel(); } catch { /* ignore */ }
+    return { kind: 'ok', status: 416, text: '' };
+  }
   if (!response.ok && response.status !== 206) {
     try { await response.body?.cancel(); } catch { /* ignore */ }
-    return null;
+    return { kind: 'refused', status: response.status };
   }
   const body = response.body;
-  if (!body) return { status: response.status, text: '' };
+  if (!body) return { kind: 'ok', status: response.status, text: '' };
+  const cap = opts?.maxBytes ?? SNIFF_BYTES;
   const reader = body.getReader();
   let text = '';
   try {
-    while (text.length < SNIFF_BYTES) {
+    while (text.length < cap) {
       const { done, value } = await reader.read();
       if (done) break;
       text += new TextDecoder().decode(value, { stream: true });
     }
+  } catch {
+    return { kind: 'unknown' };   // stream died mid-read
   } finally {
     try { await reader.cancel(); } catch { /* already closed */ }
   }
-  return { status: response.status, text };
+  return { kind: 'ok', status: response.status, text };
 }
 
 function looksLikeManifest(text: string): boolean {
   return /#EXTM3U/.test(text) || /#EXT-X-/.test(text);
 }
 
-// First playable URI in a manifest: the first line that isn't blank and
-// isn't a tag. In a master playlist that's a variant .m3u8; in a media
-// playlist it's a segment.
-function firstMediaUri(manifest: string, base: string): string | null {
+// Pick a URI to follow out of a manifest.
+//
+// For a MASTER playlist the first variant is fine — they are all
+// equivalent for a liveness question. For a MEDIA playlist we take the
+// LAST segment we can see instead of the first: a live playlist is a
+// sliding window, and its oldest entry may already have rolled out of
+// the CDN's retention by the time we ask for it. Fetching that and
+// getting a 404 says the segment expired, not that the channel is down.
+function pickMediaUri(manifest: string, base: string): string | null {
+  const isMaster = /#EXT-X-STREAM-INF/i.test(manifest);
+  const uris: string[] = [];
   for (const raw of manifest.split(/\r?\n/)) {
     const line = raw.trim();
     if (!line || line.startsWith('#')) continue;
-    try { return new URL(line, base).toString(); } catch { return null; }
+    uris.push(line);
+    if (isMaster) break;
   }
-  return null;
+  // The read is truncated mid-file, so the final entry may be a partial
+  // line. Prefer the one before it when there is a choice.
+  const chosen = isMaster
+    ? uris[0]
+    : (uris.length > 1 ? uris[uris.length - 2] : uris[0]);
+  if (!chosen) return null;
+  try { return new URL(chosen, base).toString(); } catch { return null; }
 }
 
 async function probeOne(item: ProbeItem, budget: { used: number }): Promise<ProbeVerdict> {
   const check = validateUpstreamUrl(item.url);
+  // A URL we refuse to fetch is a definite negative — it will never work.
   if ('reason' in check) return { id: item.id, ok: false };
 
   const headers: Record<string, string> = {
@@ -170,50 +215,55 @@ async function probeOne(item: ProbeItem, budget: { used: number }): Promise<Prob
   const ref = safeHeaderValue(item.ref);
   if (ref) headers['referer'] = ref;
 
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), PROBE_TIMEOUT_MS);
+  const startedAt = Date.now();
+  const outOfTime = () => Date.now() - startedAt > ITEM_DEADLINE_MS;
+
   try {
     const manifestUrl = check.url.toString();
-    const top = await fetchHead(manifestUrl, headers, ac.signal, budget);
-    if (!top || !looksLikeManifest(top.text)) {
-      return { id: item.id, ok: false, status: top?.status };
-    }
+    const top = await fetchHead(manifestUrl, headers, budget, { maxBytes: MANIFEST_SNIFF_BYTES });
+    if (top.kind === 'unknown') return { id: item.id, ok: null };
+    if (top.kind === 'refused') return { id: item.id, ok: false, status: top.status };
+    if (!looksLikeManifest(top.text)) return { id: item.id, ok: false, status: top.status };
 
     // A served manifest is NOT proof the channel plays. Dead IPTV
-    // entries very often keep answering with a perfectly well-formed
-    // playlist whose segments 404 — they pass a manifest-only check and
-    // then fail the moment the player asks for media. Follow the first
-    // URI (through one level of master → variant) and confirm the media
-    // itself is really there, so the scan reaches the same verdict the
-    // player would.
-    const codecs = declaredCodecs(top.text);
-    let mediaUrl = firstMediaUri(top.text, manifestUrl);
-    if (!mediaUrl) return { id: item.id, ok: false, status: top.status, codecs };
+    // entries very often keep answering with a well-formed playlist
+    // whose segments 404, so follow through to real media.
+    let mediaUrl = pickMediaUri(top.text, manifestUrl);
+    if (!mediaUrl) return { id: item.id, ok: false, status: top.status };
 
     if (/\.m3u8(\?|$)/i.test(mediaUrl)) {
-      const variantCheck = validateUpstreamUrl(mediaUrl);
-      if ('reason' in variantCheck) return { id: item.id, ok: false };
-      const variant = await fetchHead(variantCheck.url.toString(), headers, ac.signal, budget);
-      if (!variant || !looksLikeManifest(variant.text)) {
-        return { id: item.id, ok: false, status: variant?.status };
-      }
-      mediaUrl = firstMediaUri(variant.text, variantCheck.url.toString());
+      if (outOfTime()) return { id: item.id, ok: null };
+      const vCheck = validateUpstreamUrl(mediaUrl);
+      if ('reason' in vCheck) return { id: item.id, ok: false };
+      const variant = await fetchHead(vCheck.url.toString(), headers, budget, { maxBytes: MANIFEST_SNIFF_BYTES });
+      if (variant.kind === 'unknown') return { id: item.id, ok: null };
+      if (variant.kind === 'refused') return { id: item.id, ok: false, status: variant.status };
+      if (!looksLikeManifest(variant.text)) return { id: item.id, ok: false, status: variant.status };
+      mediaUrl = pickMediaUri(variant.text, vCheck.url.toString());
       if (!mediaUrl) return { id: item.id, ok: false, status: variant.status };
     }
 
+    if (outOfTime()) return { id: item.id, ok: null };
     const segCheck = validateUpstreamUrl(mediaUrl);
     if ('reason' in segCheck) return { id: item.id, ok: false };
-    // Ranged so we pull a couple of KB rather than a whole segment —
-    // across a 12k playlist the difference is gigabytes.
-    const seg = await fetchHead(segCheck.url.toString(), headers, ac.signal, budget, {
-      range: `bytes=0-${SNIFF_BYTES - 1}`,
+    const segUrl = segCheck.url.toString();
+
+    // Ranged so we pull a couple of KB rather than a whole segment.
+    let seg = await fetchHead(segUrl, headers, budget, {
+      extra: { range: `bytes=0-${SNIFF_BYTES - 1}` },
     });
-    return { id: item.id, ok: !!seg, status: seg?.status ?? top.status, codecs };
+    // Some origins mishandle Range on live segments and answer with an
+    // error rather than ignoring it. Give the plain request one chance
+    // before calling the channel dead over our own optimisation.
+    if (seg.kind === 'refused' && !outOfTime() && budget.used + 2 <= MAX_SUBREQUESTS) {
+      seg = await fetchHead(segUrl, headers, budget);
+    }
+    if (seg.kind === 'unknown') return { id: item.id, ok: null };
+    return { id: item.id, ok: seg.kind === 'ok', status: seg.status };
   } catch (e) {
+    // Anything unclassified is a non-answer, not a death sentence.
     if (e instanceof SsrfBlocked) return { id: item.id, ok: false };
-    return { id: item.id, ok: false };
-  } finally {
-    clearTimeout(timer);
+    return { id: item.id, ok: null };
   }
 }
 

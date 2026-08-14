@@ -412,6 +412,11 @@ export interface SweepResult {
 // Whether this browser can decode a stream is now decided only where it
 // is actually known: by the player, when playback really fails.
 
+// Only channels the server gave a definite yes or no for appear in the
+// map. An `ok: null` verdict — a timeout, a dropped connection — is
+// deliberately absent, so the caller records nothing for it and comes
+// back to it on a later pass. Treating a slow provider as a dead one is
+// what made the scan condemn channels it had not really checked.
 async function probeBatch(batch: ProbeTarget[]): Promise<Map<string, boolean>> {
   const out = new Map<string, boolean>();
   try {
@@ -429,9 +434,12 @@ async function probeBatch(batch: ProbeTarget[]): Promise<Map<string, boolean>> {
       return out;
     }
     const j = await r.json() as {
-      results?: Array<{ id: string; ok: boolean; codecs?: string }>;
+      results?: Array<{ id: string; ok: boolean | null }>;
     };
-    for (const v of j.results ?? []) out.set(v.id, !!v.ok);
+    for (const v of j.results ?? []) {
+      if (v.ok === null || v.ok === undefined) continue; // no verdict
+      out.set(v.id, v.ok);
+    }
   } catch (e) {
     console.warn('[sweep] probe request failed:', (e as Error).message);
   }
