@@ -511,11 +511,21 @@ export async function sweepNextBatch(
       const slice = slices[i];
       const verdicts = verdictSets[i];
       const answered = slice.filter((t) => verdicts.has(t.id));
-      if (answered.length === 0) {
+      if (verdicts.size === 0) {
         // The request itself failed, or the server ran out of budget
-        // before reaching this slice. Either way it says nothing about
-        // these channels — record nothing and do not step over them.
+        // before reaching this slice at all. Nothing was learned and
+        // nothing was attempted, so retry these next tick.
         discarded = true;
+        continue;
+      }
+      if (answered.length === 0) {
+        // The server answered but had no verdict for any of them —
+        // every one timed out or was redirect-wedged. Record nothing,
+        // but DO step past them: refusing to move meant one permanently
+        // unanswerable channel pinned the cursor and the sweep never
+        // advanced again. They come round for another try on the next
+        // pass.
+        advanced += slice.length;
         continue;
       }
       const bad = answered.filter((t) => !verdicts.get(t.id)).length;
@@ -532,7 +542,9 @@ export async function sweepNextBatch(
       checked += answered.length;
       failed  += bad;
       bumpScanned(answered.length);
-      advanced += answered.length;
+      // Step over the whole slice the server processed, not just the
+      // decided ones, so undecidable entries cannot pin the cursor.
+      advanced += slice.length;
     }
 
     // Advance only over channels that actually got a verdict, so a

@@ -49,6 +49,8 @@ const MAX_ITEMS = 12;
 // instead of failing: a partial answer is real information, a thrown
 // invocation is none.
 const MAX_SUBREQUESTS = 42;
+// Hops allowed per URL. Each one costs a subrequest.
+const MAX_REDIRECTS = 3;
 // How many upstream fetches run at once within a batch. Deliberately
 // modest: IPTV panels routinely cap concurrent connections per account,
 // and a probe burst that trips that cap would look to the provider like
@@ -124,9 +126,13 @@ async function fetchHead(
   budget: { used: number },
   opts?: { extra?: Record<string, string>; maxBytes?: number },
 ): Promise<FetchOutcome> {
-  // One redirect only. Each hop is another subrequest against the
-  // platform budget, and IPTV manifests rarely need more than one.
-  budget.used += 2;
+  // IPTV URLs redirect more than you would expect — a panel path hands
+  // off to a load balancer which hands off to a CDN edge. Allowing only
+  // one hop made safeFetch throw "too many redirects" on ordinary
+  // channels, which surfaced as an unknown verdict and, because the
+  // client refuses to step over an unanswered channel, wedged the sweep
+  // at the first such entry. Budget for the worst case honestly.
+  budget.used += MAX_REDIRECTS + 1;
   // Its own timer, so a slow first hop no longer eats the whole item's
   // allowance and fails the hops after it.
   const ac = new AbortController();
@@ -136,7 +142,7 @@ async function fetchHead(
     const r = await safeFetch(
       url,
       { headers: { ...headers, ...opts?.extra } },
-      { maxRedirects: 1, signal: ac.signal },
+      { maxRedirects: MAX_REDIRECTS, signal: ac.signal },
     );
     response = r.response;
   } catch {
@@ -295,9 +301,10 @@ export async function POST(req: NextRequest) {
     for (;;) {
       const i = cursor++;
       if (i >= items.length) return;
-      // Six is the worst case for one channel (three URLs, one redirect
-      // each). Stop starting new work rather than being killed mid-item.
-      if (budget.used + 6 > MAX_SUBREQUESTS) return;
+      // Worst case for one channel: three URLs at MAX_REDIRECTS + 1
+      // fetches each. Stop starting new work rather than being killed
+      // mid-item and losing the verdicts already gathered.
+      if (budget.used + 3 * (MAX_REDIRECTS + 1) > MAX_SUBREQUESTS) return;
       results.push(await probeOne(items[i], budget));
     }
   }
