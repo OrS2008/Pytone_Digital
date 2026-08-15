@@ -31,7 +31,7 @@ import { loadEpgIndex, hydrateChannels, getUserEpgUrl } from '@/lib/epgCache';
 import { proxiedStreamUrl } from '@/lib/streamProxy';
 import { buildCatchupUrl } from '@/lib/catchup';
 import { maskSourceUrl } from '@/lib/maskUrl';
-import { hiddenIds, onHealthChange, probeHidden, restoreAll, sweepNextBatch, scannedCount, MAX_HIDDEN_FRACTION } from '@/lib/channelHealth';
+import { hiddenIds, onHealthChange, probeHidden, restoreAll, sweepNextBatch, scannedCount, MAX_HIDDEN_FRACTION, hideAnywayEnabled, setHideAnyway } from '@/lib/channelHealth';
 import { useT } from '@/lib/i18n';
 import './live.css';
 
@@ -107,6 +107,7 @@ export default function LivePage() {
   const [allChannels, setChannels] = useState<Channel[]>([]);
   const [hiddenHealth, setHiddenHealth] = useState<Set<string>>(() => new Set());
   const [autoHideDead, setAutoHideDead] = useState(true);
+  const [hideAnyway, setHideAnywayState] = useState(false);
   useEffect(() => {
     try {
       // Default on; only an explicit '0' disables. Matches Toggle's
@@ -121,16 +122,19 @@ export default function LivePage() {
     // Circuit breaker. If the verdicts want to hide most of the
     // playlist, the likelier explanation is a fault on our side than a
     // subscription that stopped working, so none of them are applied.
-    if (hiddenHealth.size > allChannels.length * MAX_HIDDEN_FRACTION) return allChannels;
+    if (!hideAnyway && hiddenHealth.size > allChannels.length * MAX_HIDDEN_FRACTION) return allChannels;
     return allChannels.filter((c) => !hiddenHealth.has(c.id));
-  }, [allChannels, hiddenHealth, autoHideDead]);
+  }, [allChannels, hiddenHealth, autoHideDead, hideAnyway]);
   const breakerTripped =
-    autoHideDead && allChannels.length > 0 &&
+    autoHideDead && !hideAnyway && allChannels.length > 0 &&
     hiddenHealth.size > allChannels.length * MAX_HIDDEN_FRACTION;
   const hiddenCount = allChannels.length - channels.length;
   const [recheckBusy, setRecheckBusy] = useState(false);
   const [scanned, setScanned] = useState(0);
-  useEffect(() => { setScanned(scannedCount()); }, []);
+  useEffect(() => {
+    setScanned(scannedCount());
+    setHideAnywayState(hideAnywayEnabled());
+  }, []);
 
   const probeTargets = useMemo(
     () => allChannels.map((c) => ({
@@ -747,7 +751,7 @@ export default function LivePage() {
           <div className="live-hidden-note" role="status">
               <span>
                 {breakerTripped
-                  ? `Too many channels looked broken (${hiddenHealth.size.toLocaleString()} of ${allChannels.length.toLocaleString()}), so nothing is being hidden. That is far more likely to be a fault on our side than on yours.`
+                  ? `Almost nothing in this playlist responded (${hiddenHealth.size.toLocaleString()} of ${allChannels.length.toLocaleString()} failed), so nothing is being hidden — that pattern usually means the fault is ours or the whole source is down, not that every channel died.`
                   : hiddenCount > 0
                     ? (hiddenCount === 1
                         ? '1 channel hidden — it could not play.'
@@ -776,6 +780,23 @@ export default function LivePage() {
               >
                 {recheckBusy ? 'Checking…' : 'Recheck now'}
               </button>
+              {breakerTripped && (
+                <button
+                  type="button"
+                  onClick={() => { setHideAnyway(true); setHideAnywayState(true); }}
+                  title="You can see your own list; hide them despite the warning."
+                >
+                  Hide them anyway
+                </button>
+              )}
+              {hideAnyway && (
+                <button
+                  type="button"
+                  onClick={() => { setHideAnyway(false); setHideAnywayState(false); }}
+                >
+                  Stop hiding
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => { restoreAll(); setHiddenHealth(new Set()); }}

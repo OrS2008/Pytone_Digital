@@ -41,14 +41,37 @@ const SCHEMA_VERSION = 2;
  * Above this share of the playlist, hiding is refused wholesale.
  *
  * A detector that can empty someone's channel list is worse than no
- * detector, and it very nearly did: one bad heuristic marked most of a
+ * detector, and one nearly did: a bad heuristic marked most of a
  * playlist unplayable and the per-batch guard never fired because the
- * failures were spread evenly rather than concentrated. This is the
- * backstop for the whole class — whatever the cause, if most of a
- * playlist looks dead, the far likelier explanation is that we are
- * wrong, not that the user's subscription is.
+ * failures were spread evenly rather than concentrated.
+ *
+ * The bar sits high on purpose. The first attempt put it at 35%, which
+ * turned out to block a perfectly real result — public IPTV playlists
+ * rot hard, and a third of the entries being genuinely dead is
+ * completely ordinary. A breaker that fires on normal decay just stops
+ * the feature from doing its job. What it needs to catch is the case
+ * where almost NOTHING works, because that is the shape a fault on our
+ * side takes; a provider whose channels mostly still play is not that.
  */
-export const MAX_HIDDEN_FRACTION = 0.35;
+export const MAX_HIDDEN_FRACTION = 0.7;
+
+// Even past the breaker the user can insist, because they can see their
+// own list and we cannot. Their judgement beats our heuristic.
+const OVERRIDE_KEY = 'channelHealth.hideAnyway';
+
+export function hideAnywayEnabled(): boolean {
+  if (typeof window === 'undefined') return false;
+  try { return localStorage.getItem(userKey(OVERRIDE_KEY)) === '1'; }
+  catch { return false; }
+}
+
+export function setHideAnyway(on: boolean): void {
+  try {
+    if (on) localStorage.setItem(userKey(OVERRIDE_KEY), '1');
+    else    localStorage.removeItem(userKey(OVERRIDE_KEY));
+  } catch { /* ignore */ }
+  listeners.forEach((l) => { try { l(); } catch { /* ignore */ } });
+}
 
 // How many failures before a channel is hidden. The two sources get
 // different bars because they are not equally noisy.
@@ -220,7 +243,7 @@ export function hiddenIds(total?: number): Set<string> {
   for (const [id, rec] of Object.entries(read())) {
     if (isHiddenRecord(rec)) out.add(id);
   }
-  if (total && total > 0 && out.size > total * MAX_HIDDEN_FRACTION) {
+  if (total && total > 0 && out.size > total * MAX_HIDDEN_FRACTION && !hideAnywayEnabled()) {
     console.warn(
       `[health] refusing to hide ${out.size} of ${total} channels ` +
       `(over ${Math.round(MAX_HIDDEN_FRACTION * 100)}%) — treating this as our fault, not the playlist's.`,
