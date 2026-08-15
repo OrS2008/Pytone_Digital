@@ -106,13 +106,19 @@ export default function LivePage() {
   // without touching the index arithmetic.
   const [allChannels, setChannels] = useState<Channel[]>([]);
   const [hiddenHealth, setHiddenHealth] = useState<Set<string>>(() => new Set());
-  const [autoHideDead, setAutoHideDead] = useState(true);
+  // Starts false so nothing can be hidden in the frame before the
+  // stored preference is read.
+  const [autoHideDead, setAutoHideDead] = useState(false);
   const [hideAnyway, setHideAnywayState] = useState(false);
   useEffect(() => {
     try {
-      // Default on; only an explicit '0' disables. Matches Toggle's
-      // raw '1' / '0' encoding.
-      setAutoHideDead(localStorage.getItem(userKey('prefs.autoHideDead')) !== '0');
+      // Default OFF. It shipped on and did not earn that: it hid
+      // channels that broadcast, and its own faults were hard to tell
+      // apart from a failing playlist. It stays available for anyone who
+      // switches it on deliberately, and only an explicit '1' does that.
+      // With it off the background sweep does not run at all, so there
+      // is no probe traffic to the provider either.
+      setAutoHideDead(localStorage.getItem(userKey('prefs.autoHideDead')) === '1');
     } catch { /* ignore */ }
     setHiddenHealth(hiddenIds());
     return onHealthChange(() => setHiddenHealth(hiddenIds()));

@@ -96,15 +96,16 @@ export default function Preferences() {
           <div>
             <div className="ac-toggle-title">Hide channels that don&apos;t play</div>
             <div className="ac-toggle-desc">
-              After a channel fails to start three separate times it is
-              hidden from the channel list. Nothing is deleted: the live
-              screen shows how many are hidden, rechecks them in the
-              background, and puts any that start working again straight
-              back. Turn this off to always see every channel in your
-              playlist.
+              Off by default, and worth knowing why: this checks each
+              channel in the background and hides the ones that fail, but
+              it has been wrong often enough to hide channels that do
+              broadcast. Nothing is ever deleted — the live screen shows
+              the count and restores everything in one click — but leave
+              it off unless you want to try it. While it is off nothing is
+              hidden and no background checking runs.
             </div>
           </div>
-          <Toggle persistKey="prefs.autoHideDead" initialOn />
+          <Toggle persistKey="prefs.autoHideDead" />
         </div>
         <div className="ac-toggle-row">
           <div>

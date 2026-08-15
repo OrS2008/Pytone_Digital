@@ -33,9 +33,12 @@ const KEY = 'channelHealth';
 // mismatch discards the store outright, so a bad rollout heals itself
 // instead of leaving every affected user to find the restore button.
 // v2: the CODECS pre-check marked large numbers of working channels
-// permanently unplayable.
+//     permanently unplayable.
+// v3: verdicts gathered while the sweep was wedged and while redirects
+//     were capped at one are not trustworthy — discard them rather than
+//     leave stale judgements behind a feature that is now off.
 const SCHEMA_KEY = 'channelHealth.schema';
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 /**
  * Above this share of the playlist, hiding is refused wholesale.
