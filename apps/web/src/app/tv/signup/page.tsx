@@ -11,10 +11,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { setSessionEmail, setActivated } from '@/lib/session';
 import GoogleSection from '@/components/auth/GoogleSection';
+import { useT } from '@/lib/i18n';
 import '../auth/auth.css';
 
 export default function Signup() {
   const router = useRouter();
+  const { t, locale } = useT();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [accepted, setAccepted] = useState(true);
@@ -35,9 +37,9 @@ export default function Signup() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!email.includes('@')) return setError('Please enter a valid email.');
-    if (password.length < 8)   return setError('Password must be at least 8 characters.');
-    if (!accepted)             return setError('You need to accept the Terms and Privacy policy.');
+    if (!email.includes('@')) return setError(t('auth.errEmail'));
+    if (password.length < 8)   return setError(t('auth.errPassword'));
+    if (!accepted)             return setError(t('auth.errAccept'));
     setSending(true);
     try {
       const r = await fetch('/api/auth/signup', {
@@ -47,12 +49,12 @@ export default function Signup() {
         body: JSON.stringify({ email, password }),
       });
       if (r.status === 409) {
-        setError('That email is already registered. Try signing in instead.');
+        setError(t('auth.errExists'));
         setSending(false);
         return;
       }
       if (r.status === 503) {
-        setError('Server storage is not configured yet. Ask the admin to bind the NOVA_KV namespace.');
+        setError(t('auth.errStorage'));
         setSending(false);
         return;
       }
@@ -62,7 +64,7 @@ export default function Signup() {
           const body = await r.json() as { detail?: string; error?: string };
           detail = body.detail || body.error || '';
         } catch { /* response may not be JSON */ }
-        setError(`Sign-up failed (${r.status})${detail ? `: ${detail}` : '.'}`);
+        setError(`${t('auth.errSignup')} (${r.status})${detail ? `: ${detail}` : '.'}`);
         setSending(false);
         return;
       }
@@ -89,27 +91,27 @@ export default function Signup() {
       window.location.href = `/tv/check-email?email=${encodeURIComponent(email)}`;
       return;
     } catch (err) {
-      setError(`Sign-up failed: ${(err as Error).message}`);
+      setError(`${t('auth.errSignup')}: ${(err as Error).message}`);
     }
     setSending(false);
   }
 
   return (
     <main className="ah-root">
-      <Link href="/" className="ah-topback">← Home</Link>
+      <Link href="/" className="ah-topback">{t('auth.backHome')}</Link>
 
       <div className="ah-card">
         <div className="ah-wm">NOVA STREAM</div>
-        <h1 className="ah-title">Start watching</h1>
+        <h1 className="ah-title">{t('auth.startWatching')}</h1>
         <p className="ah-sub">
-          7 days free. No card needed. One email per account.
+          {t('auth.signupSub')}
         </p>
 
-        <GoogleSection onSuccess={handleGoogle} onError={setError} dividerLabel="or sign up with email" />
+        <GoogleSection onSuccess={handleGoogle} onError={setError} dividerLabel={t('auth.orSignupEmail')} />
 
         <form onSubmit={submit}>
           <div className="ah-field">
-            <label className="ah-label">Email</label>
+            <label className="ah-label">{t('auth.email')}</label>
             <input
               className="ah-input"
               type="email"
@@ -119,20 +121,20 @@ export default function Signup() {
               onChange={(e) => setEmail(e.target.value)}
             />
             <div className="ah-field-help">
-              We&apos;ll send an activation link. Your trial starts when you click it.
+              {t('auth.activationHelp')}
             </div>
           </div>
           <div className="ah-field">
-            <label className="ah-label">Password</label>
+            <label className="ah-label">{t('auth.password')}</label>
             <input
               className="ah-input"
               type="password"
-              placeholder="At least 8 characters"
+              placeholder={t('auth.passwordPh')}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
             <div className="ah-field-help">
-              Long passwords beat complex ones. We check against leaked databases.
+              {t('auth.passwordHelp')}
             </div>
           </div>
 
@@ -143,21 +145,21 @@ export default function Signup() {
               onChange={(e) => setAccepted(e.target.checked)}
             />
             <span>
-              I agree to the <Link href="/legal/terms" className="ah-link">Terms</Link> and the{' '}
-              <Link href="/legal/privacy" className="ah-link">Privacy policy</Link>. You can
-              delete your account at any time from Settings → Help &amp; legal.
+              {t('auth.agree1')}{locale === 'he' ? '' : ' '}<Link href="/legal/terms" className="ah-link">{t('auth.terms')}</Link>{' '}
+              {t('auth.agree2')}{locale === 'he' ? '' : ' '}<Link href="/legal/privacy" className="ah-link">{t('auth.privacy')}</Link>
+              {t('auth.agree3')}
             </span>
           </label>
 
           {error && <div className="ah-err">{error}</div>}
 
           <button type="submit" className="ah-btn" disabled={sending}>
-            {sending ? 'Creating account…' : 'Create account'}
+            {sending ? t('auth.creating') : t('auth.createAccount')}
           </button>
         </form>
 
         <div className="ah-bottom">
-          Already have an account? <Link href="/tv/login" className="ah-link">Sign in</Link>
+          {t('auth.haveAccount')} <Link href="/tv/login" className="ah-link">{t('auth.signIn')}</Link>
         </div>
       </div>
     </main>

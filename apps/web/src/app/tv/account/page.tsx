@@ -18,6 +18,7 @@ import { signOut } from '@/lib/session';
 import { useAccess } from '@/lib/useAccess';
 import { getCachedChannels } from '@/lib/channelCache';
 import { userKey } from '@/lib/session';
+import { useT, getLocale } from '@/lib/i18n';
 import { maskSourceUrl } from '@/lib/maskUrl';
 
 interface Source { id: string; kind: string; title: string; sub: string; stat: string }
@@ -45,19 +46,24 @@ function readPref<T>(key: string, fallback: T): T {
   } catch { return fallback; }
 }
 
+// Dates follow the interface language (client-only values, so reading
+// the saved locale here is hydration-safe).
+function dateLocale(): string { return getLocale() === 'he' ? 'he-IL' : 'en-GB'; }
+
 function formatDate(ms: number | undefined | null): string {
   if (!ms) return '—';
   const d = new Date(ms);
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString(dateLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
 }
 function formatDateTime(ms: number | undefined | null): string {
   if (!ms) return '—';
   const d = new Date(ms);
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) +
-         ' · ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString(dateLocale(), { day: '2-digit', month: 'short', year: 'numeric' }) +
+         ' · ' + d.toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' });
 }
 
 export default function AccountOverview() {
+  const { t } = useT();
   const access = useAccess();
 
   const [live,    setLive]    = useState<Source[]>([]);
@@ -85,12 +91,12 @@ export default function AccountOverview() {
   return (
     <Shell active="overview">
       <header className="ac-panel-head">
-        <div className="ac-panel-eyebrow">Account</div>
+        <div className="ac-panel-eyebrow">{t('acc.eyebrow')}</div>
         <h1 className="ac-panel-title">
-          {access.status === 'loading' ? 'Loading…' : displayName ? `Hi, ${displayName}` : 'Account'}
+          {access.status === 'loading' ? t('acc.loading') : displayName ? `${t('acc.hi')} ${displayName}` : t('acc.eyebrow')}
         </h1>
         <p className="ac-panel-sub">
-          Your subscription, devices and content sources — all in one place.
+          {t('acc.sub')}
         </p>
       </header>
 
@@ -120,8 +126,9 @@ export default function AccountOverview() {
 // ─── Status banner — the single big "what's happening with my access" ──
 
 function StatusBanner({ access }: { access: ReturnType<typeof useAccess> }) {
+  const { t } = useT();
   if (access.status === 'loading') {
-    return <div className="ac-banner ac-banner-loading">Loading account…</div>;
+    return <div className="ac-banner ac-banner-loading">{t('acc.loadingAccount')}</div>;
   }
   if (access.status === 'anon') {
     return null; // AccountGate already shows the sign-in wall.
@@ -130,8 +137,8 @@ function StatusBanner({ access }: { access: ReturnType<typeof useAccess> }) {
     return (
       <div className="ac-banner ac-banner-warn">
         <div>
-          <div className="ac-banner-h">We couldn&apos;t reach the server</div>
-          <div className="ac-banner-sub">Your local settings still work — refresh to retry.</div>
+          <div className="ac-banner-h">{t('acc.unreach')}</div>
+          <div className="ac-banner-sub">{t('acc.unreachSub')}</div>
         </div>
       </div>
     );
@@ -140,13 +147,13 @@ function StatusBanner({ access }: { access: ReturnType<typeof useAccess> }) {
     return (
       <div className="ac-banner ac-banner-ok">
         <div>
-          <span className="ac-status-pill ac-status-ok">SUBSCRIBED</span>
-          <div className="ac-banner-h" style={{ marginTop: 8 }}>You&apos;re all set.</div>
+          <span className="ac-status-pill ac-status-ok">{t('acc.pillSubscribed')}</span>
+          <div className="ac-banner-h" style={{ marginTop: 8 }}>{t('acc.allSet')}</div>
           <div className="ac-banner-sub">
-            Renews on {formatDate(access.subscribedUntil)} · Cancel any time.
+            {t('acc.renewsOn')} {formatDate(access.subscribedUntil)} · {t('acc.cancelAny')}
           </div>
         </div>
-        <Link href="/tv/account/subscription" className="ac-btn">Manage subscription</Link>
+        <Link href="/tv/account/subscription" className="ac-btn">{t('acc.manageSub')}</Link>
       </div>
     );
   }
@@ -155,15 +162,15 @@ function StatusBanner({ access }: { access: ReturnType<typeof useAccess> }) {
     return (
       <div className="ac-banner ac-banner-info">
         <div>
-          <span className="ac-status-pill ac-status-trial">FREE TRIAL · {days}d LEFT</span>
+          <span className="ac-status-pill ac-status-trial">{t('acc.pillTrial')} · {days}{t('acc.dLeft')}</span>
           <div className="ac-banner-h" style={{ marginTop: 8 }}>
-            {days <= 1 ? 'Your trial ends soon.' : `${days} days of free streaming remaining.`}
+            {days <= 1 ? t('acc.trialSoon') : `${days} ${t('acc.daysRemaining')}`}
           </div>
           <div className="ac-banner-sub">
-            Trial ends on {formatDate(access.trialEndsAt)} · Subscribe before then to keep your settings.
+            {t('acc.trialEndsOn')} {formatDate(access.trialEndsAt)} · {t('acc.subscribeBefore')}
           </div>
         </div>
-        <Link href="/tv/account/plans" className="ac-btn ac-btn-primary">Subscribe</Link>
+        <Link href="/tv/account/plans" className="ac-btn ac-btn-primary">{t('acc.subscribe')}</Link>
       </div>
     );
   }
@@ -171,13 +178,13 @@ function StatusBanner({ access }: { access: ReturnType<typeof useAccess> }) {
   return (
     <div className="ac-banner ac-banner-warn">
       <div>
-        <span className="ac-status-pill ac-status-warn">EXPIRED</span>
-        <div className="ac-banner-h" style={{ marginTop: 8 }}>Your free trial has ended.</div>
+        <span className="ac-status-pill ac-status-warn">{t('acc.pillExpired')}</span>
+        <div className="ac-banner-h" style={{ marginTop: 8 }}>{t('acc.trialEnded')}</div>
         <div className="ac-banner-sub">
-          Trial ended on {formatDate(access.trialEndsAt)} · Subscribe to keep watching.
+          {t('acc.trialEndedOn')} {formatDate(access.trialEndsAt)} · {t('acc.subscribeKeep')}
         </div>
       </div>
-      <Link href="/tv/account/plans" className="ac-btn ac-btn-primary">Subscribe</Link>
+      <Link href="/tv/account/plans" className="ac-btn ac-btn-primary">{t('acc.subscribe')}</Link>
     </div>
   );
 }
@@ -185,31 +192,33 @@ function StatusBanner({ access }: { access: ReturnType<typeof useAccess> }) {
 // ─── Cards ──────────────────────────────────────────────────────────────
 
 function AccountCard({ access }: { access: ReturnType<typeof useAccess> }) {
+  const { t } = useT();
   return (
     <div className="ac-card">
-      <div className="ac-card-title">Account</div>
+      <div className="ac-card-title">{t('acc.eyebrow')}</div>
       <dl className="ac-detail">
-        <dt>Email</dt>
+        <dt>{t('acc.email')}</dt>
         <dd>{access.email ?? '—'}</dd>
 
-        <dt>Member since</dt>
+        <dt>{t('acc.memberSince')}</dt>
         <dd>{formatDate(access.createdAt)}</dd>
 
-        <dt>User ID</dt>
-        <dd className="ac-mono">{access.userId ? access.userId.slice(0, 12) + '…' : '—'}</dd>
+        <dt>{t('acc.userId')}</dt>
+        <dd className="ac-mono" dir="ltr">{access.userId ? access.userId.slice(0, 12) + '…' : '—'}</dd>
       </dl>
       <Link href="/tv/account/security" className="ac-btn ac-btn-sm" style={{ marginTop: 14 }}>
-        Security &amp; password →
+        {t('acc.securityLink')} {t('acc.arrow')}
       </Link>
     </div>
   );
 }
 
 function SubscriptionCard({ access }: { access: ReturnType<typeof useAccess> }) {
+  const { t } = useT();
   const planLabel =
-    access.status === 'subscribed' ? 'Subscribed' :
-    access.status === 'trial'      ? 'Free Trial' :
-    access.status === 'expired'    ? 'Expired'    :
+    access.status === 'subscribed' ? t('acc.planSubscribed') :
+    access.status === 'trial'      ? t('acc.planTrial') :
+    access.status === 'expired'    ? t('acc.planExpired') :
                                      '—';
   const planTone =
     access.status === 'subscribed' ? 'ac-stat-ok'   :
@@ -218,22 +227,22 @@ function SubscriptionCard({ access }: { access: ReturnType<typeof useAccess> }) 
                                      '';
   return (
     <div className="ac-card">
-      <div className="ac-card-title">Subscription</div>
+      <div className="ac-card-title">{t('acc.subscription')}</div>
       <div className={`ac-stat-v ${planTone}`} style={{ fontSize: 26, fontWeight: 800 }}>{planLabel}</div>
       <dl className="ac-detail" style={{ marginTop: 10 }}>
         {access.status === 'trial' && <>
-          <dt>Days left</dt>     <dd>{access.daysLeft ?? '—'}</dd>
-          <dt>Trial ends</dt>    <dd>{formatDate(access.trialEndsAt)}</dd>
+          <dt>{t('acc.daysLeft')}</dt>     <dd>{access.daysLeft ?? '—'}</dd>
+          <dt>{t('acc.trialEnds')}</dt>    <dd>{formatDate(access.trialEndsAt)}</dd>
         </>}
         {access.status === 'subscribed' && <>
-          <dt>Renews on</dt>     <dd>{formatDate(access.subscribedUntil)}</dd>
+          <dt>{t('acc.renewsOn')}</dt>     <dd>{formatDate(access.subscribedUntil)}</dd>
         </>}
         {access.status === 'expired' && <>
-          <dt>Trial ended</dt>   <dd>{formatDate(access.trialEndsAt)}</dd>
+          <dt>{t('acc.trialEndedShort')}</dt>   <dd>{formatDate(access.trialEndsAt)}</dd>
         </>}
       </dl>
       <Link href="/tv/account/plans" className="ac-btn ac-btn-sm" style={{ marginTop: 14 }}>
-        {access.status === 'subscribed' ? 'Change plan' : 'See plans'} →
+        {access.status === 'subscribed' ? t('acc.changePlan') : t('acc.seePlans')} {t('acc.arrow')}
       </Link>
     </div>
   );
@@ -242,31 +251,32 @@ function SubscriptionCard({ access }: { access: ReturnType<typeof useAccess> }) 
 function ContentCard({
   liveCount, epgCount, vodCount, channelCount, mode,
 }: { liveCount: number; epgCount: number; vodCount: number; channelCount: number; mode: 'proxy' | 'direct' }) {
+  const { t } = useT();
   return (
     <div className="ac-card">
-      <div className="ac-card-title">Content</div>
+      <div className="ac-card-title">{t('acc.content')}</div>
       <dl className="ac-detail">
-        <dt>Channels loaded</dt>
-        <dd>{channelCount > 0 ? channelCount.toLocaleString() : <span style={{ color: 'var(--ns-text-faint)' }}>none yet</span>}</dd>
+        <dt>{t('acc.channelsLoaded')}</dt>
+        <dd>{channelCount > 0 ? channelCount.toLocaleString() : <span style={{ color: 'var(--ns-text-faint)' }}>{t('acc.noneYet')}</span>}</dd>
 
-        <dt>Live sources</dt>
+        <dt>{t('acc.liveSources')}</dt>
         <dd>{liveCount}</dd>
 
-        <dt>EPG sources</dt>
+        <dt>{t('acc.epgSources')}</dt>
         <dd>{epgCount}</dd>
 
-        <dt>VOD libraries</dt>
+        <dt>{t('acc.vodLibs')}</dt>
         <dd>{vodCount}</dd>
 
-        <dt>Streaming mode</dt>
+        <dt>{t('acc.streamMode')}</dt>
         <dd>
           {mode === 'direct'
-            ? <span className="ac-status-pill ac-status-ok" style={{ fontSize: 10 }}>DIRECT</span>
-            : <span className="ac-status-pill ac-status-mut" style={{ fontSize: 10 }}>PROXY</span>}
+            ? <span className="ac-status-pill ac-status-ok" style={{ fontSize: 10 }}>{t('acc.direct')}</span>
+            : <span className="ac-status-pill ac-status-mut" style={{ fontSize: 10 }}>{t('acc.proxy')}</span>}
         </dd>
       </dl>
       <Link href="/tv/account/sources" className="ac-btn ac-btn-sm" style={{ marginTop: 14 }}>
-        Manage sources →
+        {t('acc.manageSources')} {t('acc.arrow')}
       </Link>
     </div>
   );
@@ -275,6 +285,7 @@ function ContentCard({
 // ─── Sources list (no raw URLs) ─────────────────────────────────────────
 
 function SourcesCard({ live, epg, vod }: { live: Source[]; epg: Source[]; vod: Source[] }) {
+  const { t } = useT();
   const all = [
     ...live.map((s) => ({ ...s, kindLabel: 'M3U' })),
     ...epg.map((s)  => ({ ...s, kindLabel: 'EPG' })),
@@ -284,11 +295,11 @@ function SourcesCard({ live, epg, vod }: { live: Source[]; epg: Source[]; vod: S
   if (all.length === 0) {
     return (
       <div className="ac-card">
-        <div className="ac-card-title">Your content sources</div>
+        <div className="ac-card-title">{t('acc.yourSources')}</div>
         <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, margin: 0 }}>
-          No sources connected yet. Head to{' '}
-          <Link className="ac-auth-link" href="/tv/account/sources">Playlists &amp; EPG</Link>{' '}
-          to add an M3U / Xtream provider.
+          {t('acc.noSources1')}{' '}
+          <Link className="ac-auth-link" href="/tv/account/sources">{t('acc.playlistsEpg')}</Link>{' '}
+          {t('acc.noSources2')}
         </p>
       </div>
     );
@@ -296,16 +307,16 @@ function SourcesCard({ live, epg, vod }: { live: Source[]; epg: Source[]; vod: S
 
   return (
     <div className="ac-card">
-      <div className="ac-card-title">Your content sources · {all.length}</div>
+      <div className="ac-card-title">{t('acc.yourSources')} · {all.length}</div>
       {all.map((s) => (
         <div key={`${s.kindLabel}-${s.id}`} className="ac-source">
           <div className="ac-source-icon">{s.kindLabel}</div>
           <div className="ac-source-meta">
             <div className="ac-source-title">{s.title}</div>
-            <div className="ac-source-url ac-mono">{maskSourceUrl(s.sub)}</div>
+            <div className="ac-source-url ac-mono" dir="ltr">{maskSourceUrl(s.sub)}</div>
           </div>
           <div className="ac-source-stats"><div>{s.stat}</div></div>
-          <Link href="/tv/account/sources" className="ac-btn ac-btn-sm">Manage</Link>
+          <Link href="/tv/account/sources" className="ac-btn ac-btn-sm">{t('acc.manage')}</Link>
         </div>
       ))}
     </div>
@@ -315,27 +326,28 @@ function SourcesCard({ live, epg, vod }: { live: Source[]; epg: Source[]; vod: S
 // ─── Settings sync status ───────────────────────────────────────────────
 
 function SyncCard({ lastSync }: { lastSync: number | null }) {
+  const { t } = useT();
   const since = lastSync ? Math.max(0, Math.floor((Date.now() - lastSync) / 1000)) : null;
   const sinceLabel =
     since === null     ? null :
-    since < 5          ? 'just now' :
-    since < 60         ? `${since}s ago` :
-    since < 60 * 60    ? `${Math.floor(since / 60)} min ago` :
-    since < 24 * 3600  ? `${Math.floor(since / 3600)} h ago` :
+    since < 5          ? t('acc.justNow') :
+    since < 60         ? `${since}${t('acc.sAgo')}` :
+    since < 60 * 60    ? `${Math.floor(since / 60)} ${t('acc.minAgo').trim()}` :
+    since < 24 * 3600  ? `${Math.floor(since / 3600)} ${t('acc.hAgo').trim()}` :
                          formatDateTime(lastSync);
   return (
     <div className="ac-card">
-      <div className="ac-card-title">Settings sync</div>
+      <div className="ac-card-title">{t('acc.sync')}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 14 }}>
-        <span className="ac-status-pill ac-status-ok" style={{ fontSize: 10 }}>ON</span>
+        <span className="ac-status-pill ac-status-ok" style={{ fontSize: 10 }}>{t('acc.on')}</span>
         <span>
           {sinceLabel
-            ? <>Last synced <b>{sinceLabel}</b>.</>
-            : <>Your settings sync to your account automatically whenever you change them.</>}
+            ? <>{t('acc.lastSynced')} <b>{sinceLabel}</b>.</>
+            : <>{t('acc.syncAuto')}</>}
         </span>
       </div>
       <p style={{ fontSize: 12, color: 'var(--ns-text-faint)', margin: '10px 0 0' }}>
-        Stored encrypted at rest in Cloudflare KV. Sign in on any device to restore your playlist, EPG and preferences.
+        {t('acc.syncNote')}
       </p>
     </div>
   );
@@ -344,16 +356,17 @@ function SyncCard({ lastSync }: { lastSync: number | null }) {
 // ─── Quick actions row ─────────────────────────────────────────────────
 
 function QuickActions({ access }: { access: ReturnType<typeof useAccess> }) {
+  const { t } = useT();
   const trialing = access.status === 'trial' || access.status === 'expired';
   return (
     <div className="ac-quick">
-      <div className="ac-card-title" style={{ width: '100%' }}>Quick actions</div>
-      <Link href="/tv/account/sources" className="ac-btn">📡  Sources</Link>
-      {trialing && <Link href="/tv/account/plans" className="ac-btn ac-btn-primary">✨  Subscribe</Link>}
-      <Link href="/tv/account/devices"  className="ac-btn">▣  Devices</Link>
-      <Link href="/tv/account/security" className="ac-btn">⚿  Security</Link>
-      <Link href="/tv/account/help"     className="ac-btn">?  Help &amp; legal</Link>
-      <button className="ac-btn ac-btn-danger" onClick={signOut}>Sign out</button>
+      <div className="ac-card-title" style={{ width: '100%' }}>{t('acc.quick')}</div>
+      <Link href="/tv/account/sources" className="ac-btn">📡  {t('acc.sources')}</Link>
+      {trialing && <Link href="/tv/account/plans" className="ac-btn ac-btn-primary">✨  {t('acc.subscribe')}</Link>}
+      <Link href="/tv/account/devices"  className="ac-btn">▣  {t('acc.devices')}</Link>
+      <Link href="/tv/account/security" className="ac-btn">⚿  {t('acc.security')}</Link>
+      <Link href="/tv/account/help"     className="ac-btn">?  {t('acc.help')}</Link>
+      <button className="ac-btn ac-btn-danger" onClick={signOut}>{t('auth.signOut')}</button>
     </div>
   );
 }

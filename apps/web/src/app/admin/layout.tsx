@@ -11,5 +11,5 @@ export const metadata = {
 };
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  return <div className="adm-root">{children}</div>;
+  return <div className="adm-root" dir="ltr" lang="en">{children}</div>;
 }

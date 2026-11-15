@@ -22,6 +22,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { signOut } from '@/lib/session';
+import { useT } from '@/lib/i18n';
 
 type Status = 'unknown' | 'trial' | 'subscribed' | 'expired' | 'anon';
 
@@ -42,6 +43,7 @@ async function fetchAccess(): Promise<Status> {
 }
 
 export default function TrialGate() {
+  const { t } = useT();
   const [status, setStatus] = useState<Status>('unknown');
 
   useEffect(() => {
@@ -60,23 +62,21 @@ export default function TrialGate() {
   return (
     <div className="tg-overlay" role="dialog" aria-modal="true">
       <div className="tg-card">
-        <div className="tg-eyebrow">Free trial ended</div>
-        <h2 className="tg-title">Your 7 days are up</h2>
+        <div className="tg-eyebrow">{t('tg.eyebrow')}</div>
+        <h2 className="tg-title">{t('tg.title')}</h2>
         <p className="tg-sub">
-          Thanks for trying Nova Stream. Subscribe to keep streaming on
-          every device — your playlist, history and preferences are
-          waiting.
+          {t('tg.sub')}
         </p>
         <div className="tg-actions">
           <Link href="/tv/account/plans" className="tg-btn tg-btn-primary">
-            Choose a plan
+            {t('tg.choose')}
           </Link>
           <button type="button" className="tg-btn tg-btn-ghost" onClick={signOut}>
-            Sign out
+            {t('auth.signOut')}
           </button>
         </div>
         <div className="tg-foot">
-          Cancel any time · No long-term commitment
+          {t('tg.foot')}
         </div>
       </div>
     </div>

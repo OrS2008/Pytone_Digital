@@ -33,6 +33,7 @@ import { buildCatchupUrl } from '@/lib/catchup';
 import { maskSourceUrl } from '@/lib/maskUrl';
 import { hiddenIds, onHealthChange, probeHidden, restoreAll, sweepNextBatch, scannedCount, MAX_HIDDEN_FRACTION, hideAnywayEnabled, setHideAnyway } from '@/lib/channelHealth';
 import { useT } from '@/lib/i18n';
+import { usePinchZoom } from '@/lib/usePinchZoom';
 import './live.css';
 
 // Fullscreen API helpers. Spec-name in modern browsers, webkit-
@@ -301,6 +302,16 @@ export default function LivePage() {
 
   const active = channels[activeIdx];
 
+  // Pinch-to-zoom on the fullscreen picture: pinch to zoom up to 5x,
+  // drag to pan, double-tap to toggle, and pinch-in at 1x to leave
+  // fullscreen. See lib/usePinchZoom for the gesture details.
+  const zoom = usePinchZoom(overlayRef, {
+    enabled: watching,
+    getTarget: () => overlayRef.current?.querySelector<HTMLElement>('.player-surface video') ?? null,
+    onPinchClose: () => setWatching(false),
+    resetKey: `${active?.id ?? ''}|${catchupMs}`,
+  });
+
   // Derive the channel object the player actually plays. When we're
   // in catch-up mode AND the channel's playlist entry declares
   // catchup-source / catchup="...", we swap its live URL for the
@@ -469,6 +480,18 @@ export default function LivePage() {
     }
   }, [watching]);
 
+  // Flag <html> while the fullscreen player is up so page chrome that
+  // lives outside this route (the phone tab bar, z-index 100) can get
+  // out of the way. The Fullscreen API normally hides it for us, but
+  // the request is denied on a deep link (no user gesture) and iPhone
+  // Safari has no element fullscreen at all — in both cases the tab
+  // bar used to sit on top of the info bar's buttons.
+  useEffect(() => {
+    if (!watching) return;
+    document.documentElement.classList.add('ns-player-open');
+    return () => document.documentElement.classList.remove('ns-player-open');
+  }, [watching]);
+
   // The browser's Esc-to-leave-fullscreen path bypasses React, so we
   // listen for the change event and bring our own state back in
   // sync. Without this, pressing Esc once would shrink the player
@@ -571,14 +594,10 @@ export default function LivePage() {
     const delta = pinchDist(e.touches) - pinchRef.current.start;
     const THRESHOLD = 60; // pixels of separation change
     if (delta > THRESHOLD && !watching) {
-      // Pinch-out in preview → fullscreen.
+      // Pinch-out in preview → fullscreen. (Inside fullscreen the
+      // pinch is owned by usePinchZoom instead.)
       pinchRef.current.fired = true;
       setWatching(true);
-      e.preventDefault();
-    } else if (delta < -THRESHOLD && watching) {
-      // Pinch-in inside fullscreen → exit.
-      pinchRef.current.fired = true;
-      setWatching(false);
       e.preventDefault();
     }
   }, [watching]);
@@ -921,10 +940,6 @@ export default function LivePage() {
             onMouseMove={wakeInfoBar}
             onClick={wakeInfoBar}
             onKeyDown={wakeInfoBar}
-            onTouchStart={onPinchStart}
-            onTouchMove={onPinchMove}
-            onTouchEnd={onPinchEnd}
-            onTouchCancel={onPinchEnd}
           >
             <PlayerSurface
               channel={playable}
@@ -952,6 +967,17 @@ export default function LivePage() {
                 active={watching}
                 infoBarVisible={infoVisible}
               />
+            )}
+            {zoom.scale > 1 && (
+              <button
+                className="live-zoom-badge"
+                onClick={(e) => { e.stopPropagation(); zoom.reset(); }}
+                title={t('live.zoomReset')}
+                aria-label={t('live.zoomReset')}
+              >
+                <span className="live-zoom-badge-x">{zoom.scale.toFixed(1)}×</span>
+                <span>{t('live.zoomReset')}</span>
+              </button>
             )}
             <button
               className="live-close"

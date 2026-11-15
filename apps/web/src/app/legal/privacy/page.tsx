@@ -15,7 +15,10 @@ import '../../tv/account/account.css';
 
 export default function Privacy() {
   return (
-    <main className="ac-auth" style={{ alignItems: 'flex-start', padding: '64px 24px' }}>
+    // The legal text is English-only. Pin it left-to-right so a Hebrew
+    // (RTL) visitor doesn't get English sentences with the punctuation
+    // flipped to the wrong end.
+    <main className="ac-auth" dir="ltr" lang="en" style={{ alignItems: 'flex-start', padding: '64px 24px' }}>
       <div className="ac-auth-card" style={{ maxWidth: 760 }}>
         <div className="ac-auth-wm">NOVA STREAM</div>
         <h1 className="ac-auth-title" style={{ marginTop: 12 }}>Privacy policy</h1>

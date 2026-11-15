@@ -926,3 +926,16 @@
     gap: 14px;
   }
 }
+
+/* Plans on phones: the two cards sat side by side in a 1fr/1fr grid,
+   which squeezed each to ~150px and pushed the second one off-screen.
+   Stack them instead. */
+@media (max-width: 760px) {
+  .ac-plans { grid-template-columns: minmax(0, 1fr); }
+  .ac-plan  { min-height: 0; padding: 30px 20px 24px; }
+}
+
+/* Account screens that are not translated yet render their English
+   copy left-to-right even in a Hebrew (RTL) session, so sentences
+   don't end up with the punctuation on the wrong side. */
+.ac-panel-ltr { direction: ltr; text-align: left; }

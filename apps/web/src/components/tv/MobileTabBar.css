@@ -88,3 +88,7 @@
   .ac-sidebar { align-items: center; }
   .ac-sb-item { height: auto; }
 }
+
+/* The fullscreen player owns the whole screen — see the
+   `ns-player-open` effect in app/tv/live/page.tsx. */
+.ns-player-open .ns-mtab { display: none !important; }

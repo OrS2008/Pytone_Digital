@@ -791,6 +791,28 @@
 }
 .live-close:hover { background: rgba(0, 0, 0, 0.85); }
 
+/* --- Pinch-to-zoom -------------------------------------------------- */
+/* The zoomed <video> is transformed in JS (lib/usePinchZoom); clip it
+   to the surface and promote it so pans stay on the compositor. */
+.live-player-overlay .player-surface { overflow: hidden; }
+.live-player-overlay .player-surface video { will-change: transform; }
+/* Pill shown while zoomed: current factor + tap to reset. */
+.live-zoom-badge {
+  position: absolute;
+  top: 16px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 90;
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 36px; padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff; font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.live-zoom-badge-x { font-variant-numeric: tabular-nums; color: var(--ns-accent, #FF4081); }
+
 /* --- Live skip badge ------------------------------------------------ */
 /* Transient YouTube-style "« 10s" pill that appears in the middle of
    the player on each ← / → press. Tallies the running offset while
@@ -963,6 +985,12 @@
     padding-bottom: 6rem; /* room for the floating tab bar */
   }
   .live-body { overflow: visible; }
+
+  /* The page is auto-height on phones, so the preview's `1fr` player
+     row has nothing to stretch into and collapsed to a ~10px sliver.
+     Give it a real 16:9 box instead. */
+  .live-preview { grid-template-rows: auto auto; border-left: 0; }
+  .live-preview-player { aspect-ratio: 16 / 9; width: 100%; }
 
   /* The rail becomes a 2-column grid of cards. */
   .rail {

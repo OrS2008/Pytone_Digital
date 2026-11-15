@@ -52,8 +52,11 @@ export function t(key: string, locale?: Locale): string {
 }
 
 // Reactive variant — components that re-render on locale change.
-export function useT(): { t: (key: string) => string; locale: Locale; setLocale: (l: Locale) => void } {
-  const [locale, setLoc] = useState<Locale>('en');
+// `initial` lets a server-rendered page seed the locale it already knows
+// (e.g. from Accept-Language) so the first paint is in the right
+// language; the saved / detected choice still wins after hydration.
+export function useT(initial: Locale = 'en'): { t: (key: string) => string; locale: Locale; setLocale: (l: Locale) => void } {
+  const [locale, setLoc] = useState<Locale>(initial);
   useEffect(() => { setLoc(getLocale()); }, []);
   return {
     locale,

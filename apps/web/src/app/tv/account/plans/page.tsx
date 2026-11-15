@@ -28,6 +28,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Shell from '../Shell';
 import { useAccess } from '@/lib/useAccess';
+import { useT } from '@/lib/i18n';
 
 type PlanId  = 'single' | 'multi';
 type Cycle   = 'monthly' | 'yearly';
@@ -50,26 +51,28 @@ function yearlyDiscountPct(p: PlanPricing): number {
 // Feature lists are split deliberately: every checked item below is
 // something the app does today. Aspirational items live in the
 // roadmap note under the grid, not next to a green ✓.
+// `label` is an i18n key — PlanCard resolves it with t().
 const FEATURES_SINGLE = [
-  { ok: true,  label: '1 device streaming at a time' },
-  { ok: true,  label: 'Bring your own M3U / Xtream / Stalker playlist' },
-  { ok: true,  label: 'XMLTV electronic programme guide' },
-  { ok: true,  label: 'Catch-up where your provider supports it' },
-  { ok: true,  label: 'Continue Watching & per-device history' },
-  { ok: true,  label: 'Direct or proxied streaming, per source' },
-  { ok: true,  label: 'Settings sync across every signed-in device' },
-  { ok: false, label: 'Watch from more than 1 device simultaneously' },
+  { ok: true,  label: 'pl.s1' },
+  { ok: true,  label: 'pl.s2' },
+  { ok: true,  label: 'pl.s3' },
+  { ok: true,  label: 'pl.s4' },
+  { ok: true,  label: 'pl.s5' },
+  { ok: true,  label: 'pl.s6' },
+  { ok: true,  label: 'pl.s7' },
+  { ok: false, label: 'pl.s8' },
 ];
 const FEATURES_MULTI = [
-  { ok: true, label: 'Up to 4 devices streaming at the same time' },
-  { ok: true, label: 'Everything in Single' },
-  { ok: true, label: 'Parental controls with PIN + rating cap' },
-  { ok: true, label: 'Channel block list per account' },
-  { ok: true, label: 'Spoiler protection for sport' },
+  { ok: true, label: 'pl.m1' },
+  { ok: true, label: 'pl.m2' },
+  { ok: true, label: 'pl.m3' },
+  { ok: true, label: 'pl.m4' },
+  { ok: true, label: 'pl.m5' },
 ];
 
 export default function Plans() {
   const access = useAccess();
+  const { t } = useT();
   const [busy,         setBusy]         = useState<null | PlanId>(null);
   const [error,        setError]        = useState<string | null>(null);
   const [showCanceled, setShowCanceled] = useState(false);
@@ -89,7 +92,7 @@ export default function Plans() {
   async function start(plan: PlanId) {
     setError(null);
     if (!access.email) {
-      setError('Please sign in before choosing a plan.');
+      setError(t('pl.errSignIn'));
       return;
     }
     setBusy(plan);
@@ -106,52 +109,50 @@ export default function Plans() {
         setBusy(null);
         if (data.hint || data.error) console.warn('[billing/checkout]', data.error, data.hint ?? '');
         setError(resp.status === 503
-          ? 'Billing is temporarily unavailable. Please try again in a few minutes.'
-          : 'Sorry, we could not start checkout right now.');
+          ? t('pl.errBilling')
+          : t('pl.errCheckout'));
         return;
       }
       window.location.href = data.url;
     } catch {
       setBusy(null);
-      setError('Network error. Please check your connection and try again.');
+      setError(t('pl.errNetwork'));
     }
   }
 
   return (
     <Shell active="plans">
       <header className="ac-panel-head">
-        <div className="ac-panel-eyebrow">Choose a plan</div>
-        <h1 className="ac-panel-title">Pick what fits your home</h1>
+        <div className="ac-panel-eyebrow">{t('pl.eyebrow')}</div>
+        <h1 className="ac-panel-title">{t('pl.title')}</h1>
         <p className="ac-panel-sub">
-          Both plans include every feature in the app. The only difference is
-          how many devices can stream at the same time. 7-day free trial, no
-          charge until day 8. Cancel any time.
+          {t('pl.sub')}
         </p>
       </header>
 
       {showCanceled && (
         <div className="ac-card" style={{ borderColor: 'var(--ns-border-strong)' }}>
           <div style={{ color: 'var(--ns-text-muted)' }}>
-            Checkout was cancelled. Nothing was charged.
+            {t('pl.canceled')}
           </div>
         </div>
       )}
 
       <div className="ac-card">
-        <div className="ac-card-title">Billing account</div>
+        <div className="ac-card-title">{t('pl.billing')}</div>
         {access.email ? (
           <p style={{ fontSize: 14, marginTop: 0, color: 'var(--ns-text-muted)' }}>
-            Charges and Stripe receipts will go to{' '}
-            <strong style={{ color: 'var(--ns-text)' }}>{access.email}</strong>.
+            {t('pl.chargesTo')}{' '}
+            <strong style={{ color: 'var(--ns-text)' }} dir="ltr">{access.email}</strong>.
           </p>
         ) : access.status === 'loading' ? (
           <p style={{ fontSize: 14, marginTop: 0, color: 'var(--ns-text-faint)' }}>
-            Loading…
+            {t('acc.loading')}
           </p>
         ) : (
           <p style={{ fontSize: 14, marginTop: 0, color: 'var(--ns-text-muted)' }}>
-            You need to be signed in before choosing a plan.{' '}
-            <Link href="/tv/login" className="ac-auth-link">Sign in →</Link>
+            {t('pl.needSignIn')}{' '}
+            <Link href="/tv/login" className="ac-auth-link">{t('auth.signInArrow')}</Link>
           </p>
         )}
         {error && (
@@ -165,15 +166,15 @@ export default function Plans() {
           aria-selected={cycle === 'monthly'}
           className={`cycle-toggle-btn ${cycle === 'monthly' ? 'active' : ''}`}
           onClick={() => setCycle('monthly')}
-        >Monthly</button>
+        >{t('pl.monthly')}</button>
         <button
           role="tab"
           aria-selected={cycle === 'yearly'}
           className={`cycle-toggle-btn ${cycle === 'yearly' ? 'active' : ''}`}
           onClick={() => setCycle('yearly')}
         >
-          Yearly
-          {savings > 0 && <span className="cycle-toggle-save">Save up to {savings}%</span>}
+          {t('pl.yearly')}
+          {savings > 0 && <span className="cycle-toggle-save">{t('pl.saveUpTo')} {savings}%</span>}
         </button>
       </div>
 
@@ -181,9 +182,9 @@ export default function Plans() {
         <PlanCard
           id="single"
           recommended
-          name="Single"
-          headline="For one screen"
-          tagline="Perfect if you watch alone or always in the same room."
+          name={t('pl.single')}
+          headline={t('pl.singleHead')}
+          tagline={t('pl.singleTag')}
           pricing={PRICES.single}
           cycle={cycle}
           features={FEATURES_SINGLE}
@@ -193,9 +194,9 @@ export default function Plans() {
         />
         <PlanCard
           id="multi"
-          name="Multi"
-          headline="For the whole home"
-          tagline="Up to four devices streaming at once."
+          name={t('pl.multi')}
+          headline={t('pl.multiHead')}
+          tagline={t('pl.multiTag')}
           pricing={PRICES.multi}
           cycle={cycle}
           features={FEATURES_MULTI}
@@ -206,22 +207,18 @@ export default function Plans() {
       </div>
 
       <div className="ac-card" style={{ marginTop: 22 }}>
-        <div className="ac-card-title">On the roadmap</div>
+        <div className="ac-card-title">{t('pl.roadmap')}</div>
         <p style={{ color: 'var(--ns-text-muted)', fontSize: 13.5, margin: '0 0 8px' }}>
-          Listed separately so the feature ticks on the plan cards stay
-          honest. These items don&apos;t ship today; we&apos;ll move each one onto
-          the cards as it lands.
+          {t('pl.roadmapBody')}
         </p>
-        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, color: 'var(--ns-text-muted)', lineHeight: 1.8 }}>
-          <li>Cloud DVR — schedule recordings that play back from our servers</li>
-          <li>Family profiles — per-profile favourites, history, and parental cap</li>
+        <ul style={{ margin: 0, paddingInlineStart: 18, fontSize: 14, color: 'var(--ns-text-muted)', lineHeight: 1.8 }}>
+          <li>{t('pl.road1')}</li>
+          <li>{t('pl.road2')}</li>
         </ul>
       </div>
 
       <div style={{ marginTop: 28, fontSize: 13, color: 'var(--ns-text-faint)', textAlign: 'center' }}>
-        Payments are processed by Stripe. We never see or store your card —
-        Stripe holds the payment method and emails you a receipt for every
-        charge.
+        {t('pl.stripeNote')}
       </div>
     </Shell>
   );
@@ -240,18 +237,19 @@ function PlanCard(props: {
   disabled:    boolean;
   onStart:     () => void;
 }) {
+  const { t } = useT();
   const amount = props.cycle === 'monthly' ? props.pricing.monthly : props.pricing.yearly;
-  const cycleLabel = props.cycle === 'monthly' ? '/ month' : '/ year';
+  const cycleLabel = props.cycle === 'monthly' ? t('pl.perMonth') : t('pl.perYear');
   const monthlyEquivalent = props.cycle === 'yearly'
     ? (props.pricing.yearly / 12).toFixed(2)
     : null;
-  const ctaCycle = props.cycle === 'monthly' ? '/mo' : '/yr';
+  const ctaCycle = props.cycle === 'monthly' ? t('pl.mo') : t('pl.yr');
   const discount = props.cycle === 'yearly' ? yearlyDiscountPct(props.pricing) : 0;
   const fullYear = props.pricing.monthly * 12;
 
   return (
     <div className={`ac-plan ${props.recommended ? 'ac-plan-recommended' : ''}`}>
-      {props.recommended && <span className="ac-plan-badge">RECOMMENDED</span>}
+      {props.recommended && <span className="ac-plan-badge">{t('pl.recommended')}</span>}
       <div className="ac-plan-name">{props.name}</div>
       <h2 className="ac-plan-headline">{props.headline}</h2>
       <p className="ac-plan-tagline">{props.tagline}</p>
@@ -266,12 +264,12 @@ function PlanCard(props: {
       </div>
       {monthlyEquivalent && (
         <div className="ac-plan-equivalent">
-          ≈ ${monthlyEquivalent}/month, billed yearly
+          ≈ ${monthlyEquivalent}{t('pl.billedYearly')}
           {discount > 0 && (
             <>
               {' · '}
               <span className="ac-plan-strikethrough">${fullYear}</span>{' '}
-              <span style={{ color: 'var(--ns-ok, #7DF9C6)' }}>save ${fullYear - props.pricing.yearly}</span>
+              <span style={{ color: 'var(--ns-ok, #7DF9C6)' }}>{t('pl.save')} ${fullYear - props.pricing.yearly}</span>
             </>
           )}
         </div>
@@ -280,7 +278,7 @@ function PlanCard(props: {
       <ul className="ac-plan-features">
         {props.features.map((f, i) => (
           <li key={i} className={f.ok ? '' : 'mute'}>
-            <span className="check">{f.ok ? '✓' : '✕'}</span> {f.label}
+            <span className="check">{f.ok ? '✓' : '✕'}</span> {t(f.label)}
           </li>
         ))}
       </ul>
@@ -290,10 +288,10 @@ function PlanCard(props: {
         onClick={props.onStart}
         disabled={props.disabled}
       >
-        {props.busy ? 'Opening checkout…' : `Start ${props.name} — $${amount}${ctaCycle}`}
+        {props.busy ? t('pl.openingCheckout') : `${t('pl.start')} ${props.name} — $${amount}${ctaCycle}`}
       </button>
       <div style={{ marginTop: 12, fontSize: 12, color: 'var(--ns-text-faint)', textAlign: 'center' }}>
-        7 days free. Cancel any time.
+        {t('pl.free7')}
       </div>
     </div>
   );

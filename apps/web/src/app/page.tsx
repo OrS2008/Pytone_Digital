@@ -8,7 +8,7 @@
 // real /api/auth/me check and bounces back to /tv/login if the cookie
 // is stale.
 
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import WelcomeLanding from './welcome/WelcomeLanding';
 
@@ -19,5 +19,8 @@ export default async function Root() {
   const jar = await cookies();
   const session = jar.get('ns_session');
   if (session?.value) redirect('/tv');
-  return <WelcomeLanding />;
+  // Seed the landing copy from the browser's language so Hebrew
+  // visitors get Hebrew in the very first paint.
+  const accept = (await headers()).get('accept-language') ?? '';
+  return <WelcomeLanding initialLocale={/^\s*he\b/i.test(accept) ? 'he' : 'en'} />;
 }

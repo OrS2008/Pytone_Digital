@@ -37,8 +37,8 @@ export default function Login() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!email.includes('@'))   return setError('Please enter a valid email.');
-    if (password.length < 8)    return setError('Password must be at least 8 characters.');
+    if (!email.includes('@'))   return setError(t('auth.errEmail'));
+    if (password.length < 8)    return setError(t('auth.errPassword'));
     setBusy(true);
     try {
       const r = await fetch('/api/auth/login', {
@@ -48,7 +48,7 @@ export default function Login() {
         body: JSON.stringify({ email, password }),
       });
       if (r.status === 401) {
-        setError('Wrong email or password.');
+        setError(t('auth.errWrong'));
         setBusy(false);
         return;
       }
@@ -60,12 +60,12 @@ export default function Login() {
         return;
       }
       if (r.status === 503) {
-        setError('Server storage is not configured yet. Ask the admin to bind the NOVA_KV namespace.');
+        setError(t('auth.errStorage'));
         setBusy(false);
         return;
       }
       if (!r.ok) {
-        setError(`Sign-in failed (${r.status}).`);
+        setError(`${t('auth.errSignin')} (${r.status}).`);
         setBusy(false);
         return;
       }
@@ -74,7 +74,7 @@ export default function Login() {
       await syncDown();
       window.location.href = '/tv/home';
     } catch (err) {
-      setError(`Sign-in failed: ${(err as Error).message}`);
+      setError(`${t('auth.errSignin')}: ${(err as Error).message}`);
       setBusy(false);
     }
   }
@@ -92,7 +92,7 @@ export default function Login() {
 
   return (
     <main className="ah-root">
-      <Link href="/" className="ah-topback">← Home</Link>
+      <Link href="/" className="ah-topback">{t('auth.backHome')}</Link>
 
       <div className="ah-card">
         <div className="ah-wm">NOVA STREAM</div>
@@ -109,7 +109,7 @@ export default function Login() {
             color: '#7DF9C6',
             fontSize: 13,
           }}>
-            ✓ Email verified — sign in to continue.
+            {t('auth.verified')}
           </div>
         )}
 

@@ -35,7 +35,7 @@ import { maskSourceUrl } from '@/lib/maskUrl';
 import type { EpgProgramme } from '@/lib/epg';
 import { userKey } from '@/lib/session';
 import type { M3UChannel } from '@/lib/m3u';
-import { useT, t as tGlobal } from '@/lib/i18n';
+import { useT } from '@/lib/i18n';
 
 interface Recording {
   id:        string;
@@ -582,6 +582,11 @@ function EpgStatusBanner({
   };
   channelCount: number;
 }) {
+  // useT(), not the bare t(): the bare helper reads the locale straight
+  // from localStorage, which is 'en' on the server and 'he' on a Hebrew
+  // client — a text mismatch that crashed hydration (React #418) and
+  // dropped the page out of RTL.
+  const { t: tGlobal } = useT();
   if (diag.fetchStatus === 'idle' && !diag.url) {
     return (
       <div style={epgBannerStyle('mut')}>

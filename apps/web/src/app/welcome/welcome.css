@@ -246,3 +246,15 @@
   .nw-hero-actions { flex-direction: column; }
   .nw-hero-actions .nw-btn { width: 100%; justify-content: center; }
 }
+
+/* Language toggle in the top nav — a <button> styled as a nav link. */
+.nw-nav-lang {
+  background: transparent; border: 1px solid rgba(255,255,255,0.14);
+  font-family: inherit; cursor: pointer; padding: 6px 10px;
+}
+.nw-nav-cta, .nw-nav-link { white-space: nowrap; }
+/* Narrow phones: the hero already has both sign-in and sign-up buttons,
+   so drop the plain "Sign in" link rather than let the CTA wrap. */
+@media (max-width: 480px) {
+  .nw-nav-right a.nw-nav-link { display: none; }
+}

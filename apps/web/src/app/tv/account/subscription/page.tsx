@@ -25,14 +25,16 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Shell from '../Shell';
 import { useAccess } from '@/lib/useAccess';
+import { useT, getLocale } from '@/lib/i18n';
 
 function fmtDate(ms: number | undefined | null): string {
   if (!ms) return '—';
-  return new Date(ms).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(ms).toLocaleDateString(getLocale() === 'he' ? 'he-IL' : 'en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export default function Subscription() {
   const access = useAccess();
+  const { t } = useT();
   const [portalBusy,  setPortalBusy]  = useState(false);
   const [portalError, setPortalError] = useState<string | null>(null);
 
@@ -44,14 +46,14 @@ export default function Subscription() {
     setPortalBusy(true); setPortalError(null);
     try {
       const r = await fetch('/api/billing/portal', { method: 'POST', credentials: 'include' });
-      if (r.status === 401) { setPortalError('Sign in again to manage your subscription.'); return; }
-      if (r.status === 404) { setPortalError('No Stripe customer yet — start a paid plan first.'); return; }
-      if (!r.ok)            { setPortalError(`Stripe portal unavailable (${r.status}).`); return; }
+      if (r.status === 401) { setPortalError(t('sub.errSignIn')); return; }
+      if (r.status === 404) { setPortalError(t('sub.errNoCustomer')); return; }
+      if (!r.ok)            { setPortalError(`${t('sub.errPortal')} (${r.status}).`); return; }
       const body = await r.json() as { url?: string };
       if (body.url) window.location.href = body.url;
-      else          setPortalError('Stripe portal returned no URL.');
+      else          setPortalError(t('sub.errNoUrl'));
     } catch (e) {
-      setPortalError(`Couldn't open portal: ${(e as Error).message}`);
+      setPortalError(`${t('sub.errOpen')}: ${(e as Error).message}`);
     } finally {
       setPortalBusy(false);
     }
@@ -60,36 +62,36 @@ export default function Subscription() {
   return (
     <Shell active="subscription">
       <header className="ac-panel-head">
-        <div className="ac-panel-eyebrow">Subscription</div>
-        <h1 className="ac-panel-title">Your plan</h1>
+        <div className="ac-panel-eyebrow">{t('sub.eyebrow')}</div>
+        <h1 className="ac-panel-title">{t('sub.title')}</h1>
         <p className="ac-panel-sub">
           {access.status === 'subscribed'
-            ? 'Your paid subscription is active. Manage it below.'
+            ? t('sub.subPaid')
             : access.status === 'expired'
-              ? 'Your trial has ended. Pick a plan to keep watching.'
-              : 'Trial active. You haven\'t been charged. Pick a paid plan any time to keep watching after the trial ends.'}
+              ? t('sub.subExpired')
+              : t('sub.subTrial')}
         </p>
       </header>
 
       <div className="ac-card">
-        <div className="ac-card-title">Current plan</div>
+        <div className="ac-card-title">{t('sub.current')}</div>
 
         {access.status === 'loading' && (
-          <div style={{ color: 'var(--ns-text-faint)', fontSize: 14 }}>Loading…</div>
+          <div style={{ color: 'var(--ns-text-faint)', fontSize: 14 }}>{t('acc.loading')}</div>
         )}
 
         {access.status === 'anon' && (
           <div>
             <p style={{ color: 'var(--ns-text-muted)', fontSize: 14 }}>
-              Sign in to see your subscription.
+              {t('sub.signInTo')}
             </p>
-            <Link href="/tv/login" className="ac-btn ac-btn-primary">Sign in</Link>
+            <Link href="/tv/login" className="ac-btn ac-btn-primary">{t('auth.signIn')}</Link>
           </div>
         )}
 
         {access.status === 'error' && (
           <p style={{ color: 'var(--ns-danger, #FF6B7B)', fontSize: 14 }}>
-            We couldn&apos;t reach the server to load your subscription. Refresh to retry.
+            {t('sub.unreach')}
           </p>
         )}
 
@@ -97,51 +99,51 @@ export default function Subscription() {
           <>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 6, flexWrap: 'wrap' }}>
               <h2 style={{ margin: 0, fontSize: 32, fontWeight: 800, letterSpacing: -1 }}>
-                {access.status === 'subscribed' ? 'Subscribed'
-                  : access.status === 'expired' ? 'Trial ended'
-                  : 'Free Trial'}
+                {access.status === 'subscribed' ? t('acc.planSubscribed')
+                  : access.status === 'expired' ? t('acc.trialEndedShort')
+                  : t('acc.planTrial')}
               </h2>
               <span className={`ac-status-pill ${
                 access.status === 'subscribed' ? 'ac-status-ok'   :
                 access.status === 'expired'    ? 'ac-status-warn' :
                                                  'ac-status-trial'
               }`}>
-                {access.status === 'subscribed' ? 'ACTIVE'
-                  : access.status === 'expired' ? 'EXPIRED'
-                  : `${access.daysLeft ?? 0}d LEFT`}
+                {access.status === 'subscribed' ? t('sub.active')
+                  : access.status === 'expired' ? t('acc.pillExpired')
+                  : `${access.daysLeft ?? 0}${t('acc.dLeft')}`}
               </span>
             </div>
 
             <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, marginBottom: 22 }}>
               {access.status === 'subscribed'
-                ? 'Renews automatically through Stripe. Cancel any time before the next billing date.'
-                : 'All features unlocked during your 7-day trial. Pick a plan below to keep watching after it ends.'}
+                ? t('sub.renewNote')
+                : t('sub.trialNote')}
             </p>
 
             <dl className="ac-detail">
               {access.status === 'trial' && <>
-                <dt>Trial ends</dt>
-                <dd>{fmtDate(access.trialEndsAt)} · {access.daysLeft ?? 0} day{access.daysLeft === 1 ? '' : 's'} left</dd>
+                <dt>{t('acc.trialEnds')}</dt>
+                <dd>{fmtDate(access.trialEndsAt)} · {access.daysLeft ?? 0} {t('sub.daysLeft')}</dd>
               </>}
               {access.status === 'expired' && <>
-                <dt>Trial ended</dt>
+                <dt>{t('acc.trialEndedShort')}</dt>
                 <dd>{fmtDate(access.trialEndsAt)}</dd>
               </>}
               {access.status === 'subscribed' && <>
-                <dt>Renews on</dt>
+                <dt>{t('acc.renewsOn')}</dt>
                 <dd>{fmtDate(access.subscribedUntil)}</dd>
               </>}
-              <dt>Member since</dt>
+              <dt>{t('acc.memberSince')}</dt>
               <dd>{fmtDate(access.createdAt)}</dd>
             </dl>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 24, flexWrap: 'wrap' }}>
               {access.status !== 'subscribed' ? (
                 <Link className="ac-btn ac-btn-primary" href="/tv/account/plans">
-                  {access.status === 'expired' ? 'Choose a plan' : 'Choose a paid plan'}
+                  {access.status === 'expired' ? t('sub.choose') : t('sub.choosePaid')}
                 </Link>
               ) : (
-                <Link className="ac-btn" href="/tv/account/plans">Change plan</Link>
+                <Link className="ac-btn" href="/tv/account/plans">{t('acc.changePlan')}</Link>
               )}
             </div>
           </>
@@ -149,12 +151,9 @@ export default function Subscription() {
       </div>
 
       <div className="ac-card">
-        <div className="ac-card-title">Payments &amp; receipts</div>
+        <div className="ac-card-title">{t('sub.payments')}</div>
         <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, marginTop: 0 }}>
-          Paid subscriptions are processed by Stripe. We don&apos;t see or store your card —
-          Stripe holds the payment method and emails you a receipt after every successful
-          charge. Open the customer portal below to view payment history, change card,
-          download invoices, or cancel the subscription.
+          {t('sub.paymentsBody')}
         </p>
         <div style={{ marginTop: 12, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <button
@@ -162,9 +161,9 @@ export default function Subscription() {
             className="ac-btn"
             onClick={openPortal}
             disabled={portalBusy || access.status !== 'subscribed'}
-            title={access.status === 'subscribed' ? 'Open Stripe customer portal' : 'Start a paid plan first'}
+            title={access.status === 'subscribed' ? t('sub.portalTitle') : t('sub.portalFirst')}
           >
-            {portalBusy ? 'Opening…' : 'Manage subscription in Stripe →'}
+            {portalBusy ? t('sub.opening') : `${t('sub.manageStripe')} ${t('acc.arrow')}`}
           </button>
           {portalError && (
             <span style={{ color: 'var(--ns-danger, #FF6B7B)', fontSize: 13 }}>{portalError}</span>

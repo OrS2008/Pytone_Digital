@@ -3,12 +3,17 @@
 // staring at an empty player and a "no playlist configured" CTA with
 // no context for what Nova Stream actually is.
 //
-// We render this server-side so the first paint includes the welcome
-// content (good for SEO and link previews), and only redirect signed-in
-// users to /tv at the cookie-check layer (../page.tsx).
+// Still server-rendered for the first paint (SEO, link previews); it is
+// a client component only so the copy can follow the visitor's
+// language. ../page.tsx passes the locale it read from Accept-Language
+// so a Hebrew visitor gets Hebrew in the server HTML — no English
+// flash — and useT() then honours any saved choice after hydration.
+
+'use client';
 
 import Link from 'next/link';
 import type { ReactElement } from 'react';
+import { useT, type Locale } from '@/lib/i18n';
 import './welcome.css';
 
 // Inline SVG feature icons — crisp at every DPI, tinted via CSS, and
@@ -41,110 +46,64 @@ const ICONS: Record<string, ReactElement> = {
   ),
 };
 
-const FEATURES = [
-  {
-    icon: 'playlist',
-    title: 'Bring any playlist',
-    text:
-      'M3U, M3U8, Xtream Codes, Stalker portals — paste a URL and Nova ' +
-      'Stream organises your channels with EPG, search, and Continue ' +
-      'Watching out of the box.',
-  },
-  {
-    icon: 'fast',
-    title: 'Fast on every screen',
-    text:
-      'Optimised for Smart TVs, web browsers, phones and tablets. ' +
-      'Remote-friendly focus model, hardware-accelerated HLS, instant ' +
-      'channel switching.',
-  },
-  {
-    icon: 'sync',
-    title: 'Settings follow you',
-    text:
-      'Sign in once. Your playlist, parental controls, themes, history ' +
-      'and recordings appear automatically on every device you open ' +
-      'Nova Stream on.',
-  },
-  {
-    icon: 'lock',
-    title: 'Your data stays yours',
-    text:
-      "We don't host video. We don't sell data. We don't run ad " +
-      'trackers. Your M3U URL stays encrypted and you can export or ' +
-      'delete everything in two clicks.',
-  },
-];
+const FEATURES = ['playlist', 'fast', 'sync', 'lock'] as const;
 
-export default function WelcomeLanding() {
+export default function WelcomeLanding({ initialLocale }: { initialLocale?: Locale }) {
+  const { t, locale, setLocale } = useT(initialLocale);
   return (
     <main className="nw-root">
       <header className="nw-nav">
         <div className="nw-brand">NOVA STREAM</div>
         <nav className="nw-nav-right">
-          <Link href="/tv/login" className="nw-nav-link">Sign in</Link>
-          <Link href="/tv/signup" className="nw-nav-cta">Start free trial</Link>
+          <button
+            type="button"
+            className="nw-nav-link nw-nav-lang"
+            onClick={() => setLocale(locale === 'he' ? 'en' : 'he')}
+            aria-label={locale === 'he' ? 'Switch to English' : 'החלף לעברית'}
+          >
+            {locale === 'he' ? 'EN' : 'עב'}
+          </button>
+          <Link href="/tv/login" className="nw-nav-link">{t('wl.signIn')}</Link>
+          <Link href="/tv/signup" className="nw-nav-cta">{t('wl.startTrial')}</Link>
         </nav>
       </header>
 
       <section className="nw-hero">
-        <div className="nw-hero-eyebrow">Welcome to</div>
+        <div className="nw-hero-eyebrow">{t('wl.eyebrow')}</div>
         <h1 className="nw-hero-title">Nova Stream</h1>
-        <p className="nw-hero-tagline">
-          The player for your playlists. One account. Every device. Zero noise.
-        </p>
+        <p className="nw-hero-tagline">{t('wl.tagline')}</p>
         <div className="nw-hero-actions">
-          <Link href="/tv/signup" className="nw-btn nw-btn-primary">
-            Create account · 7 days free
-          </Link>
-          <Link href="/tv/login" className="nw-btn nw-btn-ghost">
-            I already have an account
-          </Link>
+          <Link href="/tv/signup" className="nw-btn nw-btn-primary">{t('wl.ctaCreate')}</Link>
+          <Link href="/tv/login" className="nw-btn nw-btn-ghost">{t('wl.ctaHave')}</Link>
         </div>
-        <div className="nw-hero-trust">
-          No credit card · Cancel anytime · Works in any modern browser
-        </div>
+        <div className="nw-hero-trust">{t('wl.trust')}</div>
       </section>
 
       <section className="nw-features">
         {FEATURES.map((f) => (
-          <article className="nw-feature" key={f.title}>
-            <div className="nw-feature-icon" aria-hidden>{ICONS[f.icon]}</div>
-            <h3 className="nw-feature-title">{f.title}</h3>
-            <p className="nw-feature-text">{f.text}</p>
+          <article className="nw-feature" key={f}>
+            <div className="nw-feature-icon" aria-hidden>{ICONS[f]}</div>
+            <h3 className="nw-feature-title">{t(`wl.f.${f}.title`)}</h3>
+            <p className="nw-feature-text">{t(`wl.f.${f}.text`)}</p>
           </article>
         ))}
       </section>
 
       <section className="nw-howto">
-        <h2 className="nw-section-title">How it works</h2>
+        <h2 className="nw-section-title">{t('wl.how')}</h2>
         <ol className="nw-howto-steps">
-          <li>
-            <span className="nw-howto-num">1</span>
-            <div>
-              <h4>Create your free account</h4>
-              <p>Email + password. No card, no commitment. 7 days to try everything.</p>
-            </div>
-          </li>
-          <li>
-            <span className="nw-howto-num">2</span>
-            <div>
-              <h4>Paste your playlist URL</h4>
-              <p>Drop the M3U / Xtream URL your provider gave you into Settings → Sources.</p>
-            </div>
-          </li>
-          <li>
-            <span className="nw-howto-num">3</span>
-            <div>
-              <h4>Watch on any device</h4>
-              <p>Sign into the same account on your phone, TV, or browser — your settings come with you.</p>
-            </div>
-          </li>
+          {[1, 2, 3].map((n) => (
+            <li key={n}>
+              <span className="nw-howto-num">{n}</span>
+              <div>
+                <h4>{t(`wl.step${n}.title`)}</h4>
+                <p>{t(`wl.step${n}.text`)}</p>
+              </div>
+            </li>
+          ))}
         </ol>
         <div style={{ textAlign: 'center', marginTop: 32 }}>
-          <Link href="/tv/signup" className="nw-btn nw-btn-primary">
-            Get started — it's free for 7 days
-          </Link>
+          <Link href="/tv/signup" className="nw-btn nw-btn-primary">{t('wl.ctaBottom')}</Link>
         </div>
       </section>
 
@@ -152,24 +111,21 @@ export default function WelcomeLanding() {
         <div className="nw-footer-cols">
           <div>
             <div className="nw-footer-h">Nova Stream</div>
-            <p className="nw-footer-p">
-              A media player. We don't host video. You bring the
-              channels, we make them feel native.
-            </p>
+            <p className="nw-footer-p">{t('wl.footAbout')}</p>
           </div>
           <div>
-            <div className="nw-footer-h">Account</div>
-            <Link href="/tv/login"  className="nw-footer-link">Sign in</Link>
-            <Link href="/tv/signup" className="nw-footer-link">Create account</Link>
+            <div className="nw-footer-h">{t('wl.footAccount')}</div>
+            <Link href="/tv/login"  className="nw-footer-link">{t('wl.signIn')}</Link>
+            <Link href="/tv/signup" className="nw-footer-link">{t('wl.createAccount')}</Link>
           </div>
           <div>
-            <div className="nw-footer-h">Legal</div>
-            <Link href="/legal/terms"   className="nw-footer-link">Terms</Link>
-            <Link href="/legal/privacy" className="nw-footer-link">Privacy</Link>
+            <div className="nw-footer-h">{t('wl.footLegal')}</div>
+            <Link href="/legal/terms"   className="nw-footer-link">{t('wl.terms')}</Link>
+            <Link href="/legal/privacy" className="nw-footer-link">{t('wl.privacy')}</Link>
           </div>
         </div>
         <div className="nw-footer-bottom">
-          © {new Date().getFullYear()} Nova Stream. All rights reserved.
+          © {new Date().getFullYear()} Nova Stream. {t('wl.rights')}
         </div>
       </footer>
     </main>

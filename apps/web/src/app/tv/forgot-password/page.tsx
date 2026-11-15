@@ -12,9 +12,11 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useT } from '@/lib/i18n';
 import '../auth/auth.css';
 
 export default function ForgotPassword() {
+  const { t } = useT();
   const [email, setEmail] = useState('');
   const [busy, setBusy]   = useState(false);
   const [sent, setSent]   = useState(false);
@@ -23,7 +25,7 @@ export default function ForgotPassword() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!email.includes('@')) { setError('Please enter a valid email.'); return; }
+    if (!email.includes('@')) { setError(t('auth.errEmail')); return; }
     setBusy(true);
     try {
       const r = await fetch('/api/auth/forgot-password', {
@@ -33,39 +35,38 @@ export default function ForgotPassword() {
         body: JSON.stringify({ email }),
       });
       if (r.status === 503) {
-        setError('Server storage is not configured yet. Ask the admin to bind NOVA_KV.');
+        setError(t('auth.errStorage'));
         setBusy(false);
         return;
       }
       if (!r.ok) {
-        setError(`Couldn’t send the reset email (${r.status}). Try again in a minute.`);
+        setError(`${t('auth.errReset')} (${r.status})`);
         setBusy(false);
         return;
       }
       setSent(true);
     } catch (err) {
-      setError(`Network error: ${(err as Error).message}`);
+      setError(`${t('auth.errNetwork')}: ${(err as Error).message}`);
     } finally { setBusy(false); }
   }
 
   return (
     <main className="ah-root">
-      <Link href="/tv/login" className="ah-topback">← Sign in</Link>
+      <Link href="/tv/login" className="ah-topback">{t('auth.backSignIn')}</Link>
 
       <div className="ah-card">
         <div className="ah-wm">NOVA STREAM</div>
 
         {!sent ? (
           <>
-            <h1 className="ah-title">Reset your password</h1>
+            <h1 className="ah-title">{t('auth.resetTitle')}</h1>
             <p className="ah-sub">
-              Enter the email on your account. We&apos;ll send a link that&apos;s
-              valid for 30 minutes.
+              {t('auth.resetSub')}
             </p>
 
             <form onSubmit={submit}>
               <div className="ah-field">
-                <label className="ah-label">Email</label>
+                <label className="ah-label">{t('auth.email')}</label>
                 <input
                   className="ah-input"
                   type="email"
@@ -79,17 +80,15 @@ export default function ForgotPassword() {
               {error && <div className="ah-err">{error}</div>}
 
               <button type="submit" className="ah-btn" disabled={busy}>
-                {busy ? 'Sending…' : 'Send reset link'}
+                {busy ? t('auth.sending') : t('auth.sendReset')}
               </button>
             </form>
           </>
         ) : (
           <>
-            <h1 className="ah-title">Check your inbox</h1>
+            <h1 className="ah-title">{t('auth.checkInbox')}</h1>
             <p className="ah-sub">
-              If an account exists for <b>{email}</b>, a reset link is on its
-              way. The link expires in 30 minutes. Check your spam folder if
-              you don&apos;t see it within a minute or two.
+              {t('auth.resetSent1')} <b dir="ltr">{email}</b>{t('auth.resetSent2')}
             </p>
             <button
               type="button"
@@ -102,13 +101,13 @@ export default function ForgotPassword() {
               }}
               onClick={() => { setSent(false); setEmail(''); }}
             >
-              Send another
+              {t('auth.sendAnother')}
             </button>
           </>
         )}
 
         <div className="ah-bottom">
-          Remembered it? <Link href="/tv/login" className="ah-link">Sign in</Link>
+          {t('auth.remembered')} <Link href="/tv/login" className="ah-link">{t('auth.signIn')}</Link>
         </div>
       </div>
     </main>

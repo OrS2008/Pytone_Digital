@@ -12,9 +12,11 @@
 import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useT } from '@/lib/i18n';
 import '../auth/auth.css';
 
 function CheckEmailInner() {
+  const { t } = useT();
   const params = useSearchParams();
   const email  = params.get('email') ?? '';
   const [sending, setSending] = useState(false);
@@ -33,15 +35,15 @@ function CheckEmailInner() {
         // way back. Point the user at /tv/login (which itself will
         // redirect them right back here with a fresh cookie when the
         // server detects email_not_verified).
-        setErr('Your verification session has expired. Sign in again to get a fresh link.');
+        setErr(t('auth.errExpired'));
       } else if (!r.ok) {
         const body = await r.json().catch(() => ({})) as { detail?: string };
-        setErr(`Couldn't resend (${r.status})${body.detail ? `: ${body.detail}` : '.'}`);
+        setErr(`${t('auth.errResend')} (${r.status})${body.detail ? `: ${body.detail}` : '.'}`);
       } else {
-        setMsg('Sent! Check your inbox (and the spam folder).');
+        setMsg(t('auth.resent'));
       }
     } catch (e) {
-      setErr(`Couldn't resend: ${(e as Error).message}`);
+      setErr(`${t('auth.errResend')}: ${(e as Error).message}`);
     } finally {
       setSending(false);
     }
@@ -49,17 +51,17 @@ function CheckEmailInner() {
 
   return (
     <main className="ah-root">
-      <Link href="/" className="ah-topback">← Home</Link>
+      <Link href="/" className="ah-topback">{t('auth.backHome')}</Link>
       <div className="ah-card">
-        <h1 className="ah-title">Check your inbox</h1>
+        <h1 className="ah-title">{t('auth.checkInbox')}</h1>
         <p className="ah-sub" style={{ marginBottom: 18 }}>
-          We sent a verification link to{' '}
-          <strong style={{ color: '#fff' }}>{email || 'your email'}</strong>.
-          Click the link — you&apos;ll be signed in and dropped on the home screen.
+          {t('auth.verifySent')}{' '}
+          <strong style={{ color: '#fff' }} dir="ltr">{email || t('auth.yourEmail')}</strong>.{' '}
+          {t('auth.verifyClick')}
         </p>
         <p className="ah-sub" style={{ fontSize: 13, opacity: 0.75 }}>
-          The link comes from <code>noreply@nova-stream-4ee03.firebaseapp.com</code> —
-          check the spam folder if it&apos;s not in the inbox after a minute.
+          {t('auth.verifyFrom1')} <code dir="ltr">noreply@nova-stream-4ee03.firebaseapp.com</code>{' '}
+          {t('auth.verifyFrom2')}
         </p>
 
         <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '24px 0' }} />
@@ -70,15 +72,15 @@ function CheckEmailInner() {
           disabled={sending}
           className="ah-btn"
         >
-          {sending ? 'Sending…' : 'Resend verification email'}
+          {sending ? t('auth.sending') : t('auth.resend')}
         </button>
 
         {err && <div className="ah-err" style={{ marginTop: 12 }}>{err}</div>}
         {msg && <div style={{ marginTop: 12, color: '#7DF9C6', fontSize: 13 }}>{msg}</div>}
 
         <p className="ah-sub" style={{ marginTop: 22, textAlign: 'center' }}>
-          Already verified?{' '}
-          <Link href="/tv/login" className="ah-link">Sign in →</Link>
+          {t('auth.alreadyVerified')}{' '}
+          <Link href="/tv/login" className="ah-link">{t('auth.signInArrow')}</Link>
         </p>
       </div>
     </main>
