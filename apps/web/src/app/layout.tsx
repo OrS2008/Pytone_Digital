@@ -30,6 +30,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  // Never let the page zoom OUT below 1: a zoomed-out layout leaves the
+  // fixed tab bar floating mid-screen with blank space under it.
+  minimumScale: 1,
   maximumScale: 5,
   themeColor: '#0F1116',
 };

@@ -63,6 +63,12 @@ function rewriteOne(absUrl: string, mode: RewriteMode, extra: string): string {
   if (/\.m3u8(\?|$)/i.test(absUrl)) {
     return `/api/stream?url=${encodeURIComponent(absUrl)}&mode=direct${extra}`;
   }
+  // Plain-http segments can never be fetched directly: the app is served
+  // over https, so the browser blocks them as mixed content (and the
+  // CSP's `media-src https:` refuses them too). Most IPTV panels are
+  // http-only, which is why switching Direct streaming on used to break
+  // every channel. Keep those on the proxy; only https CDNs go direct.
+  if (!/^https:\/\//i.test(absUrl)) return `/api/stream?url=${encodeURIComponent(absUrl)}${extra}`;
   return absUrl;
 }
 

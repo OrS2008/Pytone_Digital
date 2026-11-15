@@ -15,11 +15,39 @@ export type AttachOpts = {
   maxBitrateKbps?: number;
 };
 
+// Should this browser play HLS through the <video> element itself
+// rather than through hls.js?
+//
+// "Does canPlayType say yes" used to be the whole test, on the
+// assumption that only Safari answers yes. Desktop Chromium now
+// advertises built-in HLS too, which silently moved every desktop
+// Chrome / Edge user off hls.js. That path gives us nothing to work
+// with when a stream fails: no HTTP status, no retry, no codec detail —
+// just MEDIA_ERR_SRC_NOT_SUPPORTED, shown as "format not supported"
+// for every kind of failure. hls.js is also more tolerant of the
+// sloppy manifests and mislabelled segments IPTV panels serve.
+//
+// So desktop Chromium goes back to hls.js whenever MSE is available.
+// Safari / iOS, Android (WebView + Chrome) and TV runtimes keep the
+// native path they have always used.
+export function preferNativeHls(video: HTMLVideoElement): boolean {
+  if (video.canPlayType('application/vnd.apple.mpegurl') === '') return false;
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
+  const chromiumDesktop =
+    /Chrome\/|Chromium\/|Edg\//.test(ua) &&
+    !/Android|webOS|Web0S|Tizen|SmartTV|HbbTV|CrKey|iPhone|iPad|iPod/i.test(ua);
+  const w = typeof window !== 'undefined'
+    ? (window as unknown as { MediaSource?: unknown; ManagedMediaSource?: unknown })
+    : {};
+  const hasMse = !!(w.MediaSource || w.ManagedMediaSource);
+  return !(chromiumDesktop && hasMse);
+}
+
 export async function attachPlayer(video: HTMLVideoElement, opts: AttachOpts) {
   if (opts.drm) {
     return attachShaka(video, opts);
   }
-  if (video.canPlayType('application/vnd.apple.mpegurl') !== '') {
+  if (preferNativeHls(video)) {
     video.src = opts.url;
     await video.play();
     return { dispose: () => video.removeAttribute('src') };

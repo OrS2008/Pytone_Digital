@@ -66,11 +66,16 @@ export interface UpstreamHeaders {
   referrer?: string;
 }
 
-export function proxiedStreamUrl(upstream: string, headers?: UpstreamHeaders): string {
+// `forceProxy` ignores the user's Direct streaming preference for this
+// one URL — the player uses it to retry a channel through the proxy
+// when direct playback fails, instead of showing an error.
+export function isDirectMode(): boolean { return getStreamMode() === 'direct'; }
+
+export function proxiedStreamUrl(upstream: string, headers?: UpstreamHeaders, forceProxy = false): string {
   if (!upstream) return upstream;
   if (upstream.startsWith('/api/stream?')) return upstream;
   if (!/^https?:\/\//i.test(upstream)) return upstream;
-  const mode = getStreamMode();
+  const mode = forceProxy ? 'proxy' : getStreamMode();
   let out = `/api/stream?url=${encodeURIComponent(upstream)}`;
   if (mode === 'direct') out += '&mode=direct';
   // Forward the playlist's declared request headers so the proxy asks

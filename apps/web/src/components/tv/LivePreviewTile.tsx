@@ -30,6 +30,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { M3UChannel } from '@/lib/m3u';
+import { preferNativeHls } from '@/lib/player';
 import { proxiedStreamUrl } from '@/lib/streamProxy';
 
 interface Props {
@@ -167,7 +168,7 @@ export default function LivePreviewTile({ channel, staticOnly, className }: Prop
           referrer:  channel.httpReferrer,
         });
         const isHls    = /\.m3u8(\?|$)/i.test(channel.streamUrl);
-        const canNative = video.canPlayType('application/vnd.apple.mpegurl') !== '';
+        const canNative = preferNativeHls(video);
 
         const onFirstFrame = () => {
           if (cancelled) return;
@@ -259,7 +260,7 @@ export default function LivePreviewTile({ channel, staticOnly, className }: Prop
         referrer:  channel.httpReferrer,
       });
       const isHls    = /\.m3u8(\?|$)/i.test(channel.streamUrl);
-      const canNative = video.canPlayType('application/vnd.apple.mpegurl') !== '';
+      const canNative = preferNativeHls(video);
 
       const onFatal = () => {
         if (cancelled) return;

@@ -20,6 +20,7 @@ import { useCurrentZone, useSetZone } from './TvFocus';
 import { getCachedChannels, loadChannels } from '@/lib/channelCache';
 import { proxiedStreamUrl } from '@/lib/streamProxy';
 import { useT } from '@/lib/i18n';
+import { preferNativeHls } from '@/lib/player';
 import type { M3UChannel } from '@/lib/m3u';
 
 const ZONE = 'hero';
@@ -114,7 +115,7 @@ export default function TvHero() {
         referrer:  current_channel.httpReferrer,
       });
       const isHls    = /\.m3u8(\?|$)/i.test(current_channel.streamUrl);
-      const canNative = video.canPlayType('application/vnd.apple.mpegurl') !== '';
+      const canNative = preferNativeHls(video);
       const onFatal = () => { if (!cancelled) setPreviewFailed(true); };
 
       try {

@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { Channel } from './types';
-import { proxiedStreamUrl, onStreamModeChange } from '@/lib/streamProxy';
+import { proxiedStreamUrl, onStreamModeChange, isDirectMode } from '@/lib/streamProxy';
 import { userKey } from '@/lib/session';
 import { reportOk, reportFail } from '@/lib/channelHealth';
+import { preferNativeHls } from '@/lib/player';
 import { useT } from '@/lib/i18n';
 
 /*
@@ -208,7 +209,7 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     // gesture. The guard in the callback enforces that.
     const ALT_STALL_MS = 6_000;
     const LAST_STALL_MS = 20_000;
-    const canNative = video.canPlayType('application/vnd.apple.mpegurl') !== '';
+    const canNative = preferNativeHls(video);
 
     function isHlsUrl(u: string) { return /\.m3u8(\?|$)/i.test(u); }
 
@@ -226,6 +227,8 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     // arrived — which makes a failing channel impossible to diagnose
     // from the error card. hls.js hands us the specific reason; keep it.
     let lastCause = '';
+    // Set once direct playback has failed for this channel — see failAll.
+    let forceProxy = false;
     // Whether the last cause is one that repetition cannot inform. A
     // codec this browser cannot decode is the same answer every time,
     // and every probe will keep reporting the stream healthy because
@@ -253,6 +256,16 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     // have a single URL — must not be told that "every catch-up URL
     // format" failed.
     function failAll() {
+      // Direct streaming depends on the provider's CDN allowing
+      // cross-origin, https requests — plenty don't. Before giving up,
+      // run the same channel once more through the proxy, which works
+      // for every provider. The user's setting is left alone.
+      if (!forceProxy && isDirectMode()) {
+        forceProxy = true;
+        lastCause = '';
+        tryCandidate(0);
+        return;
+      }
       const base = candidates.length > 1
         ? 'every catch-up URL format failed on this provider'
         : 'the channel did not respond';
@@ -282,10 +295,43 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
         noteCause(kind, me.code === 3 || me.code === 4);
       }
       clearStall();
-      if (candidateIdx + 1 < candidates.length) tryCandidate(candidateIdx + 1);
-      else failAll();
+      if (candidateIdx + 1 < candidates.length) { tryCandidate(candidateIdx + 1); return; }
+      // Last URL. The element only ever says "format not supported",
+      // whatever actually went wrong, so ask the proxy what it got
+      // from the provider and put THAT on the error card.
+      const failedUrl = video.currentSrc || video.src;
+      explainNativeFailure(failedUrl).then((why) => {
+        if (cancelled) return;
+        if (why) noteCause(why, false);
+        failAll();
+      });
     }
     video.addEventListener('error', onVideoError);
+
+    // One request to the URL the element just choked on, headers only.
+    // A non-2xx carries the proxy's own explanation ("upstream returned
+    // 403", "upstream fetch failed: …"); a 2xx with a non-HLS type means
+    // the provider answered with something a browser cannot decode
+    // (raw MPEG-TS being the usual one).
+    async function explainNativeFailure(url: string): Promise<string> {
+      if (!url) return '';
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 8_000);
+      try {
+        const r = await fetch(url, { cache: 'no-store', signal: ctl.signal });
+        if (!r.ok) {
+          const body = (await r.text()).replace(/\s+/g, ' ').trim().slice(0, 140);
+          return `HTTP ${r.status}${body ? ` — ${body}` : ''}`;
+        }
+        const type = (r.headers.get('content-type') || 'unknown type').split(';')[0];
+        ctl.abort();                       // never download a live stream body
+        return /mpegurl/i.test(type) ? '' : `provider sent ${type}, which this browser cannot play`;
+      } catch (e) {
+        return (e as Error).name === 'AbortError' ? 'no answer from the provider within 8s' : '';
+      } finally {
+        clearTimeout(timer);
+      }
+    }
 
     async function tryCandidate(idx: number) {
       if (cancelled) return;
@@ -301,7 +347,7 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
       const proxiedUrl = proxiedStreamUrl(upstream, {
         userAgent: channel?.httpUserAgent,
         referrer:  channel?.httpReferrer,
-      });
+      }, forceProxy);
       onCandidateChange?.({ idx, total: candidates.length, url: upstream });
 
       // Arm the stall timer for THIS candidate. If `playing` doesn't
@@ -396,11 +442,17 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
               tryCandidate(candidateIdx + 1);
               return;
             }
-            if (retries < RECONNECT_DELAYS_MS.length) {
+            // A manifest that failed to load gets ONE more try, and it
+            // has to be a fresh loadSource: startLoad() does not re-request
+            // a manifest that never arrived, so the old retry was a no-op
+            // that left a dead channel spinning forever with no error.
+            const maxRetries = isPermanent ? 1 : RECONNECT_DELAYS_MS.length;
+            if (retries < maxRetries) {
               const delay = RECONNECT_DELAYS_MS[retries++];
               retryTimer = setTimeout(() => {
                 if (cancelled || !hls) return;
-                if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
+                if (isPermanent) hls.loadSource(proxiedUrl);
+                else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
                 else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
                 else hls.startLoad();
               }, delay);

@@ -478,7 +478,9 @@
 
 /* --- Responsive: live TV stacks rail above player on small screens --- */
 @media (max-width: 900px) {
-  .live-body { grid-template-columns: 1fr; }
+  /* minmax(0, …): a bare 1fr track grows to fit a long nowrap channel
+     name, which pushed the Fullscreen button off the right edge. */
+  .live-body { grid-template-columns: minmax(0, 1fr); }
   .rail { max-height: 56vh; }
   .rail-row { height: 64px; padding: 8px 12px; grid-template-columns: 44px 44px 1fr; gap: 8px; }
   .rail-num { font-size: 16px; }
@@ -989,7 +991,7 @@
   /* The page is auto-height on phones, so the preview's `1fr` player
      row has nothing to stretch into and collapsed to a ~10px sliver.
      Give it a real 16:9 box instead. */
-  .live-preview { grid-template-rows: auto auto; border-left: 0; }
+  .live-preview { grid-template-rows: auto auto; grid-template-columns: minmax(0, 1fr); min-width: 0; border-left: 0; }
   .live-preview-player { aspect-ratio: 16 / 9; width: 100%; }
 
   /* The rail becomes a 2-column grid of cards. */
@@ -999,7 +1001,7 @@
     padding: 10px 12px 16px;
     max-height: none;
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
     align-content: start;
   }
@@ -1107,12 +1109,15 @@
   .rail-row:nth-child(6n+6) .rail-logo { background: radial-gradient(120% 100% at 0% 0%, #06B6D4 0%, transparent 60%), #0A1626; }
 
   /* Meta strip under the art. */
-  .rail-meta { padding: 9px 11px 11px; min-height: 0; }
+  .rail-meta { padding: 9px 11px 11px; min-height: 0; min-width: 0; max-width: 100%; }
+  /* Long names end in "…" instead of being cut off at both edges of
+     the card (the old -webkit-box clamp did nothing against the
+     base rule's nowrap). */
   .rail-name {
     color: #FFFFFF; font-size: 13.5px; font-weight: 700;
     line-height: 1.25;
-    display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical;
-    overflow: hidden;
+    display: block; max-width: 100%;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .rail-now {
     color: #9099AB; font-size: 11.5px; margin-top: 3px;
