@@ -57,7 +57,8 @@
 
 - **Documentation does not match the product.** The README and landing page describe Go/Rust microservices, Kafka, CRDT sync, network DVR and AI failover. None of that runs. Landing copy also claims Xtream Codes and Stalker portal support; the app accepts an **M3U URL or file only** (an Xtream `get.php` export works because it is M3U; there is no `player_api` or portal client).
 - **Very large components.** `tv/live/page.tsx` is 1,241 lines, `PlayerSurface.tsx` 736, the admin dashboard 533; 383 inline `style={{…}}` blocks. Hard to test and to restyle consistently.
-- **No automated web tests existed** before this audit, and CI does not build or test the web app at all (CI covers Go, proto lint and Flutter only).
+- **No automated web tests existed** before this audit. CI does type-check, lint and build the web app, but runs no web tests.
+- **The CI pipeline has been red since at least August 2026**, before this audit: the Flutter analyze job and the Docker image builds fail on every push (the Web, Go and proto jobs pass). A permanently red pipeline hides real failures.
 - **Two "home" screens** (`/tv` grid for desktop/TV, `/tv/home` for phones) with user-agent redirects between them.
 - **Display strings stored as data** (e.g. a source's status line "5 channels · just now" is saved and never refreshed, so "just now" stays forever).
 - **Incremental list rendering, not windowing:** the Live list adds rows as you scroll and never removes them (654 → 7,134 DOM nodes after scrolling a 5,000-channel list).
@@ -65,7 +66,7 @@
 ### Recommendations
 
 1. Decide the fate of the Go/Flutter code: move it to a separate repository or an `experimental/` folder, and rewrite the README to describe what ships.
-2. Add the web build, type-check and the new test suite to CI.
+2. Add the new test suite to CI, and fix or remove the Flutter and Docker jobs so the pipeline can go green.
 3. Split the live page and player into smaller units as they are next touched.
 
 ---
@@ -293,6 +294,8 @@ No dropped frames at 5,000 channels on this machine; the Live list's DOM growth 
 | Lighthouse pages | 2 | 2 | 0 | 0 | 23 |
 | Dependency audit (web) | 1 | 0 | 1 | 0 | 0 |
 | Android APK compile (CI) | 1 | 1 | 0 | 0 | 0 |
+| CI workflow `ci` — Web, Go, Proto lint jobs | 3 | 3 | 0 | 0 | 0 |
+| CI workflow `ci` — Flutter analyze, Docker image builds (failing before this audit) | 2 | 0 | 2 | 0 | 0 |
 | Android functional tests on device/emulator | 0 | 0 | 0 | all | — |
 | Firefox / Safari / iOS | 0 | 0 | 0 | all | — |
 | Real-stream playback | 0 | 0 | 0 | all | — |
@@ -326,7 +329,7 @@ Reproduce: `apps/web/e2e/README.md`.
 | Recommendation | Type | Business value | Complexity | Effort |
 |---|---|---|---|---|
 | Require a valid session on the proxy routes and add per-account rate limits; decide whether anonymous use is allowed at all | Security / business | Stops free-riding and abuse; enforces the trial | Medium | 2–3 days |
-| Add web build + the new test suite to CI | Tech debt | Regressions caught before deploy | Low | 0.5 day |
+| Run the new test suite in CI; fix or drop the failing Flutter and Docker jobs | Tech debt | Regressions caught before deploy; a pipeline that means something | Low | 1 day |
 | Translate the remaining account screens and legal pages into Hebrew | Enhancement | Complete Hebrew product | Low | 2 days |
 | Support raw MPEG-TS channels (mpegts.js in the browser, or remux at the proxy) | Missing functionality | Many Xtream channels are `.ts` | Medium | 3–5 days |
 | Make marketing copy match the product (no Stalker / Xtream API / DVR claims until they exist) | Defect (accuracy) | Legal and trust | Low | 0.5 day |
@@ -367,7 +370,7 @@ Favourites and history synced across devices · EPG reminders · Chromecast send
 
 ## Appendix — Changes made during this engagement
 
-Commits on `claude/nextgen-iptv-platform-rEZiD`: `206b204`, `92f6215`, `0b03cba`, and the commit that adds this report.
+Commits on `claude/nextgen-iptv-platform-rEZiD`: `206b204`, `92f6215`, `0b03cba`, `ca75962` (adds this report), plus two clean-up commits that remove Go build binaries which `ca75962` committed by mistake.
 
 New in the repository: `apps/web/e2e/` (regression suite, fixtures, `perf.mjs`), `apps/web/src/lib/usePinchZoom.ts`, `apps/web/src/lib/billingAccess.ts`, this report.
 
