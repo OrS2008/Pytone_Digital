@@ -97,6 +97,11 @@ export function accessState(user: UserRecord, now: number = Date.now()): AccessS
   return { status, trialEndsAt, subscribedUntil: subbedUntil, daysLeft };
 }
 
+// Persist a user record under its canonical key.
+export async function saveUser(kv: KVNamespace, user: UserRecord): Promise<void> {
+  await kv.put(userKey(user.email), JSON.stringify(user));
+}
+
 // Record a successful login. Called from the login route AFTER
 // Firebase has accepted the credentials.
 export async function touchLastLogin(kv: KVNamespace, user: UserRecord): Promise<void> {

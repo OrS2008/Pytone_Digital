@@ -233,7 +233,10 @@ async function dohResolvesToPrivate(hostname: string): Promise<boolean> {
 // DoH-resolving each hostname to catch DNS rebinding. Throws
 // SsrfBlocked when any hop is refused.
 export class SsrfBlocked extends Error {
-  constructor(public reason: string) { super(`SSRF blocked: ${reason}`); this.name = 'SsrfBlocked'; }
+  // Plain field instead of a parameter property so Node can run this
+  // file directly in the unit tests (type stripping only).
+  reason: string;
+  constructor(reason: string) { super(`SSRF blocked: ${reason}`); this.reason = reason; this.name = 'SsrfBlocked'; }
 }
 
 export interface SafeFetchResult {

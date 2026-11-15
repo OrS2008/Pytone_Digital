@@ -348,7 +348,7 @@ const en: Record<string, string> = {
   "src.uploadLabel": "Upload file",
   "src.m3uUrl": "M3U URL",
   "src.helpUpload": "The file stays in your browser. No upload to a server. Re-upload after clearing browser storage.",
-  "src.helpUrl": "We fetch this URL on a schedule (every 6 hours by default) and never share it. Credentials in the URL are encrypted at rest with your account key.",
+  "src.helpUrl": "Your playlist link is saved with your account so it follows you to every device you sign in on. We never share it.",
   "src.addPlaylist": "Add playlist",
   "src.testOnly": "Test only",
   "src.epgSources": "EPG sources",

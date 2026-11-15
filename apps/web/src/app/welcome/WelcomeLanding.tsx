@@ -59,7 +59,8 @@ export default function WelcomeLanding({ initialLocale }: { initialLocale?: Loca
             type="button"
             className="nw-nav-link nw-nav-lang"
             onClick={() => setLocale(locale === 'he' ? 'en' : 'he')}
-            aria-label={locale === 'he' ? 'Switch to English' : 'החלף לעברית'}
+            title={locale === 'he' ? 'Switch to English' : 'החלף לעברית'}
+            lang={locale === 'he' ? 'en' : 'he'}
           >
             {locale === 'he' ? 'EN' : 'עב'}
           </button>
@@ -83,7 +84,7 @@ export default function WelcomeLanding({ initialLocale }: { initialLocale?: Loca
         {FEATURES.map((f) => (
           <article className="nw-feature" key={f}>
             <div className="nw-feature-icon" aria-hidden>{ICONS[f]}</div>
-            <h3 className="nw-feature-title">{t(`wl.f.${f}.title`)}</h3>
+            <h2 className="nw-feature-title">{t(`wl.f.${f}.title`)}</h2>
             <p className="nw-feature-text">{t(`wl.f.${f}.text`)}</p>
           </article>
         ))}
@@ -96,7 +97,7 @@ export default function WelcomeLanding({ initialLocale }: { initialLocale?: Loca
             <li key={n}>
               <span className="nw-howto-num">{n}</span>
               <div>
-                <h4>{t(`wl.step${n}.title`)}</h4>
+                <h3>{t(`wl.step${n}.title`)}</h3>
                 <p>{t(`wl.step${n}.text`)}</p>
               </div>
             </li>

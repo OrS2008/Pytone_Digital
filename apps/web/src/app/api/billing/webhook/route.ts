@@ -29,6 +29,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe, BillingNotConfiguredError } from '@/lib/stripe';
 import StripeSdk from 'stripe';
 import type Stripe from 'stripe';
+import { getKV } from '@/lib/cfEnv';
+import { findUserByEmail, saveUser } from '@/lib/auth/users';
+import { subscribedUntilFor } from '@/lib/billingAccess';
 
 // Stripe's default webhook verifier uses node:crypto. On the edge
 // runtime we have to swap in a Web Crypto-based provider so the HMAC
@@ -107,6 +110,38 @@ function forgetEvent(id: string): void {
   SEEN.delete(id);
 }
 
+// Write the subscription's entitlement onto OUR user record.
+//
+// Access everywhere in the app is decided by `subscribedUntil` on the
+// KV user record (lib/auth/users → accessState). This handler used to
+// update only Stripe's own customer metadata, so nothing ever set that
+// field: a customer could pay, and seven days after sign-up the trial
+// gate would still lock them out as "expired". The admin panel's
+// manual grant was the only thing that ever wrote it.
+//
+// Throws when KV is unavailable so Stripe retries the event instead of
+// the entitlement being silently lost.
+async function syncEntitlement(
+  s: Stripe,
+  customerId: string,
+  sub: Stripe.Subscription,
+): Promise<void> {
+  const kv = getKV();
+  if (!kv) throw new Error('NOVA_KV binding missing — cannot record subscription entitlement.');
+  const customer = await s.customers.retrieve(customerId);
+  if (customer.deleted || !customer.email) {
+    console.warn('[billing] customer has no email — entitlement not recorded', { customerId });
+    return;
+  }
+  const user = await findUserByEmail(kv, customer.email);
+  if (!user) {
+    console.warn('[billing] no user record for Stripe customer — entitlement not recorded', { customerId });
+    return;
+  }
+  user.subscribedUntil = subscribedUntilFor(sub);
+  await saveUser(kv, user);
+}
+
 async function handle(event: Stripe.Event) {
   const s = stripe();
   switch (event.type) {
@@ -126,6 +161,7 @@ async function handle(event: Stripe.Event) {
       });
       // Mask the local-part of the email in logs so customer-support
       // queries can grep by domain but the log itself isn't a PII dump.
+      await syncEntitlement(s, customerId, sub);
       const masked = session.customer_email?.replace(/^(.).+(@.+)$/, '$1***$2');
       console.log('[billing] checkout completed', { customerId, subId, plan, email: masked });
       break;
@@ -143,6 +179,7 @@ async function handle(event: Stripe.Event) {
       await s.customers.update(customerId, {
         metadata: { nova_state: novaState, nova_plan: plan, nova_sub: sub.id },
       });
+      await syncEntitlement(s, customerId, sub);
       console.log('[billing] subscription updated', { customerId, status: sub.status, plan });
       break;
     }
@@ -153,6 +190,9 @@ async function handle(event: Stripe.Event) {
       await s.customers.update(customerId, {
         metadata: { nova_state: 'canceled', nova_sub: sub.id },
       });
+      // `deleted` arrives when the subscription has actually ended
+      // (status "canceled") — subscribedUntilFor maps that to 0.
+      await syncEntitlement(s, customerId, sub);
       console.log('[billing] subscription canceled', { customerId });
       break;
     }
