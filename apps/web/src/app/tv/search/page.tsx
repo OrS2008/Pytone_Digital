@@ -62,15 +62,35 @@ export default function SearchHome() {
     return () => { cancelled = true; };
   }, []);
 
-  const filtered = useMemo(() => {
+  // Selected category ('' = all). Reset when the playlist changes so a
+  // category from a previous playlist can't leave the list empty.
+  const [cat, setCat] = useState('');
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of channels) {
+      const k = c.category || '';
+      if (k) counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [channels]);
+  useEffect(() => {
+    if (cat && !categories.some((c) => c.name === cat)) setCat('');
+  }, [cat, categories]);
+
+  const matches = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return channels.slice(0, 60);
-    return channels.filter((c) =>
+    const pool = cat ? channels.filter((c) => c.category === cat) : channels;
+    if (!needle) return pool;
+    return pool.filter((c) =>
       c.name.toLowerCase().includes(needle) ||
       c.category.toLowerCase().includes(needle) ||
       String(c.number).includes(needle),
-    ).slice(0, 200);
-  }, [q, channels]);
+    );
+  }, [q, cat, channels]);
+  // Cap what we render; the count line still reports the full number.
+  const filtered = useMemo(() => matches.slice(0, q.trim() || cat ? 300 : 60), [matches, q, cat]);
 
   // ---- Voice ----------------------------------------------------------
   const recRef = useRef<SpeechRecognitionInstance | null>(null);
@@ -161,31 +181,44 @@ export default function SearchHome() {
             <div style={{ marginTop: 10, fontSize: 13, color: 'var(--ns-danger, #FF6B7B)' }}>{voiceError}</div>
           )}
 
-          <div style={{
-            display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 16,
-            color: '#B7BEC9', fontFamily: 'Inter, system-ui, sans-serif',
-          }}>
-            <span style={{ opacity: 0.6, alignSelf: 'center', marginInlineEnd: 6 }}>{t('search.try')}</span>
-            {([
-              { key: 'home.news',       q: 'News'   },
-              { key: 'home.cat.sports', q: 'Sports' },
-              { key: 'home.recent',     q: 'Movies' },
-              { key: 'home.kids',       q: 'Kids'   },
-              { key: 'search.hd',       q: 'HD'     },
-            ]).map(({ key, q: queryFor }) => (
-              <button
-                key={key}
-                onClick={() => setQ(queryFor)}
-                style={{
-                  padding: '8px 14px', borderRadius: 999,
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  color: 'inherit', cursor: 'pointer', fontSize: 14,
-                  fontFamily: 'inherit',
-                }}
-              >{t(key)}</button>
-            ))}
-          </div>
+          {/* Category filter — built from the playlist that is loaded
+              right now, biggest categories first. Scrolls sideways on
+              phones instead of wrapping into a wall of chips. */}
+          {categories.length > 1 && (
+            <div
+              role="tablist"
+              aria-label={t('search.categories')}
+              style={{
+                display: 'flex', gap: 8, marginTop: 16, paddingBottom: 6,
+                overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
+                fontFamily: 'Inter, system-ui, sans-serif',
+              }}
+            >
+              {[{ name: '', count: channels.length }, ...categories].map((c) => {
+                const on = cat === c.name;
+                return (
+                  <button
+                    key={c.name || '__all'}
+                    role="tab"
+                    aria-selected={on}
+                    onClick={() => setCat(c.name)}
+                    style={{
+                      flex: '0 0 auto',
+                      padding: '9px 14px', borderRadius: 999,
+                      background: on ? 'var(--ns-accent, #FF3B6E)' : 'rgba(255,255,255,0.05)',
+                      border: `1px solid ${on ? 'transparent' : 'rgba(255,255,255,0.08)'}`,
+                      color: on ? '#fff' : '#B7BEC9',
+                      cursor: 'pointer', fontSize: 14, fontWeight: on ? 700 : 500,
+                      fontFamily: 'inherit', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {c.name || t('search.all')}
+                    <span style={{ opacity: 0.6, marginInlineStart: 6, fontSize: 12 }}>{c.count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Results */}
@@ -201,11 +234,18 @@ export default function SearchHome() {
           {!loading && channels.length > 0 && (
             <>
               <div style={{ fontSize: 13, color: '#6E7480', marginBottom: 14 }}>
-                {q.trim() ? `${filtered.length} result${filtered.length === 1 ? '' : 's'} for "${q}"` : `${channels.length} channels loaded`}
+                {q.trim()
+                  ? `${matches.length} ${t('search.results')} · "${q}"${cat ? ` · ${cat}` : ''}`
+                  : cat
+                    ? `${matches.length} ${t('search.channels')} · ${cat}`
+                    : `${channels.length} ${t('search.channels')}`}
               </div>
               <div style={{
-                display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12,
+                display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(220px, 100%), 1fr))', gap: 12,
               }}>
+                {filtered.length === 0 && (
+                  <p style={{ color: '#B7BEC9', gridColumn: '1 / -1' }}>{t('search.noResults')}</p>
+                )}
                 {filtered.map((c) => (
                   // Deep-link straight into the player at fullscreen
                   // by passing ?ch=<number>&preview=1 — the live page

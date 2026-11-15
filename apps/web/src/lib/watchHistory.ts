@@ -61,6 +61,22 @@ export function recordWatch(ch: { id: string; number: number; name: string; logo
   write(map);
 }
 
+// History narrowed to the playlist that is loaded right now. Entries
+// are keyed by channel id + number, both of which are only meaningful
+// inside the playlist they were recorded from — after a playlist
+// change an old entry would otherwise sit in Continue Watching and
+// open whatever unrelated channel now has that number.
+export function getHistoryFor(channels: { id: string; number: number; name: string }[]): WatchEntry[] {
+  if (channels.length === 0) return [];
+  const byId = new Map(channels.map((c) => [c.id, c]));
+  const out: WatchEntry[] = [];
+  for (const e of getHistory()) {
+    const c = byId.get(e.channelId);
+    if (c && c.name === e.name) out.push({ ...e, number: c.number });
+  }
+  return out;
+}
+
 export function getHistory(): WatchEntry[] {
   return Object.values(read()).sort((a, b) => b.lastWatched - a.lastWatched);
 }

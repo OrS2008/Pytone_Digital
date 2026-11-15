@@ -939,3 +939,11 @@
    copy left-to-right even in a Hebrew (RTL) session, so sentences
    don't end up with the punctuation on the wrong side. */
 .ac-panel-ltr { direction: ltr; text-align: left; }
+
+/* Inline "edit source" form on the Sources page. */
+.ac-source-edit {
+  margin-top: 14px; padding: 16px;
+  border: 1px solid var(--ns-accent-soft-border, rgba(255, 27, 107, 0.35));
+  border-radius: 12px;
+  background: var(--ns-accent-soft, rgba(255, 27, 107, 0.06));
+}

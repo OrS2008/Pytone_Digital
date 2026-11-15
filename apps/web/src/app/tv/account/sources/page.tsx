@@ -52,6 +52,7 @@ export default function Sources() {
   const [streamMode, setStreamMode] = usePersisted<'proxy' | 'direct'>('prefs.streamMode', 'proxy');
   const [epgUrl,   setEpgUrl]   = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [editing,  setEditing]  = useState<null | { kind: 'live' | 'epg'; id: string; url: string; name: string }>(null);
 
   // One-shot migration: drop the old `live-1` placeholder row and any
   // legacy VOD entries from before the VOD tab was removed.
@@ -163,17 +164,29 @@ export default function Sources() {
     flash(t('src.removed'));
   };
 
-  async function editLive(id: string) {
-    const s = live.find((x) => x.id === id);
-    if (!s) return;
-    if (s.sub.startsWith('local:')) {
-      flash(t('src.editUploaded'));
+  // Inline editing. This used to be two window.prompt() calls; inside
+  // the Android app the WebView draws that dialog with no visible text
+  // field, so there was nowhere to type the new URL.
+  function startEdit(kind: 'live' | 'epg', s: Source) {
+    if (s.sub.startsWith('local:')) { flash(t('src.editUploaded')); return; }
+    setEditing({ kind, id: s.id, url: s.sub, name: s.title });
+  }
+
+  async function saveEdit() {
+    if (!editing) return;
+    const { kind, id } = editing;
+    const nextUrl = editing.url.trim();
+    if (!/^https?:\/\//i.test(nextUrl)) { flash(t('src.errSchemeShort')); return; }
+    setEditing(null);
+
+    if (kind === 'epg') {
+      setEpg(epg.map((x) => x.id === id ? { ...x, sub: nextUrl, stat: t('src.queued') } : x));
+      flash(t('src.epgUpdated'));
       return;
     }
-    const nextUrl = typeof window !== 'undefined' ? window.prompt(t('src.promptM3u'), s.sub) : null;
-    if (!nextUrl) return;
-    if (!nextUrl.startsWith('http')) { flash(t('src.errSchemeShort')); return; }
-    const nextName = window.prompt(t('src.promptName'), s.title) || s.title;
+
+    const prevTitle = live.find((x) => x.id === id)?.title ?? '';
+    const nextName = editing.name.trim() || prevTitle;
     setLive(live.map((x) => x.id === id ? { ...x, sub: nextUrl, title: nextName, stat: t('src.fetching') } : x));
     flash(`${t('src.updating')} "${nextName}"…`);
 
@@ -188,15 +201,57 @@ export default function Sources() {
     }
   }
 
-  function editEpg(id: string) {
-    const s = epg.find((x) => x.id === id);
+  // The active playlist is the last usable entry (see getUserSourceUrl),
+  // so "use this one" moves it to the end of the list.
+  function makeActive(id: string) {
+    const s = live.find((x) => x.id === id);
     if (!s) return;
-    const nextUrl = typeof window !== 'undefined' ? window.prompt(t('src.promptXml'), s.sub) : null;
-    if (!nextUrl) return;
-    if (!nextUrl.startsWith('http')) { flash(t('src.errSchemeShort')); return; }
-    setEpg(epg.map((x) => x.id === id ? { ...x, sub: nextUrl, stat: t('src.queued') } : x));
-    flash(t('src.epgUpdated'));
+    setLive([...live.filter((x) => x.id !== id), s]);
+    invalidateCache();
+    flash(`"${s.title}" ${t('src.nowActive')}`);
   }
+
+  const activeId = [...live].reverse().find((x) => /^(https?:\/\/|local:)/i.test(x.sub))?.id;
+
+  const editForm = (kind: 'live' | 'epg') => editing && editing.kind === kind && (
+    <form
+      className="ac-source-edit"
+      onSubmit={(e) => { e.preventDefault(); saveEdit(); }}
+    >
+      <div className="ac-card-title" style={{ marginBottom: 10 }}>
+        {kind === 'live' ? t('src.editTitle') : t('src.editEpgTitle')}
+      </div>
+      {kind === 'live' && (
+        <div className="ac-field">
+          <label className="ac-field-label">{t('src.friendly')}</label>
+          <input
+            className="ac-input"
+            value={editing.name}
+            onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+          />
+        </div>
+      )}
+      <div className="ac-field">
+        <label className="ac-field-label">{kind === 'live' ? t('src.m3uUrl') : t('src.xmlUrl')}</label>
+        <input
+          className="ac-input"
+          dir="ltr"
+          type="url"
+          inputMode="url"
+          autoFocus
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+          value={editing.url}
+          onChange={(e) => setEditing({ ...editing, url: e.target.value })}
+        />
+      </div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <button type="submit" className="ac-btn ac-btn-primary">{t('src.save')}</button>
+        <button type="button" className="ac-btn ac-btn-ghost" onClick={() => setEditing(null)}>{t('src.cancel')}</button>
+      </div>
+    </form>
+  );
 
   return (
     <Shell active="sources">
@@ -227,23 +282,36 @@ export default function Sources() {
           <StreamModeToggle mode={streamMode} setMode={setStreamMode} />
           <div className="ac-card-title">{t('src.activeLive')} · {live.length}</div>
 
+          {live.length > 1 && (
+            <p className="ac-field-help" style={{ margin: '0 0 12px' }}>{t('src.onePlaylistNote')}</p>
+          )}
           {live.map((s) => (
             <div key={s.id} className="ac-source">
               <div className="ac-source-icon">{s.kind}</div>
               <div className="ac-source-meta">
-                <div className="ac-source-title">{s.title}</div>
+                <div className="ac-source-title">
+                  {s.title}
+                  {s.id === activeId && (
+                    <span className="ac-status-pill ac-status-ok" style={{ fontSize: 10, marginInlineStart: 8 }}>{t('src.active')}</span>
+                  )}
+                </div>
                 <div className="ac-source-url" dir="ltr">
                   {maskSourceUrl(s.sub)}
                 </div>
               </div>
               <div className="ac-source-stats"><div>{s.stat}</div></div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="ac-btn ac-btn-sm" onClick={() => editLive(s.id)}>{t('src.edit')}</button>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {s.id !== activeId && (
+                  <button className="ac-btn ac-btn-sm ac-btn-primary" onClick={() => makeActive(s.id)}>{t('src.setActive')}</button>
+                )}
+                <button className="ac-btn ac-btn-sm" onClick={() => startEdit('live', s)}>{t('src.edit')}</button>
                 <button className="ac-btn ac-btn-sm" onClick={() => refreshLive(s.id)}>{t('src.refresh')}</button>
                 <button className="ac-btn ac-btn-sm ac-btn-danger" onClick={() => removeFrom(live, setLive)(s.id)}>{t('src.remove')}</button>
               </div>
             </div>
           ))}
+
+          {editForm('live')}
 
           <div style={{ marginTop: 20, paddingTop: 24, borderTop: '1px dashed var(--ns-border)' }}>
             <div className="ac-card-title" style={{ marginBottom: 12 }}>{t('src.addNew')}</div>
@@ -330,11 +398,12 @@ export default function Sources() {
               </div>
               <div className="ac-source-stats"><div>{s.stat}</div></div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="ac-btn ac-btn-sm" onClick={() => editEpg(s.id)}>{t('src.edit')}</button>
+                <button className="ac-btn ac-btn-sm" onClick={() => startEdit('epg', s)}>{t('src.edit')}</button>
                 <button className="ac-btn ac-btn-sm ac-btn-danger" onClick={() => removeFrom(epg, setEpg)(s.id)}>{t('src.remove')}</button>
               </div>
             </div>
           ))}
+          {editForm('epg')}
           <form className="ac-add-source" style={{ marginTop: 18 }} onSubmit={(e) => { e.preventDefault(); addEpg(); }}>
             <input className="ac-input" dir="ltr" placeholder="XMLTV URL (https://...)" value={epgUrl} onChange={(e) => setEpgUrl(e.target.value)} />
             <button type="submit" className="ac-btn ac-btn-primary">{t('src.addEpg')}</button>

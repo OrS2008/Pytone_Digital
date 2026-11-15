@@ -473,5 +473,22 @@ const he: Record<string, string> = {
   "pl.errBilling": "מערכת התשלומים אינה זמינה כרגע. נסו שוב בעוד כמה דקות.",
   "pl.errCheckout": "מצטערים, לא הצלחנו לפתוח את דף התשלום כרגע.",
   "pl.errNetwork": "שגיאת רשת. בדקו את החיבור ונסו שוב.",
+
+  // --- Sources editing + search categories ---
+  "src.active": "פעיל",
+  "src.setActive": "השתמש בפלייליסט הזה",
+  "src.nowActive": "הוא עכשיו הפלייליסט הפעיל.",
+  "src.save": "שמירה",
+  "src.cancel": "ביטול",
+  "src.editTitle": "עריכת פלייליסט",
+  "src.editEpgTitle": "עריכת לוח שידורים",
+  "src.xmlUrl": "קישור XMLTV",
+  "src.onePlaylistNote": "באפליקציה מוצג רק הפלייליסט הפעיל. פלייליסט חדש שמוסיפים הופך אוטומטית לפעיל.",
+  "search.all": "הכול",
+  "search.categories": "קטגוריות",
+  "search.results": "תוצאות",
+  "search.inCat": "בקטגוריה",
+  "search.channels": "ערוצים",
+  "search.noResults": "לא נמצאו ערוצים מתאימים.",
 };
 export default he;

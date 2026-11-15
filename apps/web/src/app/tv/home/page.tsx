@@ -18,7 +18,7 @@ import Link from 'next/link';
 import type { M3UChannel } from '@/lib/m3u';
 import { getCachedChannels, loadChannels } from '@/lib/channelCache';
 import { getSessionEmail } from '@/lib/session';
-import { getHistory, type WatchEntry } from '@/lib/watchHistory';
+import { getHistoryFor, type WatchEntry } from '@/lib/watchHistory';
 import { loadEpgIndex, programmesFor, getUserEpgUrl, type EpgIndex } from '@/lib/epgCache';
 import { getFavorites, onFavoritesChange } from '@/lib/favorites';
 import { useT } from '@/lib/i18n';
@@ -230,7 +230,6 @@ export default function TvMobileHome() {
 
   useEffect(() => {
     setEmail(getSessionEmail());
-    setHistory(getHistory());
   }, []);
   // True until the first loadChannels() resolves — drives the skeleton
   // hero/rail so the page never flashes empty while the playlist loads.
@@ -239,7 +238,8 @@ export default function TvMobileHome() {
     let cancelled = false;
     (async () => {
       const list = await loadChannels();
-      if (!cancelled) { setChannels(list); setLoading(false); }
+      // Continue Watching only lists channels of the current playlist.
+      if (!cancelled) { setChannels(list); setHistory(getHistoryFor(list)); setLoading(false); }
     })();
     return () => { cancelled = true; };
   }, []);

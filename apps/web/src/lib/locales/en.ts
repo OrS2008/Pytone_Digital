@@ -473,5 +473,22 @@ const en: Record<string, string> = {
   "pl.errBilling": "Billing is temporarily unavailable. Please try again in a few minutes.",
   "pl.errCheckout": "Sorry, we could not start checkout right now.",
   "pl.errNetwork": "Network error. Please check your connection and try again.",
+
+  // --- Sources editing + search categories ---
+  "src.active": "ACTIVE",
+  "src.setActive": "Use this playlist",
+  "src.nowActive": "is now the active playlist.",
+  "src.save": "Save",
+  "src.cancel": "Cancel",
+  "src.editTitle": "Edit playlist",
+  "src.editEpgTitle": "Edit programme guide",
+  "src.xmlUrl": "XMLTV URL",
+  "src.onePlaylistNote": "Only the active playlist is shown in the app. Add a new one and it becomes active automatically.",
+  "search.all": "All",
+  "search.categories": "Categories",
+  "search.results": "results",
+  "search.inCat": "in",
+  "search.channels": "channels",
+  "search.noResults": "No channels match.",
 };
 export default en;

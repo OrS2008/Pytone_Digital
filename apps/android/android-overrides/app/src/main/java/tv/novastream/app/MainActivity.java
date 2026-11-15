@@ -1,5 +1,6 @@
 package tv.novastream.app;
 
+import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
@@ -45,6 +46,16 @@ public class MainActivity extends BridgeActivity {
 
         Window window = getWindow();
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        // Draw into the camera-cutout area. Without this the system
+        // letterboxes the app in landscape and the player is left with
+        // a black strip down the side where the notch is.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            WindowManager.LayoutParams lp = window.getAttributes();
+            lp.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            window.setAttributes(lp);
+        }
 
         // Match the brand background so the system bars blend with the
         // app even before the WebView paints. Opus IPTV deep-navy palette.
@@ -101,6 +112,12 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        applyImmersiveSticky();
+    }
+
     /**
      * Hide nav-bar + status-bar but allow the user to swipe them back in
      * temporarily. This is the modern "immersive sticky" mode — feels
@@ -114,10 +131,19 @@ public class MainActivity extends BridgeActivity {
         if (insets != null) {
             insets.setSystemBarsBehavior(
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-            // Note: we DON'T hide the bars at startup — the home/auth
-            // pages keep them visible. The web side toggles fullscreen
-            // mode through the Capacitor StatusBar plugin when video
-            // playback actually starts.
+            // Landscape on a phone means "watching video": hide the
+            // status and navigation bars so the picture gets the whole
+            // screen instead of sharing it with the clock and the
+            // back/home buttons. Portrait keeps the bars — that is where
+            // the browsing screens live. A swipe from the edge brings
+            // the bars back temporarily (BEHAVIOR_SHOW_TRANSIENT_BARS).
+            boolean landscape = getResources().getConfiguration().orientation
+                == Configuration.ORIENTATION_LANDSCAPE;
+            if (landscape) {
+                insets.hide(WindowInsetsCompat.Type.systemBars());
+            } else {
+                insets.show(WindowInsetsCompat.Type.systemBars());
+            }
         }
     }
 }

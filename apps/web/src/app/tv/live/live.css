@@ -1172,3 +1172,18 @@
 }
 .live-hidden-note button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
 .live-hidden-note button:disabled { opacity: 0.55; cursor: default; }
+
+/* Fullscreen player controls keep clear of the status bar, the camera
+   cutout and the gesture bar when the app draws edge to edge. env()
+   resolves to 0 everywhere else, so desktop and TV are unchanged. */
+.live-player-overlay .player-tools {
+  top:  calc(16px + env(safe-area-inset-top, 0px));
+  left: calc(16px + env(safe-area-inset-left, 0px));
+}
+.live-player-overlay .live-close {
+  top:   calc(16px + env(safe-area-inset-top, 0px));
+  right: calc(16px + env(safe-area-inset-right, 0px));
+}
+.live-player-overlay .live-zoom-badge {
+  top: calc(16px + env(safe-area-inset-top, 0px));
+}

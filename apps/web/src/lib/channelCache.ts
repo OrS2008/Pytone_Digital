@@ -112,7 +112,11 @@ export function getUserSourceUrl(): { url: string; title: string } | null {
     const raw = localStorage.getItem(userKey('sources.live'));
     if (!raw) return null;
     const list = JSON.parse(raw) as StoredSource[];
-    const src = list.find((s) => isRealLiveSourceUrl(s.sub));
+    // The ACTIVE playlist is the most recently added usable one. This
+    // used to take the first entry, so adding a new playlist changed
+    // nothing: the app kept loading the old one and the old channels
+    // kept showing up everywhere.
+    const src = [...list].reverse().find((s) => isRealLiveSourceUrl(s.sub));
     return src ? { url: src.sub, title: src.title || 'My playlist' } : null;
   } catch { return null; }
 }

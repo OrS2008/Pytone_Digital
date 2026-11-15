@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getHistory, type WatchEntry } from '@/lib/watchHistory';
+import { getHistoryFor, type WatchEntry } from '@/lib/watchHistory';
+import { loadChannels } from '@/lib/channelCache';
 import { useT } from '@/lib/i18n';
 import ScrollableRow from './ScrollableRow';
 
@@ -14,7 +15,12 @@ export default function ContinueWatchingRow() {
   const [items, setItems] = useState<WatchEntry[]>([]);
   const { t } = useT();
 
-  useEffect(() => { setItems(getHistory().slice(0, 12)); }, []);
+  // Only channels that exist in the playlist loaded right now.
+  useEffect(() => {
+    let cancelled = false;
+    loadChannels().then((list) => { if (!cancelled) setItems(getHistoryFor(list).slice(0, 12)); });
+    return () => { cancelled = true; };
+  }, []);
 
   if (items.length === 0) return null;
 
