@@ -10,7 +10,7 @@
 | **Security** | **Conditionally Ready** (was Not Ready) | Open proxies closed, credentials encrypted and never sent to the client, fail-closed controls, 0 known dependency vulnerabilities, 44 security/integration tests. Conditions: confirm `NOVA_ENCRYPTION_KEY` is live (owner reports it is set; not observable from here); remaining Low items (CSP `unsafe-inline`). No live penetration test. |
 | **Backend (edge API)** | **Conditionally Ready** | Auth, billing entitlement and provider APIs verified against real handlers with simulated dependencies. Conditions: Stripe test-mode end-to-end; KV write races are possible but low-volume. |
 | **IPTV ecosystem** | **Conditionally Ready for beta** | M3U (existing), Xtream (live, VOD, series, catch-up, EPG) and Stalker (live, VOD, series) implemented behind a common model. Not yet verified against any real provider. Stalker EPG/catch-up not implemented. |
-| **Android application** | **Not Ready** | Release signing is wired but needs the owner keystore; never run on a device in this work. Web changes reach installed apps automatically. |
+| **Android application** | **Conditionally Ready** | Signed release APK published (build #16). Not yet run on a real device in this work. Web changes reach installed apps automatically. |
 | **Overall** | **Conditionally Ready for a closed beta · Not Ready for paid general availability** | |
 
 ## What changed since the previous verdict (15 Nov)
@@ -24,7 +24,7 @@ Security moved from Not Ready to Conditionally Ready (proxies, credentials, depe
 | 2 | Smoke test on the live site: sign in, play a channel, connect an Xtream account, open Movies | Owner | **Pending** |
 | 3 | Real Xtream + Stalker test accounts run through `IPTV_PROVIDER_INTEGRATION_REPORT.md` §8 | Owner + engineering | **Pending (B3)** |
 | 4 | Stripe test mode: pay → subscribed → cancel → expired | Owner | **Pending (B4)** |
-| 5 | Android keystore secrets; install signed APK over the previous signed APK | Owner | **Pending (B6)** |
+| 5 | Android keystore secrets; signed release APK | Owner + engineering | **Done** — build #16 signed and verified |
 | 6 | Real-device pass: notch phone (landscape full screen), older Android, Android TV if in scope | Owner | **Pending (B7)** |
 | 7 | Safari / iOS check (no MSE → raw-TS channels unavailable there; HLS works) | Owner | **Pending (B9)** |
 | 8 | Fix the failing Flutter / Docker CI jobs | Engineering | **Done** — whole pipeline green (Flutter API mismatch, uppercase image owner, Go 1.23 vs go.work 1.24) |
