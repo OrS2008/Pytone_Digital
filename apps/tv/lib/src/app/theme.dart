@@ -41,7 +41,7 @@ class NovaStreamTheme {
           color: Color(0xFFB7BEC9),
         ),
       ),
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(   // CardThemeData only exists from Flutter 3.27; CI pins 3.24
         color: surfaceContainer,
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),

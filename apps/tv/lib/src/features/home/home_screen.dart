@@ -11,7 +11,7 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final rows = const [
+    const rows = [
       _HomeRowSpec(zone: ZoneId('home-continue'), title: 'Continue Watching'),
       _HomeRowSpec(zone: ZoneId('home-live'), title: 'Live Now'),
       _HomeRowSpec(zone: ZoneId('home-sports'), title: 'Sports'),
