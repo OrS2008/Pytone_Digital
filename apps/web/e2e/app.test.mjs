@@ -97,6 +97,26 @@ for (const [devName, device] of [['phone', PHONE], ['desktop', DESKTOP]]) {
   });
 }
 
+for (const [devName, device] of [['phone', PHONE], ['desktop', DESKTOP]]) {
+  test(`raw MPEG-TS channel plays through mpegts.js — ${devName}`, async () => {
+    const ctx = await newContext({ device });
+    await ctx.route((u) => u.pathname === '/api/m3u', (r) => r.fulfill({
+      status: 200, contentType: 'application/x-mpegurl',
+      body: '#EXTM3U\n#EXTINF:-1 group-title="News",Raw TS Channel\nhttps://streams.test/raw/live.ts\n',
+    }));
+    const { page, problems } = await open(ctx, '/tv/live?ch=1', { settle: 300 });
+    // The fixture is a finite file delivered instantly, so mpegts.js's live
+    // latency chasing jumps to the live edge; "time keeps advancing" is
+    // the wrong signal here. Decoded frames + no error is the right one.
+    await page.waitForFunction(() => { const v = document.querySelector('video'); return v && v.readyState >= 3 && v.currentTime > 0; }, null, { timeout: 20000 });
+    const src = await page.evaluate(() => document.querySelector('video')?.src || '');
+    assert.match(src, /^blob:/, 'played via Media Source (mpegts.js), not a direct src');
+    assert.equal(await page.$('.player-error-msg'), null);
+    assert.deepEqual(problems, []);
+    await ctx.close();
+  });
+}
+
 test('home → tap a channel → it plays (phone)', async () => {
   const ctx = await newContext();
   const { page } = await open(ctx, '/tv/home');

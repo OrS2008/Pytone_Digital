@@ -97,6 +97,7 @@ test('xtream client: playback URLs, HLS preference, timeshift in the server time
   net = mockFetch(xtreamRoutes({ formats: ['ts'] }));
   const tsOnly = makeClient('xtream', { server: XT.server, username: XT.user, password: XT.pass });
   assert.ok((await tsOnly.resolve({ kind: 'live', id: '101' })).url.endsWith('.ts'));
+  assert.equal(await tsOnly.preferredLiveExt(), 'ts');
 });
 
 // ─────────────────────────────── Stalker client ───────────────────────────────

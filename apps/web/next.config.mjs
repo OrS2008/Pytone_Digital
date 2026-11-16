@@ -47,6 +47,10 @@ const nextConfig = {
       "frame-src 'self' https://accounts.google.com",
       "connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://api.stripe.com https:",
       "font-src 'self' data:",
+      // hls.js and mpegts.js transmux in a Web Worker created from a
+      // blob: URL. Without this the worker is blocked: mpegts.js cannot
+      // start at all and hls.js silently falls back to the main thread.
+      "worker-src 'self' blob:",
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self' https://checkout.stripe.com https://billing.stripe.com",

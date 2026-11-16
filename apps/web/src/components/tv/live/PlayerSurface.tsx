@@ -212,9 +212,22 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     const canNative = preferNativeHls(video);
 
     function isHlsUrl(u: string) { return /\.m3u8(\?|$)/i.test(u); }
+    // Raw MPEG-TS (`…/123.ts`, typical of Xtream panels and many M3U
+    // lists). No browser plays it natively; mpegts.js remuxes it to
+    // fragmented MP4 through Media Source Extensions. Without MSE
+    // (iPhone Safari) the stream still cannot play and the error card
+    // says so.
+    function isRawTsUrl(u: string) { return /\.(ts|mpegts)(\?|$)/i.test(u); }
+
+    // mpegts.js player for the current candidate, if any.
+    let tsPlayer: { destroy(): void; unload(): void; detachMediaElement(): void } | null = null;
 
     function destroyHls() {
       if (hls) { try { hls.destroy(); } catch { /* ignore */ } hls = null; }
+      if (tsPlayer) {
+        try { tsPlayer.unload(); tsPlayer.detachMediaElement(); tsPlayer.destroy(); } catch { /* ignore */ }
+        tsPlayer = null;
+      }
     }
 
     function clearStall() {
@@ -287,7 +300,7 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     // error detector, which is why it was tuned aggressively enough
     // to misfire on healthy streams.
     function onVideoError() {
-      if (cancelled || hls) return; // hls.js reports through its own handler
+      if (cancelled || hls || tsPlayer) return; // hls.js / mpegts.js report through their own handlers
       const me = video.error;
       if (me) {
         const kind = ({
@@ -479,6 +492,46 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
           h.attachMedia(video);
         } catch (e) {
           setErr(`HLS init failed: ${(e as Error).message}`);
+        }
+      } else if (isRawTsUrl(upstream)) {
+        try {
+          const mod = await import('mpegts.js');
+          if (cancelled) return;
+          const mpegts = (mod.default ?? mod) as unknown as {
+            isSupported(): boolean;
+            createPlayer(src: Record<string, unknown>, cfg?: Record<string, unknown>): {
+              attachMediaElement(v: HTMLVideoElement): void; load(): void; play(): Promise<void> | void;
+              on(ev: string, cb: (...a: unknown[]) => void): void;
+              destroy(): void; unload(): void; detachMediaElement(): void;
+            };
+            Events: { ERROR: string };
+          };
+          if (!mpegts.isSupported()) {
+            noteCause('raw MPEG-TS needs Media Source Extensions, which this browser lacks', true);
+            failAll();
+            return;
+          }
+          // The URL is relative to our origin (the proxy); mpegts.js
+          // fetches it with fetch() and the session cookie travels along.
+          const absolute = new URL(proxiedUrl, window.location.href).toString();
+          const player = mpegts.createPlayer(
+            { type: 'mpegts', isLive: true, url: absolute },
+            { enableWorker: true, liveBufferLatencyChasing: true, lazyLoad: false, autoCleanupSourceBuffer: true },
+          );
+          tsPlayer = player;
+          player.on(mpegts.Events.ERROR, (...args: unknown[]) => {
+            if (cancelled) return;
+            const [type, detail, info] = args as [string, string, { code?: number; msg?: string } | undefined];
+            noteCause(info?.code ? `${detail || type}, HTTP ${info.code}` : (detail || type || 'MPEG-TS error'));
+            clearStall();
+            if (candidateIdx + 1 < candidates.length) tryCandidate(candidateIdx + 1);
+            else failAll();
+          });
+          player.attachMediaElement(video);
+          player.load();
+          if (autoPlay) Promise.resolve(player.play()).catch(() => {/* gesture-required */});
+        } catch (e) {
+          setErr(`MPEG-TS init failed: ${(e as Error).message}`);
         }
       } else {
         video.src = proxiedUrl;

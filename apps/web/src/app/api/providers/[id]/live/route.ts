@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { loadOwned, clientFor, errorResponse, cacheable } from '@/lib/providers/http';
+import { XtreamClient } from '@/lib/providers/xtream';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -16,6 +17,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const client = clientFor(owned.record);
     const [categories, channels] = await Promise.all([client.liveCategories(), client.liveChannels()]);
+    // The play path's extension tells the player which engine to use
+    // (hls.js vs mpegts.js) before it follows the redirect.
+    const liveExt = client instanceof XtreamClient ? await client.preferredLiveExt() : 'm3u8';
     const catName = new Map(categories.map((c) => [c.id, c.name]));
     const base = `/api/providers/${id}/play`;
     return NextResponse.json({
@@ -26,7 +30,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         name: c.name,
         logoUrl: c.logo,
         category: catName.get(c.categoryId) || 'Other',
-        streamUrl: `${base}/live/${encodeURIComponent(c.id)}.m3u8`,
+        streamUrl: `${base}/live/${encodeURIComponent(c.id)}.${liveExt}`,
         tvgId: c.epgId || undefined,
         ...(c.catchupDays > 0 ? {
           catchupKind: 'vod',

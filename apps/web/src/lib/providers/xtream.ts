@@ -249,6 +249,15 @@ export class XtreamClient implements ProviderClient {
     };
   }
 
+  /** HLS whenever the panel allows it (plays everywhere); raw MPEG-TS
+   *  only for TS-only panels (needs MSE in the browser). Panels that send
+   *  no list usually allow both. */
+  async preferredLiveExt(): Promise<'m3u8' | 'ts'> {
+    await this.ensureLogin();
+    const formats = this.info?.user.allowed_output_formats;
+    return !formats || formats.length === 0 || formats.includes('m3u8') ? 'm3u8' : 'ts';
+  }
+
   private path(kind: string, id: string, ext: string): string {
     const u = encodeURIComponent(this.cfg.username);
     const p = encodeURIComponent(this.cfg.password);
@@ -258,14 +267,8 @@ export class XtreamClient implements ProviderClient {
   async resolve(ref: PlayRef): Promise<ResolvedStream> {
     if (!/^[\w-]{1,32}$/.test(ref.id)) throw new ProviderError('invalid_config', 'bad id');
     switch (ref.kind) {
-      case 'live': {
-        await this.ensureLogin();
-        const formats = this.info?.user.allowed_output_formats;
-        // HLS whenever the panel allows it — raw MPEG-TS cannot play in
-        // a browser. Panels that send no list usually allow both.
-        const ext = !formats || formats.length === 0 || formats.includes('m3u8') ? 'm3u8' : 'ts';
-        return { url: this.path('live', ref.id, ext) };
-      }
+      case 'live':
+        return { url: this.path('live', ref.id, await this.preferredLiveExt()) };
       case 'movie':   return { url: this.path('movie', ref.id, safeExt(ref.ext, 'mp4')) };
       case 'episode': return { url: this.path('series', ref.id, safeExt(ref.ext, 'mp4')) };
       case 'catchup': {
