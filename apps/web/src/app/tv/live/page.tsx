@@ -975,7 +975,7 @@ export default function LivePage() {
                 title={t('live.zoomReset')}
                 aria-label={t('live.zoomReset')}
               >
-                <span className="live-zoom-badge-x">{zoom.scale.toFixed(1)}×</span>
+                <span className="live-zoom-badge-x">{zoom.filled ? t('live.zoomFill') : `${zoom.scale.toFixed(1)}×`}</span>
                 <span>{t('live.zoomReset')}</span>
               </button>
             )}

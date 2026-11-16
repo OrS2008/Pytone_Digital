@@ -816,5 +816,8 @@ const en: Record<string, string> = {
   "groups.noChannels": "Add a playlist first:",
   "groups.searchPh": "Search channels to add",
   "ac.nav.groups": "Channel groups",
+
+  // --- Pinch to fill ---
+  "live.zoomFill": "Full screen",
 };
 export default en;

@@ -9,9 +9,14 @@ import type { RefObject } from 'react';
  * Gestures, all handled on the container so they work wherever the
  * fingers land (over the picture, the letterbox bars or the info bar):
  *
- *   - two-finger pinch   zoom the picture 1x–MAX around the pinch point
- *   - one-finger drag    pan while zoomed
- *   - double-tap         toggle 1x <-> DOUBLE_TAP_SCALE at the tap point
+ *   - two-finger pinch   zoom the picture 1x–MAX around the pinch point.
+ *                        Released between "fit" and "fill" it snaps:
+ *                        pinching out → FILL (the picture covers the
+ *                        whole screen, no black bars — the edges that
+ *                        overflow are cropped), pinching in → fit.
+ *   - one-finger drag    pan while zoomed (never past the picture edge)
+ *   - double-tap         toggle fit <-> fill (or DOUBLE_TAP_SCALE when
+ *                        the picture already matches the screen)
  *   - ctrl + wheel       trackpad pinch on laptops
  *   - pinch-in at 1x     onPinchClose() — the caller leaves fullscreen
  *
@@ -31,6 +36,18 @@ const DOUBLE_TAP_MS = 300;
 const TAP_SLOP_PX = 12;
 /** Pinching below this while already at 1x means "close the player". */
 const CLOSE_RATIO = 0.72;
+/** Above this "fill" crops too much to be a sensible snap target
+ *  (e.g. a 16:9 picture on a portrait phone); pinch stays free-form. */
+const MAX_FILL = 1.6;
+/** Fill mode is remembered on this device across channels / sessions. */
+const FILL_KEY = 'ns.player.fill';
+
+function readFillPref(): boolean {
+  try { return localStorage.getItem(FILL_KEY) === '1'; } catch { return false; }
+}
+function writeFillPref(on: boolean) {
+  try { localStorage.setItem(FILL_KEY, on ? '1' : '0'); } catch { /* storage unavailable */ }
+}
 
 interface Options {
   /** Gestures are only live while this is true (i.e. in fullscreen). */
@@ -55,22 +72,39 @@ function onControl(target: EventTarget | null): boolean {
 export function usePinchZoom(
   containerRef: RefObject<HTMLElement | null>,
   { enabled, getTarget, onPinchClose, resetKey }: Options,
-): { scale: number; reset: () => void } {
+): { scale: number; filled: boolean; reset: () => void } {
   const view = useRef<View>({ s: 1, x: 0, y: 0 });
   const [scale, setScale] = useState(1);
+  const [filled, setFilled] = useState(false);
+  // Sticky "fill the screen" choice; survives channel changes.
+  const fillMode = useRef(false);
+  useEffect(() => { fillMode.current = readFillPref(); }, []);
   const getTargetRef = useRef(getTarget);
   const closeRef = useRef(onPinchClose);
   getTargetRef.current = getTarget;
   closeRef.current = onPinchClose;
 
-  const apply = useCallback((next: View, animate = false) => {
+  // Size of the visible picture at 1x (the <video> letterboxes with
+  // object-fit: contain) and the scale at which it covers the screen.
+  const geometry = useCallback(() => {
     const box = containerRef.current;
     const w = box?.clientWidth ?? 0;
     const h = box?.clientHeight ?? 0;
+    const el = getTargetRef.current();
+    const vw = el instanceof HTMLVideoElement ? el.videoWidth : 0;
+    const vh = el instanceof HTMLVideoElement ? el.videoHeight : 0;
+    if (!w || !h || !vw || !vh) return { w, h, picW: w, picH: h, fill: 1 };
+    const c = Math.min(w / vw, h / vh);
+    const picW = vw * c, picH = vh * c;
+    return { w, h, picW, picH, fill: Math.max(w / picW, h / picH) };
+  }, [containerRef]);
+
+  const apply = useCallback((next: View, animate = false) => {
+    const { w, h, picW, picH, fill } = geometry();
     const s = Math.min(MAX, Math.max(MIN, next.s));
-    // Keep the scaled picture covering the frame — never pan past an edge.
-    const maxX = ((s - 1) * w) / 2;
-    const maxY = ((s - 1) * h) / 2;
+    // Pan only as far as the picture reaches — never into black.
+    const maxX = Math.max(0, (picW * s - w) / 2);
+    const maxY = Math.max(0, (picH * s - h) / 2);
     const x = Math.min(maxX, Math.max(-maxX, next.x));
     const y = Math.min(maxY, Math.max(-maxY, next.y));
     view.current = { s, x, y };
@@ -82,14 +116,32 @@ export function usePinchZoom(
     }
     const shown = Math.round(s * 10) / 10;
     setScale((prev) => (prev === shown ? prev : shown));
-  }, [containerRef]);
+    const isFill = fill > 1.01 && Math.abs(s - fill) < 0.02;
+    setFilled((prev) => (prev === isFill ? prev : isFill));
+  }, [geometry]);
 
-  const reset = useCallback(() => apply({ s: 1, x: 0, y: 0 }, true), [apply]);
+  /** Fill target, or 0 when filling makes no sense right now. */
+  const fillTarget = useCallback(() => {
+    const f = geometry().fill;
+    return f > 1.01 && f <= MAX_FILL ? f : 0;
+  }, [geometry]);
 
-  // New channel / leaving fullscreen → start from an un-zoomed picture.
+  const setFill = useCallback((on: boolean, animate = true) => {
+    fillMode.current = on;
+    writeFillPref(on);
+    const f = on ? fillTarget() : 0;
+    apply({ s: f || 1, x: 0, y: 0 }, animate);
+  }, [apply, fillTarget]);
+
+  const reset = useCallback(() => setFill(false), [setFill]);
+
+  // New channel / entering or leaving fullscreen: start from fit, or
+  // from fill when the user chose it (applied again once the new
+  // stream reports its size — see the media listeners below).
   useEffect(() => {
-    apply({ s: 1, x: 0, y: 0 });
-  }, [resetKey, enabled, apply]);
+    const f = enabled && fillMode.current ? fillTarget() : 0;
+    apply({ s: f || 1, x: 0, y: 0 });
+  }, [resetKey, enabled, apply, fillTarget]);
 
   useEffect(() => {
     const box = containerRef.current;
@@ -182,8 +234,13 @@ export function usePinchZoom(
         } else {
           g = null;
         }
+        const f = fillTarget();
+        const s = view.current.s;
         if (done.from.s === 1 && done.ratio < CLOSE_RATIO) closeRef.current?.();
-        else if (view.current.s < 1.05) apply({ s: 1, x: 0, y: 0 }, true);
+        else if (f && s > 1.03 && s < f * 0.98 && done.ratio > 1) setFill(true);   // pinched out → fill
+        else if (f && s < f * 0.98 && done.ratio < 1) setFill(false);              // pinched in → fit
+        else if (s < 1.05) setFill(false);
+        else { fillMode.current = !!f && Math.abs(s - f) < 0.02; writeFillPref(fillMode.current); }
         e.preventDefault();          // no synthetic click after a pinch
         lastTap = { t: 0, x: 0, y: 0 };
         return;
@@ -209,7 +266,8 @@ export function usePinchZoom(
           if (pausedBeforeTap) v.pause();
           else v.play().catch(() => { /* autoplay policy — leave paused */ });
         }
-        if (view.current.s > 1) apply({ s: 1, x: 0, y: 0 }, true);
+        if (view.current.s > 1) setFill(false);
+        else if (fillTarget()) setFill(true);
         else zoomAt(DOUBLE_TAP_SCALE, t.clientX, t.clientY, view.current, true);
       } else {
         lastTap = { t: now, x: t.clientX, y: t.clientY };
@@ -227,14 +285,24 @@ export function usePinchZoom(
       zoomAt(view.current.s * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY, view.current);
     };
 
-    // Rotation / resize changes the pan limits — re-clamp.
-    const onResize = () => apply(view.current);
+    // Rotation / resize changes the fill scale and pan limits. In fill
+    // mode re-fill (e.g. portrait → landscape); otherwise re-clamp.
+    const onResize = () => {
+      if (fillMode.current) { const f = fillTarget(); apply({ s: f || 1, x: 0, y: 0 }); }
+      else apply(view.current);
+    };
+    // The stream's size arrives after the element mounts (and changes on
+    // channel switch or quality change). Media events don't bubble, so
+    // listen in the capture phase on the container.
+    const onMedia = (e: Event) => { if (e.target instanceof HTMLVideoElement) onResize(); };
 
     box.addEventListener('touchstart', onStart, { passive: false });
     box.addEventListener('touchmove', onMove, { passive: false });
     box.addEventListener('touchend', onEnd, { passive: false });
     box.addEventListener('touchcancel', onCancel);
     box.addEventListener('wheel', onWheel, { passive: false });
+    box.addEventListener('loadedmetadata', onMedia, true);
+    box.addEventListener('resize', onMedia, true);
     window.addEventListener('resize', onResize);
     return () => {
       box.removeEventListener('touchstart', onStart);
@@ -242,9 +310,11 @@ export function usePinchZoom(
       box.removeEventListener('touchend', onEnd);
       box.removeEventListener('touchcancel', onCancel);
       box.removeEventListener('wheel', onWheel);
+      box.removeEventListener('loadedmetadata', onMedia, true);
+      box.removeEventListener('resize', onMedia, true);
       window.removeEventListener('resize', onResize);
     };
-  }, [enabled, containerRef, apply]);
+  }, [enabled, containerRef, apply, fillTarget, setFill]);
 
-  return { scale, reset };
+  return { scale, filled, reset };
 }

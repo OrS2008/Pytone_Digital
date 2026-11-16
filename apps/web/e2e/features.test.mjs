@@ -2,7 +2,9 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { newContext, open, closeBrowser, DESKTOP, PHONE, BASE } from './harness.mjs';
+import { newContext, open, closeBrowser, DESKTOP, PHONE, BASE, waitPlaying, touchDriver, zoomState } from './harness.mjs';
+import { createRequire } from 'node:module';
+const { devices } = createRequire(import.meta.url)('playwright');
 
 after(closeBrowser);
 
@@ -140,5 +142,58 @@ test('legal pages: Hebrew translation, RTL, language switch, no dynamic "last up
     assert.deepEqual(problems, []);
     await page.close();
   }
+  await ctx.close();
+});
+
+test('pinch to fill: landscape phone fills the screen with no black bars, remembered across channels', async () => {
+  const ctx = await newContext({ device: { ...devices['Pixel 7 landscape'] } });
+  let { page, problems } = await open(ctx, '/tv/live?ch=2', { settle: 300 });
+  assert.ok(await waitPlaying(page) >= 0);
+  const { width: W, height: H } = page.viewportSize();
+  const geo = () => page.evaluate(() => {
+    const v = document.querySelector('.live-player-overlay video');
+    const o = document.querySelector('.live-player-overlay');
+    const c = Math.min(o.clientWidth / v.videoWidth, o.clientHeight / v.videoHeight);
+    return { picW: v.videoWidth * c, picH: v.videoHeight * c };
+  });
+  const { picW, picH } = await geo();
+  const fill = Math.max(W / picW, H / picH);
+  assert.ok(fill > 1.05 && fill <= 1.6, `fixture should letterbox in landscape (fill=${fill})`);
+  const t = await touchDriver(ctx, page);
+  const cx = W / 2, cy = H / 2;
+
+  // A small pinch-out snaps to fill.
+  await t.pinch(cx, cy, 60, 68);
+  let s = await zoomState(page);
+  assert.ok(Math.abs(s.scale - fill) < 0.01, `pinch-out should snap to fill ${fill.toFixed(3)}, got ${s.scale}`);
+  assert.ok(picW * s.scale >= W - 1 && picH * s.scale >= H - 1, 'picture covers the whole screen');
+  assert.equal(await page.textContent('.live-zoom-badge-x'), 'Full screen');
+
+  // Panning never reveals black: horizontally the picture fits exactly.
+  await t.drag(cx + 100, cy, cx - 600);
+  s = await zoomState(page);
+  assert.ok(Math.abs(s.x) <= Math.max(0, (picW * s.scale - W) / 2) + 1, `pan stays inside the picture (x=${s.x})`);
+  await page.close();
+
+  // Remembered: another channel opens filled.
+  ({ page } = await open(ctx, '/tv/live?ch=3', { settle: 300 }));
+  assert.ok(await waitPlaying(page) >= 0);
+  await page.waitForTimeout(400);
+  s = await zoomState(page);
+  assert.ok(Math.abs(s.scale - fill) < 0.01, `fill is remembered across channels, got ${s.scale}`);
+
+  // Pinch in from fill → back to the whole picture (does not close).
+  const t2 = await touchDriver(ctx, page);
+  await t2.pinch(cx, cy, 68, 60);
+  s = await zoomState(page);
+  assert.equal(s.watching, true);
+  assert.equal(s.scale, 1, 'pinch-in from fill returns to fit');
+
+  // Double-tap toggles fit ↔ fill.
+  await t2.doubleTap(cx, cy);
+  assert.ok(Math.abs((await zoomState(page)).scale - fill) < 0.01, 'double-tap at fit fills');
+  await t2.doubleTap(cx, cy);
+  assert.equal((await zoomState(page)).scale, 1, 'double-tap at fill fits');
+  assert.deepEqual(problems, []);
   await ctx.close();
 });

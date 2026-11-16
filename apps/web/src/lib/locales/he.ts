@@ -816,5 +816,8 @@ const he: Record<string, string> = {
   "groups.noChannels": "הוסיפו קודם פלייליסט:",
   "groups.searchPh": "חיפוש ערוצים להוספה",
   "ac.nav.groups": "קבוצות ערוצים",
+
+  // --- Pinch to fill ---
+  "live.zoomFill": "מסך מלא",
 };
 export default he;

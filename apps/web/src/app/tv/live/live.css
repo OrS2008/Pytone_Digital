@@ -782,8 +782,11 @@
   touch-action: none;
 }
 .live-player-overlay .player-surface {
+  /* inset:0 on a fixed overlay = exactly the visible screen. 100vh was
+     taller than the visible area on Android (it ignores the browser /
+     system UI), which shifted the picture and left a bar. */
   position: absolute; inset: 0;
-  width: 100vw; height: 100vh;
+  width: 100%; height: 100%;
 }
 .live-close {
   position: absolute;
