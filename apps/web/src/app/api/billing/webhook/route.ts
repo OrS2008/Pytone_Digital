@@ -61,19 +61,26 @@ export async function POST(req: NextRequest) {
   try {
     event = await stripe().webhooks.constructEventAsync(raw, sig, secret, undefined, cryptoProvider);
   } catch (e) {
-    return NextResponse.json({ error: `Bad signature: ${(e as Error).message}` }, { status: 400 });
+    console.warn('[billing] webhook signature rejected');
+    return NextResponse.json({ error: 'bad_signature' }, { status: 400 });
   }
 
   // Idempotency: Stripe retries any non-2xx with exponential backoff,
   // and even successful webhooks can arrive twice during DNS / TLS
   // hiccups. Dedupe by event.id within a sliding window so the same
   // checkout.session.completed doesn't flip the customer state twice.
-  if (seenEvent(event.id)) {
+  // The in-memory map only helps within one edge isolate; the KV marker
+  // makes "processed once" hold across the deployment. The handlers are
+  // also safe to repeat, so a race between two deliveries is harmless.
+  const kv = getKV();
+  const seenKey = `stripe_evt:${event.id}`;
+  if (seenEvent(event.id) || (kv && (await kv.get(seenKey).catch(() => null)))) {
     return NextResponse.json({ received: true, duplicate: true });
   }
 
   try {
     await handle(event);
+    if (kv) await kv.put(seenKey, '1', { expirationTtl: 7 * 24 * 3600 }).catch(() => {});
     return NextResponse.json({ received: true });
   } catch (e) {
     // Release the dedupe entry: it was claimed before handling, so
@@ -86,7 +93,8 @@ export async function POST(req: NextRequest) {
     }
     // Returning 500 makes Stripe retry with exponential backoff, which
     // is what we want for transient failures (DB unavailable, etc.).
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    console.error('[billing] webhook handler failed', { type: event.type, id: event.id, error: (e as Error).message });
+    return NextResponse.json({ error: 'handler_failed' }, { status: 500 });
   }
 }
 

@@ -29,6 +29,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { validateUpstreamUrl, safeFetch, SsrfBlocked } from '@/lib/ssrfGuard';
+import { requireViewer } from '@/lib/viewerAuth';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -71,15 +72,8 @@ const SNIFF_BYTES = 2048;
 // to pick a recent entry rather than the oldest one in the window.
 const MANIFEST_SNIFF_BYTES = 8192;
 
-function isAllowedCaller(req: NextRequest): boolean {
-  const ref = req.headers.get('origin') || req.headers.get('referer') || '';
-  if (!ref) return false;
-  let refHost: string;
-  try { refHost = new URL(ref).host; } catch { return false; }
-  if (refHost === (req.headers.get('host') || '')) return true;
-  const extra = (process.env.ALLOWED_HOSTS || '').split(',').map((s) => s.trim()).filter(Boolean);
-  return extra.includes(refHost);
-}
+// Access control: lib/viewerAuth (session + active trial/subscription +
+// per-account rate limit). Replaces a forgeable Referer check.
 
 // Header values become outbound headers, so they are sanitised exactly
 // as in /api/stream rather than trusted.
@@ -274,8 +268,8 @@ async function probeOne(item: ProbeItem, budget: { used: number }): Promise<Prob
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAllowedCaller(req)) return new Response('forbidden', { status: 403 });
-
+  const viewer = await requireViewer(req, { limit: { bucket: 'probe', max: 120, windowSec: 300 } });
+  if (viewer instanceof Response) return viewer;
   let body: { items?: unknown };
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: 'bad_json' }, { status: 400 }); }

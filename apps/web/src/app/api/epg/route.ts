@@ -5,6 +5,8 @@
 
 import { NextRequest } from 'next/server';
 import { validateUpstreamUrl, safeFetch, SsrfBlocked } from '@/lib/ssrfGuard';
+import { requireViewer } from '@/lib/viewerAuth';
+import { corsFor } from '@/lib/cors';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -12,19 +14,12 @@ export const dynamic = 'force-dynamic';
 const MAX_BYTES = 96 * 1024 * 1024; // 96 MB — large country guides exist
 const TIMEOUT_MS = 30_000;
 
-function isAllowedCaller(req: NextRequest): boolean {
-  const ref = req.headers.get('origin') || req.headers.get('referer') || '';
-  if (!ref) return false;
-  let refHost: string;
-  try { refHost = new URL(ref).host; } catch { return false; }
-  const ownHost = req.headers.get('host') || '';
-  if (refHost === ownHost) return true;
-  const extra = (process.env.ALLOWED_HOSTS || '').split(',').map((s) => s.trim()).filter(Boolean);
-  return extra.includes(refHost);
-}
+// Access control: lib/viewerAuth (session + active trial/subscription +
+// per-account rate limit). Replaces a forgeable Referer check.
 
 export async function GET(req: NextRequest) {
-  if (!isAllowedCaller(req)) return new Response('forbidden', { status: 403 });
+  const viewer = await requireViewer(req, { limit: { bucket: 'epg', max: 20, windowSec: 300 } });
+  if (viewer instanceof Response) return viewer;
   const target = req.nextUrl.searchParams.get('url');
   if (!target) return new Response('missing ?url=', { status: 400 });
 
@@ -93,7 +88,6 @@ export async function GET(req: NextRequest) {
     cancel() { reader.cancel(); },
   });
 
-  const corsOrigin = req.headers.get('origin') || '';
   return new Response(stream, {
     status: 200,
     headers: {
@@ -105,7 +99,7 @@ export async function GET(req: NextRequest) {
       // Defense-in-depth: proxied XML must never be sniffed into an
       // active document type in our origin.
       'x-content-type-options': 'nosniff',
-      ...(corsOrigin ? { 'access-control-allow-origin': corsOrigin, vary: 'Origin' } : {}),
+      ...corsFor(req),
     },
   });
 }

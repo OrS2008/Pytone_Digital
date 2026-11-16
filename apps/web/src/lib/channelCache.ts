@@ -149,6 +149,8 @@ export function localM3UKey(id: string): string {
 export interface LoadResult {
   channels: M3UChannel[];
   error?:   string;
+  /** Machine-readable reason, when the failure is about the account. */
+  code?:    'auth' | 'expired';
   /** Input-vs-output counts for the parse that produced `channels`. */
   stats?:   ParseStats;
 }
@@ -187,6 +189,8 @@ async function fetchAndParse(url: string): Promise<LoadResult> {
     if (!r.ok) {
       const body = await r.text().catch(() => '');
       const trimmed = body.trim().slice(0, 200);
+      if (r.status === 401) return { channels: [], error: 'Sign in to load your playlist.', code: 'auth' };
+      if (r.status === 402) return { channels: [], error: 'Your free trial has ended. Subscribe to keep watching.', code: 'expired' };
       return { channels: [], error: `Playlist proxy returned ${r.status}${trimmed ? ` — ${trimmed}` : ''}` };
     }
     text = await r.text();

@@ -215,7 +215,7 @@ async function dohResolvesToPrivate(hostname: string): Promise<boolean> {
         `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=${type}`,
         { headers: { accept: 'application/dns-json' }, signal: AbortSignal.timeout(2500) },
       );
-      if (!r.ok) return [] as Array<{ type: number; data: string }>;
+      if (!r.ok) throw new Error(`DoH ${r.status}`);
       const j = await r.json() as { Answer?: Array<{ type: number; data: string }> };
       return j.Answer ?? [];
     }));
@@ -224,7 +224,12 @@ async function dohResolvesToPrivate(hostname: string): Promise<boolean> {
       if (ans.type === 28 && isPrivateIPv6(ans.data)) { isPriv = true; break; } // AAAA
     }
     dohCache.set(hostname, { private: isPriv, at: Date.now() });
-  } catch { /* DoH failed — don't block, don't cache */ }
+  } catch {
+    // The lookup itself failed. Fail CLOSED: an attacker who can make
+    // the DNS check time out must not thereby skip it. Not cached, so
+    // the next request retries.
+    throw new SsrfBlocked('refused: could not verify where the hostname resolves');
+  }
   return isPriv;
 }
 

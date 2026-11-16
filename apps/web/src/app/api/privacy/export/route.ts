@@ -22,6 +22,7 @@
 // them per-user; the user can sign out other devices from
 // Settings → Security.
 
+import { readSettingsText } from '@/lib/settingsStore';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireKV } from '@/lib/cfEnv';
 import { readSession, readSessionCookie, SESSION_DAYS } from '@/lib/auth/serverSession';
@@ -41,7 +42,8 @@ export async function GET(req: NextRequest) {
   const user = await findUserByEmail(kv, session.email);
   if (!user) return NextResponse.json({ error: 'user_not_found' }, { status: 404 });
 
-  const settingsRaw = await kv.get(`settings:${user.userId}`);
+  // Decrypted for the user's own export (the file is theirs).
+  const settingsRaw = await readSettingsText(kv, user.userId);
   let settings: unknown = {};
   if (settingsRaw) {
     try { settings = JSON.parse(settingsRaw); } catch { settings = settingsRaw; }

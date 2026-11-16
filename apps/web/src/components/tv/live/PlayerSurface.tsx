@@ -256,6 +256,10 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
     // have a single URL — must not be told that "every catch-up URL
     // format" failed.
     function failAll() {
+      // The proxy answers 401 / 402 when the viewer is signed out or the
+      // trial has ended — that is not a broken channel, so say what to do.
+      if (/HTTP 401\b/.test(lastCause)) { setErr('__auth__'); return; }
+      if (/HTTP 402\b/.test(lastCause)) { setErr('__expired__'); return; }
       // Direct streaming depends on the provider's CDN allowing
       // cross-origin, https requests — plenty don't. Before giving up,
       // run the same channel once more through the proxy, which works
@@ -709,9 +713,24 @@ export default function PlayerSurface({ channel, autoPlay = true, startUnmuted =
                   <line x1="12" y1="16" x2="12.01" y2="16"/>
                 </svg>
               </div>
-              <div className="player-error-title">{t('live.cantPlay')}</div>
-              <div className="player-error-msg">{channel.name} · {err}</div>
-              <div className="player-error-hint">{t('live.streamHelp')}</div>
+              {err === '__auth__' || err === '__expired__' ? (
+                <>
+                  <div className="player-error-title">{err === '__auth__' ? t('live.needSignIn') : t('live.trialEnded')}</div>
+                  <a
+                    className="player-error-cta"
+                    href={err === '__auth__' ? '/tv/login' : '/tv/account/plans'}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {err === '__auth__' ? t('live.signInCta') : t('live.plansCta')}
+                  </a>
+                </>
+              ) : (
+                <>
+                  <div className="player-error-title">{t('live.cantPlay')}</div>
+                  <div className="player-error-msg">{channel.name} · {err}</div>
+                  <div className="player-error-hint">{t('live.streamHelp')}</div>
+                </>
+              )}
             </div>
           )}
         </>

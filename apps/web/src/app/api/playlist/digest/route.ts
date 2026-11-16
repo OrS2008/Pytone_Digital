@@ -19,6 +19,7 @@ import { NextRequest } from 'next/server';
 import { getKV } from '@/lib/cfEnv';
 import { buildDigest, digestCacheKey, type PlaylistDigest } from '@/lib/digest';
 import { validateUpstreamUrl, safeFetch } from '@/lib/ssrfGuard';
+import { requireViewer } from '@/lib/viewerAuth';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -34,16 +35,8 @@ function validUrl(target: string): URL | null {
   return 'reason' in check ? null : check.url;
 }
 
-function isAllowedCaller(req: NextRequest): boolean {
-  const ref = req.headers.get('origin') || req.headers.get('referer') || '';
-  if (!ref) return false;
-  let refHost: string;
-  try { refHost = new URL(ref).host; } catch { return false; }
-  const ownHost = req.headers.get('host') || '';
-  if (refHost === ownHost) return true;
-  const extra = (process.env.ALLOWED_HOSTS || '').split(',').map((s) => s.trim()).filter(Boolean);
-  return extra.includes(refHost);
-}
+// Access control: lib/viewerAuth (session + active trial/subscription +
+// per-account rate limit). Replaces a forgeable Referer check.
 
 async function fetchText(u: URL, maxBytes: number, tryGunzip: boolean): Promise<string> {
   const ac = new AbortController();
@@ -96,8 +89,8 @@ interface DigestEnvelope {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAllowedCaller(req)) return new Response('forbidden', { status: 403 });
-
+  const viewer = await requireViewer(req, { limit: { bucket: 'digest', max: 20, windowSec: 300 } });
+  if (viewer instanceof Response) return viewer;
   let body: { m3u?: string; epg?: string; nocache?: boolean };
   try { body = await req.json(); } catch { return new Response('invalid JSON', { status: 400 }); }
 

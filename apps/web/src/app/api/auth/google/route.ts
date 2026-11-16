@@ -17,6 +17,7 @@
 //   7. We return the email so the frontend can call setSessionEmail.
 
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, callerIp, tooManyRequests } from '@/lib/rateLimit';
 import { getKV } from '@/lib/cfEnv';
 import { findUserByEmail, createUserFromFirebase, normaliseEmail, touchLastLogin } from '@/lib/auth/users';
 import { createSession, setSessionCookieHeader } from '@/lib/auth/serverSession';
@@ -39,7 +40,17 @@ interface GoogleTokenInfo {
   error_description?: string;
 }
 
+// Per-IP budget: each attempt costs a call to Google and, on success, a
+// KV write — an unthrottled endpoint invites abuse and enumeration.
+const GOOGLE_MAX = 20;
+const GOOGLE_WINDOW_SEC = 10 * 60;
+
 export async function POST(req: NextRequest) {
+  const rlKv = getKV();
+  if (!rlKv) return NextResponse.json({ error: 'storage_unconfigured' }, { status: 503 });
+  const rl = await rateLimit(rlKv, 'google_signin', callerIp(req), GOOGLE_MAX, GOOGLE_WINDOW_SEC);
+  if (!rl.ok) return tooManyRequests(rl.retryAfter);
+
   const clientId =
     process.env.GOOGLE_CLIENT_ID ||
     process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;

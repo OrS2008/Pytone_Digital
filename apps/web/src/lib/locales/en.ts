@@ -490,5 +490,11 @@ const en: Record<string, string> = {
   "search.inCat": "in",
   "search.channels": "channels",
   "search.noResults": "No channels match.",
+
+  // --- Access errors ---
+  "live.needSignIn": "Sign in to watch. Your playlist is saved on this device.",
+  "live.trialEnded": "Your free trial has ended. Subscribe to keep watching.",
+  "live.signInCta": "Sign in",
+  "live.plansCta": "See plans",
 };
 export default en;

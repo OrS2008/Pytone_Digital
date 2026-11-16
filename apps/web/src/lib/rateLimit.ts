@@ -37,7 +37,13 @@ export async function rateLimit(
   try {
     const raw = await kv.get(key);
     count = raw ? parseInt(raw, 10) || 0 : 0;
-  } catch { /* KV read failed — fail open so a KV hiccup can't lock everyone out */ return { ok: true, remaining: max, retryAfter: 0 }; }
+  } catch {
+    // KV read failed. Fail CLOSED: an attacker who can make KV slow or
+    // flaky must not thereby switch brute-force protection off. Every
+    // caller of this helper also needs KV for the work it guards
+    // (sessions, user records), so refusing costs nothing extra.
+    return { ok: false, remaining: 0, retryAfter: 5 };
+  }
 
   if (count >= max) {
     const resetAt = (window + 1) * windowSec;
@@ -46,8 +52,10 @@ export async function rateLimit(
 
   // Bump the counter. TTL a little past the window so the key self-cleans.
   try {
-    await kv.put(key, String(count + 1), { expirationTtl: windowSec + 5 });
-  } catch { /* write failure — allow the request, don't hard-fail auth */ }
+    await kv.put(key, String(count + 1), { expirationTtl: Math.max(60, windowSec + 5) });
+  } catch {
+    return { ok: false, remaining: 0, retryAfter: 5 };   // fail closed — see above
+  }
 
   return { ok: true, remaining: max - count - 1, retryAfter: 0 };
 }

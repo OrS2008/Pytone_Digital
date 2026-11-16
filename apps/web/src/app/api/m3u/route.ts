@@ -22,6 +22,8 @@
 
 import { NextRequest } from 'next/server';
 import { validateUpstreamUrl, safeFetch, SsrfBlocked } from '@/lib/ssrfGuard';
+import { requireViewer } from '@/lib/viewerAuth';
+import { corsFor } from '@/lib/cors';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -34,26 +36,12 @@ const TIMEOUT_MS = 20_000;
 // requests whose Origin or Referer matches the host that is actually
 // serving this request — that way the gate works on any deploy
 // (Netlify, Cloudflare Pages, custom domain) without rebuild.
-function isAllowedCaller(req: NextRequest): boolean {
-  const ref = req.headers.get('origin') || req.headers.get('referer') || '';
-  if (!ref) return false;
-  let refHost: string;
-  try { refHost = new URL(ref).host; } catch { return false; }
-
-  // Same-origin is always allowed.
-  const ownHost = req.headers.get('host') || '';
-  if (refHost === ownHost) return true;
-
-  // Plus any additional hosts explicitly allowlisted by deploy env.
-  // Useful when a CDN or alternate domain fronts the same project.
-  const extra = (process.env.ALLOWED_HOSTS || '').split(',').map((s) => s.trim()).filter(Boolean);
-  return extra.includes(refHost);
-}
+// Access control: lib/viewerAuth (session + active trial/subscription +
+// per-account rate limit). Replaces a forgeable Referer check.
 
 export async function GET(req: NextRequest) {
-  if (!isAllowedCaller(req)) {
-    return new Response('forbidden', { status: 403 });
-  }
+  const viewer = await requireViewer(req, { limit: { bucket: 'playlist', max: 30, windowSec: 300 } });
+  if (viewer instanceof Response) return viewer;
   const target = req.nextUrl.searchParams.get('url');
   if (!target) return new Response('missing ?url=', { status: 400 });
 
@@ -114,7 +102,6 @@ export async function GET(req: NextRequest) {
   // would let any attacker site read the user's M3U from their own
   // origin while the user is signed in — same-site cookies wouldn't
   // help because cookies aren't on the response anyway.
-  const corsOrigin = req.headers.get('origin') || '';
   return new Response(stream, {
     status: 200,
     headers: {
@@ -124,7 +111,7 @@ export async function GET(req: NextRequest) {
       // active document type in our origin (Cloudflare Pages Functions
       // don't always inherit the global next.config headers).
       'x-content-type-options': 'nosniff',
-      ...(corsOrigin ? { 'access-control-allow-origin': corsOrigin, vary: 'Origin' } : {}),
+      ...corsFor(req),
     },
   });
 }

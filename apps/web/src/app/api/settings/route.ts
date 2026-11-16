@@ -18,6 +18,7 @@
 // expired accounts can't keep mutating server state without paying.
 
 import { NextRequest, NextResponse } from 'next/server';
+import { readSettingsText, writeSettingsText } from '@/lib/settingsStore';
 import { requireKV } from '@/lib/cfEnv';
 import { requireActiveAccess } from '@/lib/accessGuard';
 import { readSession, readSessionCookie } from '@/lib/auth/serverSession';
@@ -35,7 +36,18 @@ export async function GET(req: NextRequest) {
   const sid = readSessionCookie(req);
   const session = sid ? await readSession(kv, sid) : null;
   if (!session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  const raw = await kv.get(settingsKey(session.userId));
+  let raw: string | null;
+  try {
+    raw = await readSettingsText(kv, session.userId);
+  } catch {
+    return NextResponse.json({ error: 'storage_unavailable' }, { status: 503 });
+  }
+  if (raw === null && (await kv.get(settingsKey(session.userId))) !== null) {
+    // A blob exists but cannot be decrypted (key missing or rotated out).
+    // Never answer "empty" here: the client would treat that as "nothing
+    // saved" and overwrite the real data on its next sync.
+    return NextResponse.json({ error: 'settings_unreadable' }, { status: 503 });
+  }
   if (!raw) return NextResponse.json({ settings: {} }, { status: 200 });
   try {
     const parsed = JSON.parse(raw);
@@ -48,12 +60,20 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const guard = await requireActiveAccess(req);
   if (guard instanceof Response) return guard;
+  const declared = Number(req.headers.get('content-length') || 0);
+  if (declared > MAX_BLOB_BYTES) {
+    return NextResponse.json({ error: 'too_large', maxBytes: MAX_BLOB_BYTES }, { status: 413 });
+  }
   const text = await req.text();
   if (text.length > MAX_BLOB_BYTES) {
     return NextResponse.json({ error: 'too_large', maxBytes: MAX_BLOB_BYTES }, { status: 413 });
   }
-  try { JSON.parse(text); }
+  let parsed: unknown;
+  try { parsed = JSON.parse(text); }
   catch { return NextResponse.json({ error: 'bad_json' }, { status: 400 }); }
-  await guard.kv.put(settingsKey(guard.session.userId), text);
-  return NextResponse.json({ ok: true }, { status: 200 });
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return NextResponse.json({ error: 'bad_shape', detail: 'settings must be a JSON object' }, { status: 400 });
+  }
+  const { encrypted } = await writeSettingsText(guard.kv, guard.session.userId, text);
+  return NextResponse.json({ ok: true, encrypted }, { status: 200 });
 }

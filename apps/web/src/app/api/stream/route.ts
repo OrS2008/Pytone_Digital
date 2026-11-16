@@ -27,21 +27,18 @@
 
 import { NextRequest } from 'next/server';
 import { validateUpstreamUrl, safeFetch, SsrfBlocked } from '@/lib/ssrfGuard';
+import { requireViewer } from '@/lib/viewerAuth';
+import { corsFor } from '@/lib/cors';
+import { sealStreamTarget, openStreamTarget } from '@/lib/streamToken';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const TIMEOUT_MS = 30_000;
+const MAX_MANIFEST_BYTES = 4 * 1024 * 1024;
 
-function isAllowedCaller(req: NextRequest): boolean {
-  const ref = req.headers.get('origin') || req.headers.get('referer') || '';
-  if (!ref) return false;
-  let refHost: string;
-  try { refHost = new URL(ref).host; } catch { return false; }
-  if (refHost === (req.headers.get('host') || '')) return true;
-  const extra = (process.env.ALLOWED_HOSTS || '').split(',').map((s) => s.trim()).filter(Boolean);
-  return extra.includes(refHost);
-}
+// Access control: see lib/viewerAuth. This used to be a Referer check,
+// which any non-browser client can forge.
 
 type RewriteMode = 'proxy' | 'direct';
 
@@ -49,7 +46,13 @@ type RewriteMode = 'proxy' | 'direct';
 // nested manifests re-enter this route, and an upstream that gates on
 // User-Agent would reject every one of them if only the first request
 // carried the header.
-function rewriteOne(absUrl: string, mode: RewriteMode, extra: string): string {
+// When the manifest itself came from a sealed token, every URL inside it
+// is sealed too (`seal`), so provider credentials embedded in segment
+// paths never reach the browser. Direct mode is ignored for those.
+type Sealer = (absUrl: string) => Promise<string>;
+
+async function rewriteOne(absUrl: string, mode: RewriteMode, extra: string, sealer?: Sealer): Promise<string> {
+  if (sealer) return `/api/stream?t=${encodeURIComponent(await sealer(absUrl))}`;
   if (mode !== 'direct') return `/api/stream?url=${encodeURIComponent(absUrl)}${extra}`;
   // Direct mode: segments + keys go to the provider's CDN, but NESTED
   // manifests (variant playlists inside a master, audio rendition
@@ -125,7 +128,7 @@ function looksLikeArchiveRequest(upstreamUrl: URL, req: NextRequest): boolean {
 // Operates on text content only; if the body isn't an M3U we pass it
 // through untouched. Relative URLs are resolved against the manifest's
 // own absolute URL first.
-function rewriteManifest(text: string, manifestUrl: string, mode: RewriteMode, extra: string): string {
+async function rewriteManifest(text: string, manifestUrl: string, mode: RewriteMode, extra: string, sealer?: Sealer): Promise<string> {
   const base = new URL(manifestUrl);
   const out: string[] = [];
   for (const rawLine of text.split(/\r?\n/)) {
@@ -136,13 +139,17 @@ function rewriteManifest(text: string, manifestUrl: string, mode: RewriteMode, e
     // Tag lines that embed a URI attribute (encryption keys, init
     // segments, alt audio tracks, etc.) — rewrite the URI value.
     if (trimmed.startsWith('#')) {
-      const uriMatched = line.replace(/URI="([^"]+)"/g, (_m, uri: string) => {
+      let rebuilt = '';
+      let last = 0;
+      for (const m of line.matchAll(/URI="([^"]+)"/g)) {
+        rebuilt += line.slice(last, m.index);
         try {
-          const abs = new URL(uri, base).toString();
-          return `URI="${rewriteOne(abs, mode, extra)}"`;
-        } catch { return _m; }
-      });
-      out.push(uriMatched);
+          const abs = new URL(m[1], base).toString();
+          rebuilt += `URI="${await rewriteOne(abs, mode, extra, sealer)}"`;
+        } catch { rebuilt += m[0]; }
+        last = (m.index ?? 0) + m[0].length;
+      }
+      out.push(rebuilt + line.slice(last));
       continue;
     }
 
@@ -150,7 +157,7 @@ function rewriteManifest(text: string, manifestUrl: string, mode: RewriteMode, e
     // against the manifest's URL.
     try {
       const abs = new URL(trimmed, base).toString();
-      out.push(rewriteOne(abs, mode, extra));
+      out.push(await rewriteOne(abs, mode, extra, sealer));
     } catch {
       out.push(line);
     }
@@ -159,10 +166,24 @@ function rewriteManifest(text: string, manifestUrl: string, mode: RewriteMode, e
 }
 
 export async function GET(req: NextRequest) {
-  if (!isAllowedCaller(req)) return new Response('forbidden', { status: 403 });
+  const viewer = await requireViewer(req);
+  if (viewer instanceof Response) return viewer;
 
-  const target = req.nextUrl.searchParams.get('url');
-  if (!target) return new Response('missing ?url=', { status: 400 });
+  // Two ways in: ?url=<upstream> for playlists the user pasted (the
+  // browser already knows that URL), or ?t=<sealed token> for provider
+  // streams whose URL carries credentials (see lib/streamToken).
+  const token = req.nextUrl.searchParams.get('t');
+  let target = req.nextUrl.searchParams.get('url');
+  let tokenUa: string | undefined;
+  let tokenRef: string | undefined;
+  if (token) {
+    const opened = await openStreamTarget(token, viewer.userId);
+    if (!opened.ok) return new Response(`stream token ${opened.reason}`, { status: opened.reason === 'expired' ? 410 : 403 });
+    target = opened.target.url;
+    tokenUa = opened.target.ua;
+    tokenRef = opened.target.ref;
+  }
+  if (!target) return new Response('missing ?url= or ?t=', { status: 400 });
 
   const check = validateUpstreamUrl(target);
   if ('reason' in check) return new Response(check.reason, { status: 400 });
@@ -197,8 +218,8 @@ export async function GET(req: NextRequest) {
     if (!/^[\t\x20-\x7e]+$/.test(v)) return null;
     return v;
   }
-  const wantUa  = safeHeaderValue(req.nextUrl.searchParams.get('ua'));
-  const wantRef = safeHeaderValue(req.nextUrl.searchParams.get('ref'));
+  const wantUa  = safeHeaderValue(tokenUa  ?? req.nextUrl.searchParams.get('ua'));
+  const wantRef = safeHeaderValue(tokenRef ?? req.nextUrl.searchParams.get('ref'));
 
   const headers: Record<string, string> = {
     'user-agent': wantUa
@@ -250,18 +271,22 @@ export async function GET(req: NextRequest) {
     ct.includes('mpegurl') ||
     ct.includes('vnd.apple.mpegurl');
 
-  const corsOrigin = req.headers.get('origin') || '';
   const passThroughHeaders: Record<string, string> = {
     'cache-control': 'private, max-age=10',
     // Defense-in-depth: a proxied body must never be content-sniffed
     // into an active document type served from our own origin.
     'x-content-type-options': 'nosniff',
-    ...(corsOrigin ? { 'access-control-allow-origin': corsOrigin, vary: 'Origin' } : {}),
+    ...corsFor(req),
   };
 
   if (looksLikeManifest && upstream.body) {
     const mode: RewriteMode = req.nextUrl.searchParams.get('mode') === 'direct' ? 'direct' : 'proxy';
+    // Manifests are small; refuse anything absurd rather than buffering
+    // an unbounded body in the isolate's memory.
+    const declared = Number(upstream.headers.get('content-length') || 0);
+    if (declared > MAX_MANIFEST_BYTES) return new Response('manifest too large', { status: 502 });
     const text = await upstream.text();
+    if (text.length > MAX_MANIFEST_BYTES) return new Response('manifest too large', { status: 502 });
 
     if (looksLikeArchiveRequest(u, req) && !manifestLooksLikeArchive(text)) {
       // Upstream gave us a live manifest in response to an archive
@@ -283,7 +308,10 @@ export async function GET(req: NextRequest) {
     const passthrough =
       (wantUa  ? `&ua=${encodeURIComponent(wantUa)}`   : '') +
       (wantRef ? `&ref=${encodeURIComponent(wantRef)}` : '');
-    const rewritten = rewriteManifest(text, finalUrl, mode, passthrough);
+    const sealer: Sealer | undefined = token
+      ? (abs) => sealStreamTarget({ url: abs, ua: wantUa ?? undefined, ref: wantRef ?? undefined }, viewer.userId)
+      : undefined;
+    const rewritten = await rewriteManifest(text, finalUrl, mode, passthrough, sealer);
     return new Response(rewritten, {
       status: 200,
       headers: {

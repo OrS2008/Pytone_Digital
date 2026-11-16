@@ -490,5 +490,11 @@ const he: Record<string, string> = {
   "search.inCat": "בקטגוריה",
   "search.channels": "ערוצים",
   "search.noResults": "לא נמצאו ערוצים מתאימים.",
+
+  // --- Access errors ---
+  "live.needSignIn": "יש להתחבר כדי לצפות. הפלייליסט שמור במכשיר הזה.",
+  "live.trialEnded": "תקופת הניסיון הסתיימה. הצטרפו למנוי כדי להמשיך לצפות.",
+  "live.signInCta": "התחברות",
+  "live.plansCta": "למסלולים",
 };
 export default he;

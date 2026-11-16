@@ -1187,3 +1187,10 @@
 .live-player-overlay .live-zoom-badge {
   top: calc(16px + env(safe-area-inset-top, 0px));
 }
+
+.player-error-cta {
+  margin-top: 14px; display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; padding: 0 22px; border-radius: 999px;
+  background: var(--ns-accent, #FF3B6E); color: #fff; font-weight: 800; text-decoration: none;
+  pointer-events: auto;
+}
