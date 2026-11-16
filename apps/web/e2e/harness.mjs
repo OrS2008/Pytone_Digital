@@ -161,6 +161,9 @@ export function spill(page) {
     const b = e.getBoundingClientRect();
     if (!(b.width > 0 && b.height > 0)) return false;
     if (!(b.right > innerWidth + 2 || b.left < -2)) return false;
+    // Deliberately hidden helpers (e.g. the preview tile's snapshot
+    // <video>, parked at left:-10000px) are not layout defects.
+    if (e.closest('[aria-hidden="true"]')) return false;
     for (let a = e.parentElement; a; a = a.parentElement) {
       if (/auto|scroll/.test(getComputedStyle(a).overflowX)) return false;
       // Carousels (the desktop home rows) clip with overflow:hidden and

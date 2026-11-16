@@ -145,6 +145,9 @@ export default function LivePreviewTile({ channel, staticOnly, className }: Prop
       // Keep it visually invisible but in the layout tree so iOS Safari
       // actually decodes a frame (background videos sometimes don't).
       video.style.cssText = 'position:fixed;left:-10000px;top:0;width:160px;height:90px;pointer-events:none;';
+      // Off-screen on purpose (snapshot capture only): hide it from
+      // assistive tech too.
+      video.setAttribute('aria-hidden', 'true');
       document.body.appendChild(video);
 
       let hls: HlsInstance | null = null;
