@@ -44,6 +44,12 @@
   transition: background 120ms ease-out;
 }
 .rail-row:hover { background: #11141B; }
+/* Off-screen rows skip layout and paint entirely (desktop too — phones
+   already had this). With tens of thousands of channels the rendered
+   window can grow large; this keeps scrolling cost flat. */
+@media (min-width: 820px) {
+  .rail-row { content-visibility: auto; contain-intrinsic-size: auto 84px; }
+}
 
 /* My-list heart. Desktop list rows: pinned to the row's end, revealed
    on hover (always visible once favorited). Mobile grid re-positions
