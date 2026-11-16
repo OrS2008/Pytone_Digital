@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getKV } from '@/lib/cfEnv';
 import { requireAdmin } from '@/lib/adminGuard';
+import { checkKV, checkEncryption, configChecks } from '@/lib/health';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -19,7 +20,9 @@ export async function GET(req: NextRequest) {
   const guard = await requireAdmin(req);
   if (guard instanceof Response) return guard;
 
+  const [kv, encryption] = await Promise.all([checkKV(), checkEncryption()]);
   return NextResponse.json({
+    checks: { kv, encryption, ...configChecks() },
     bindings: {
       NOVA_KV: !!getKV(),
     },
@@ -30,7 +33,7 @@ export async function GET(req: NextRequest) {
       FIREBASE_API_KEY:     !!process.env.FIREBASE_API_KEY,
     },
     app: {
-      version: '1.0.0',
+      version: process.env.NEXT_PUBLIC_BUILD_ID || 'dev',
       commit:  process.env.CF_PAGES_COMMIT_SHA ?? null,
     },
   }, { headers: { 'cache-control': 'no-store' } });

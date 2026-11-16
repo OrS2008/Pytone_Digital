@@ -6,6 +6,7 @@ import { EncryptionNotConfiguredError } from '../secretBox';
 import { ProviderError } from './types';
 import { getProvider, type ProviderRecord } from './store';
 import { makeClient } from './index';
+import { log } from '../log';
 
 export const PROVIDER_LIMIT = { bucket: 'provider_api', max: 120, windowSec: 300 };
 
@@ -14,11 +15,12 @@ export function errorResponse(e: unknown): Response {
     return NextResponse.json({ error: 'encryption_not_configured', message: 'Provider connections need NOVA_ENCRYPTION_KEY set on the server.' }, { status: 503 });
   }
   if (e instanceof ProviderError) {
+    if (e.code === 'unreachable' || e.code === 'bad_response') log('warn', 'provider.upstream_error', { code: e.code, message: e.message });
     const status = { invalid_config: 400, auth_failed: 422, account_inactive: 422, unreachable: 502, bad_response: 502, unsupported: 404 }[e.code];
     // ProviderError messages are written for users and never contain credentials.
     return NextResponse.json({ error: e.code, message: e.message }, { status });
   }
-  console.error('[providers] unexpected error', (e as Error)?.name, (e as Error)?.message?.replace(/https?:\/\/\S+/g, '<url>'));
+  log('error', 'provider.unexpected_error', { error: (e as Error)?.name, message: (e as Error)?.message });
   return NextResponse.json({ error: 'internal_error' }, { status: 500 });
 }
 

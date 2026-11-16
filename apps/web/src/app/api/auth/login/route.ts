@@ -17,6 +17,7 @@
 //     next write so subsequent logins go straight through Firebase.
 
 import { NextRequest, NextResponse } from 'next/server';
+import { log } from '@/lib/log';
 import { requireKV } from '@/lib/cfEnv';
 import { findUserByEmail, createUserFromFirebase, normaliseEmail, touchLastLogin } from '@/lib/auth/users';
 import { verifyPassword } from '@/lib/auth/password';
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
 
   // Throttle online password brute force: 10 attempts / 5 min per IP.
   const rl = await rateLimit(kv, 'login', callerIp(req), 10, 300);
-  if (!rl.ok) return tooManyRequests(rl.retryAfter);
+  if (!rl.ok) { log('warn', 'auth.login_rate_limited', {}, req); return tooManyRequests(rl.retryAfter); }
 
   let body: { email?: unknown; password?: unknown };
   try { body = await req.json(); }
@@ -71,8 +72,9 @@ export async function POST(req: NextRequest) {
       if (/EMAIL_NOT_FOUND/.test(e.code)) {
         const fb = await migrateLegacyToFirebase(kv, email, password);
         if (fb) { firebaseUser = fb; migratedLegacy = true; }
-        else    { return NextResponse.json({ error: 'invalid_credentials' }, { status: 401 }); }
+        else    { log('warn', 'auth.login_failed', { reason: 'invalid_credentials' }, req); return NextResponse.json({ error: 'invalid_credentials' }, { status: 401 }); }
       } else {
+        log('warn', 'auth.login_failed', { reason: 'invalid_credentials' }, req);
         return NextResponse.json({ error: 'invalid_credentials' }, { status: 401 });
       }
     } else {

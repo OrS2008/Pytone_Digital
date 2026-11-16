@@ -42,8 +42,8 @@ Status labels used across all reports: **PASS** implemented and verified · **PA
 | Parental controls | PASS (sim) | Block list (name contains / category equals) enforced wherever channels are listed; per-device 4-digit PIN locks the list and gates showing blocked channels (1-hour unlock). A household lock in the browser, not a security boundary. Rating cap and profiles were removed (could not be enforced). |
 | Custom channel groups, search history, EPG reminders, per-profile parental settings | NOT DONE | |
 | Hebrew coverage | PARTIAL | All app and account screens are translated (checked by a parity test and a no-English-prose browser test). Legal pages and the admin panel remain English, pinned left-to-right. |
-| Admin dashboard upgrade, usage metrics, security event log UI | NOT DONE | Admin API remains server-guarded as before. |
-| Observability (structured logs, correlation IDs, dashboards) | NOT DONE | Security-relevant events are logged without secrets; no correlation IDs or error tracking service. |
+| Admin dashboard | PARTIAL | System tab now shows live health checks (KV round-trip, encryption key, Stripe, Firebase, Google, admin secrets, key rotation); native dialogs replaced. No usage-metrics or security-event views — events go to the structured log instead. |
+| Observability | PARTIAL | JSON-line logs with redaction (`lib/log.ts`), `x-request-id` on every API request/response (cf-ray when present), `/api/health` for uptime monitors, admin health checks. Events: gate storage errors and rate limits, provider upstream errors, failed / rate-limited logins (no emails or IPs). No external error-tracking service or dashboards (needs an owner account, e.g. Cloudflare Logpush). |
 | OpenNext migration | NOT DONE | Next.js was upgraded to a patched release on the existing adapter (verified working). OpenNext moves the deployment from Pages to Workers and needs owner action. |
 | Android TV / D-pad | NOT TESTED | The web app has a remote/focus engine; not verified on a device. |
 

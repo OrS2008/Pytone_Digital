@@ -16,6 +16,7 @@
 // Generate the password hash with apps/web/scripts/hash-admin-password.mjs.
 
 import { NextRequest, NextResponse } from 'next/server';
+import { log } from '@/lib/log';
 import { signAdminToken, ADMIN_COOKIE } from '@/lib/adminSession';
 import { getKV } from '@/lib/cfEnv';
 import { rateLimit, callerIp } from '@/lib/rateLimit';
@@ -138,6 +139,7 @@ async function handleLogin(req: NextRequest) {
     // a precise oracle on which check failed.
     const jitter = crypto.getRandomValues(new Uint8Array(1))[0] & 0x3f;
     await new Promise((r) => setTimeout(r, 80 + jitter));
+    log('warn', 'admin.login_failed', {}, req);
     return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
   }
 

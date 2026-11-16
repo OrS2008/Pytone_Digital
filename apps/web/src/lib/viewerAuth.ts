@@ -23,6 +23,7 @@ import { getKV, type KVNamespace } from './cfEnv';
 import { readSession, readSessionCookie } from './auth/serverSession';
 import { accessState, findUserByEmail, type AccessState } from './auth/users';
 import { rateLimit } from './rateLimit';
+import { log, userTag } from './log';
 
 export interface Viewer {
   userId: string;
@@ -72,7 +73,8 @@ export async function requireViewer(req: Request, opts: ViewerOptions = {}): Pro
           ? { at: now, viewer: null, code: 402 }
           : { at: now, viewer: { userId: user.userId, email: user.email, access: state.status }, code: 401 };
       }
-    } catch {
+    } catch (e) {
+      log('error', 'gate.storage_error', { error: (e as Error).name, path: new URL(req.url).pathname }, req);
       return deny(503, 'storage_unavailable');
     }
     if (CACHE.size >= CACHE_MAX) CACHE.clear();
@@ -87,7 +89,10 @@ export async function requireViewer(req: Request, opts: ViewerOptions = {}): Pro
 
   if (opts.limit) {
     const rl = await rateLimit(kv, opts.limit.bucket, entry.viewer.userId, opts.limit.max, opts.limit.windowSec);
-    if (!rl.ok) return deny(429, 'rate_limited', { retryAfter: rl.retryAfter });
+    if (!rl.ok) {
+      log('warn', 'gate.rate_limited', { bucket: opts.limit.bucket, user: await userTag(entry.viewer.userId), path: new URL(req.url).pathname }, req);
+      return deny(429, 'rate_limited', { retryAfter: rl.retryAfter });
+    }
   }
   return { ...entry.viewer, kv };
 }

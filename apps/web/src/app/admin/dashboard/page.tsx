@@ -44,6 +44,7 @@ interface UserRow {
 interface UsersPage { users: UserRow[]; cursor: string | null; listComplete: boolean }
 
 interface DiagInfo {
+  checks?:    Record<string, { ok: boolean; ms?: number; detail?: string }>;
   bindings:   { NOVA_KV: boolean };
   envVars:    { ADMIN_USERNAME: boolean; ADMIN_PASSWORD_HASH: boolean; ADMIN_SESSION_SECRET: boolean; FIREBASE_API_KEY: boolean };
   app:        { version: string; commit: string | null };
@@ -229,13 +230,17 @@ function UsersTab() {
 
   useEffect(() => { loadMore(true); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
+  // Two-step confirm in the row (window.confirm/alert are unreliable in
+  // embedded WebViews and block the page).
+  const [armed, setArmed] = useState<string | null>(null);
   async function deleteUser(email: string) {
-    if (!confirm(`Permanently delete ${email}? Their settings and history will be removed.`)) return;
+    if (armed !== email) { setArmed(email); return; }
+    setArmed(null);
     setBusy(email);
     try {
       const r = await fetch(`/api/admin/users/${encodeURIComponent(email)}`, { method: 'DELETE' });
       if (!r.ok) {
-        alert(`Delete failed (${r.status}).`);
+        setError(`Delete failed for ${email} (${r.status}).`);
         return;
       }
       setUsers((prev) => prev.filter((u) => u.email !== email));
@@ -299,7 +304,7 @@ function UsersTab() {
                     disabled={busy === u.email}
                     onClick={() => deleteUser(u.email)}
                   >
-                    {busy === u.email ? 'Deleting…' : 'Delete'}
+                    {busy === u.email ? 'Deleting…' : armed === u.email ? 'Click again to delete' : 'Delete'}
                   </button>
                 </td>
               </tr>
@@ -492,6 +497,16 @@ function SystemTab() {
       {err && <div className="adm-err" style={{ marginBottom: 16 }}>{err}</div>}
 
       <section className="adm-card">
+        <h2 className="adm-card-title">Health</h2>
+        {diag?.checks
+          ? Object.entries(diag.checks).map(([name, c]) => (
+            <DiagRow key={name} ok={c.ok} label={HEALTH_LABEL[name] ?? name}
+              hint={[c.ms !== undefined ? `${c.ms} ms` : '', c.detail ?? ''].filter(Boolean).join(' · ') || ' '} />
+          ))
+          : <DiagRow ok={undefined} label="Checks" hint="Running…" />}
+      </section>
+
+      <section className="adm-card">
         <h2 className="adm-card-title">Cloudflare bindings</h2>
         <DiagRow ok={diag?.bindings.NOVA_KV} label="NOVA_KV (KV namespace)" hint={diag?.bindings.NOVA_KV ? 'Wired through wrangler.toml.' : 'Add the binding in wrangler.toml or the Pages dashboard.'} />
       </section>
@@ -514,6 +529,17 @@ function SystemTab() {
     </>
   );
 }
+
+const HEALTH_LABEL: Record<string, string> = {
+  kv: 'KV read/write round-trip',
+  encryption: 'Credential encryption (NOVA_ENCRYPTION_KEY)',
+  stripe: 'Stripe API + webhook secret',
+  stripePrices: 'Stripe price ids (4)',
+  firebase: 'Firebase sign-in',
+  googleSignIn: 'Google sign-in client id',
+  adminLogin: 'Admin login secrets',
+  keyRotation: 'Encryption key rotation',
+};
 
 function DiagRow({ ok, label, hint }: { ok: boolean | undefined; label: string; hint: string }) {
   return (
