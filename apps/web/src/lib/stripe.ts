@@ -62,12 +62,16 @@ export function priceFor(plan: Plan, cycle: Cycle = 'monthly'): string {
 export function baseUrl(): string {
   const fromEnv =
     process.env.NEXT_PUBLIC_BASE_URL ||
+    // Canonical origin from wrangler.toml [vars]; also what email links
+    // use. Preferred over CF_PAGES_URL (a per-deployment URL on Pages,
+    // absent on Workers).
+    process.env.PUBLIC_BASE_URL       ||
     process.env.CF_PAGES_URL          ||
     process.env.URL                   ||
     (process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : '');
   if (fromEnv) return fromEnv.replace(/\/$/, '');
   throw new Error(
-    'Set NEXT_PUBLIC_BASE_URL (or CF_PAGES_URL on Cloudflare, URL on Netlify) so Stripe knows where to send users after checkout.',
+    'Set PUBLIC_BASE_URL (wrangler.toml) or NEXT_PUBLIC_BASE_URL so Stripe knows where to send users after checkout.',
   );
 }
 
