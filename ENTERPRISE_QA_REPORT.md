@@ -11,7 +11,7 @@
 | Browser (Chromium) | `npm run test:browser` | 31 | 31 | 0 | Production build (`next start`), phone + desktop, en + he, mocked provider network |
 | Type-check, lint, `next build`, Cloudflare `next-on-pages` build | — | 4 | 4 | 0 | |
 | Dependency audit (prod) | `npm audit --omit=dev` | 1 | 1 | 0 | 0 vulnerabilities |
-| GitHub CI web job (on push `4199681`) | `ci.yml` | 1 | 1 | 0 | Same suites on GitHub's runner |
+| GitHub CI — all jobs (web, Go, proto, Flutter, 18 Docker images) | `ci.yml` | 22 | 22 | 0 | First fully green run since August 2026 |
 | Android APK build (CI) | `android-apk.yml` | 1 | 1 | 0 | Debug build (no owner keystore yet) |
 | Cloudflare runtime smoke (manual, once) | `wrangler pages dev` + local KV | 6 | 6 | 0 | Pages render, `/api/auth/me` with seeded session, anonymous proxy → 401, SSRF refusals |
 

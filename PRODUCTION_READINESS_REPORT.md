@@ -27,7 +27,7 @@ Security moved from Not Ready to Conditionally Ready (proxies, credentials, depe
 | 5 | Android keystore secrets; install signed APK over the previous signed APK | Owner | **Pending (B6)** |
 | 6 | Real-device pass: notch phone (landscape full screen), older Android, Android TV if in scope | Owner | **Pending (B7)** |
 | 7 | Safari / iOS check (no MSE → raw-TS channels unavailable there; HLS works) | Owner | **Pending (B9)** |
-| 8 | Fix or remove the failing Flutter / Docker CI jobs | Engineering | Open |
+| 8 | Fix the failing Flutter / Docker CI jobs | Engineering | **Done** — whole pipeline green (Flutter API mismatch, uppercase image owner, Go 1.23 vs go.work 1.24) |
 
 ## Top recommendations (next round)
 

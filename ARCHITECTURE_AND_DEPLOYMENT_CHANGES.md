@@ -84,7 +84,7 @@ With the secrets, CI builds `assembleRelease`, verifies the signature with `apks
 **Adapter:** `@cloudflare/next-on-pages` is deprecated. It works with Next 15.5.29 (verified with `wrangler pages dev`), but the supported path is **OpenNext for Cloudflare**, which deploys to Workers rather than Pages. Recommended as a planned migration with a staging environment; not done here because it changes the hosting product and needs owner action in the Cloudflare dashboard.
 
 ## 6. CI/CD
-`ci.yml` web job: Node 22 · `npm ci` · `npm audit --omit=dev` (gate) · type-check · lint · `next build` · `next-on-pages` build · unit · API integration/security · browser tests (Chromium). The Flutter and Docker jobs fail as they did before this work (unrelated code). `android-apk.yml`: release/debug split described above. No automatic production deploy was added — deployment remains Cloudflare's branch build, triggered by an owner-approved push.
+`ci.yml` web job: Node 22 · `npm ci` · `npm audit --omit=dev` (gate) · type-check · lint · `next build` · `next-on-pages` build · unit · API integration/security · browser tests (Chromium). The Flutter and Docker jobs, red since August 2026, were fixed (Flutter 3.24 API, lowercase GHCR owner, Go 1.24 in the service Dockerfile); the whole pipeline is green. `android-apk.yml`: release/debug split described above. No automatic production deploy was added — deployment remains Cloudflare's branch build, triggered by an owner-approved push.
 
 ## 7. Cloudflare limits and cost — trade-offs
 | Concern | Design decision |
