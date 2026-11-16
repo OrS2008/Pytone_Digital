@@ -550,5 +550,8 @@ const he: Record<string, string> = {
   "vod.cantPlay": "לא ניתן לנגן את הכותר הזה",
   "vod.cantPlayBody": "ייתכן שהקובץ אצל הספק בפורמט שהדפדפן לא תומך בו (למשל MKV עם קודקים מסוימים), או שהוא לא זמין.",
   "vod.retry": "ניסיון נוסף",
+
+  // --- Unified search ---
+  "search.vodHeading": "סרטים וסדרות",
 };
 export default he;

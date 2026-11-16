@@ -550,5 +550,8 @@ const en: Record<string, string> = {
   "vod.cantPlay": "This title can’t be played",
   "vod.cantPlayBody": "The provider’s file may be in a format this browser cannot play (for example MKV with certain codecs), or it is unavailable.",
   "vod.retry": "Try again",
+
+  // --- Unified search ---
+  "search.vodHeading": "Movies & series",
 };
 export default en;

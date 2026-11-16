@@ -24,7 +24,8 @@
 | Hebrew / RTL for new screens | PASS (sim) | locale keys `prov.*`, `vod.*`, `live.*` | browser (he run of screen suite) |
 | Large libraries | PARTIAL | Catalog pages of 60 + lazy images; live list `content-visibility` | perf measurement |
 | Raw MPEG-TS live playback (mpegts.js, incl. TS-only Xtream panels) | PARTIAL | `PlayerSurface` (`isRawTsUrl` → mpegts.js), Xtream `preferredLiveExt` | browser (phone + desktop, decoded frames); not on iPhone (no MSE) |
-| Unified search across VOD, VOD favourites, custom groups, reminders, parental profiles | NOT DONE | | |
+| Unified search (live + movies + series) | PASS (sim) | `tv/search` | browser |
+| VOD favourites, custom groups, reminders, parental profiles | NOT DONE | | |
 
 ## Data model changes
 - Browser source entries may now be `{ kind: 'XC' | 'MAG', sub: 'provider:<id>' }`; guide entries `sub: 'provider:<id>'`.

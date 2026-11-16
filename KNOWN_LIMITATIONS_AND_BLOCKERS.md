@@ -1,6 +1,6 @@
 # Known Limitations and Blockers
 
-**Date:** 16 November 2026 · **Branch:** `claude/nextgen-iptv-platform-rEZiD` (local commits, not yet pushed — see "Deployment is waiting on the owner")
+**Date:** 16 November 2026 · **Branch:** `claude/nextgen-iptv-platform-rEZiD` — deployed (pushed with owner approval).
 
 Status labels used across all reports: **PASS** implemented and verified · **PARTIAL** implemented, not fully verified · **BLOCKED** needs external access · **FAIL** tested and failed · **NOT TESTED** · **NOT DONE** not implemented in this round.
 
@@ -10,8 +10,8 @@ Status labels used across all reports: **PASS** implemented and verified · **PA
 
 | # | What is blocked | Why | What to provide, and how | Test that stays blocked |
 |---|---|---|---|---|
-| B1 | **Deploying this work** | Pushing this branch auto-deploys production on Cloudflare. The changes require sign-in to watch and a new secret. | Approve the push, after setting B2. | Live-site smoke test |
-| B2 | **Encryption at rest** (provider credentials, settings blob) | Needs a server key. Never hard-coded. | Cloudflare Pages → Settings → Variables and Secrets → add **Secret** `NOVA_ENCRYPTION_KEY` = 32 random bytes, base64 (`openssl rand -base64 32`), for **Production and Preview**. Keep a copy in a password manager: losing it makes stored provider connections unreadable. | Provider connections in production; encrypted settings in production |
+| B1 | **Live-site verification** | Deployed by push; the live site is not reachable from this environment. | Owner smoke test: sign in, play, connect Xtream, open Movies. | Live-site smoke test |
+| B2 | **Encryption at rest** (provider credentials, settings blob) | Needs a server key. Never hard-coded. **Owner reports it is set** (not observable from here). | Cloudflare Pages → Settings → Variables and Secrets → add **Secret** `NOVA_ENCRYPTION_KEY` = 32 random bytes, base64 (`openssl rand -base64 32`), for **Production and Preview**. Keep a copy in a password manager: losing it makes stored provider connections unreadable. | Provider connections in production; encrypted settings in production |
 | B3 | **Real IPTV provider testing** | No Xtream / Stalker account available; the sandbox also blocks outbound stream hosts. | Provide test credentials for an Xtream panel and a Stalker portal **you are authorised to use**, through a secure channel (not chat). | Real login, catalogues, live/VOD/series playback, catch-up, EPG |
 | B4 | **Stripe end-to-end** | No Stripe test-mode keys here. | In Stripe **test mode**: set `STRIPE_SECRET_KEY` (sk_test_…), the four `STRIPE_PRICE_*` ids and `STRIPE_WEBHOOK_SECRET` on a Preview deployment; webhook endpoint `/api/billing/webhook` subscribed to `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`. | Real checkout → webhook → access granted → cancel → access revoked |
 | B5 | **Firebase sign-up / login** | No Firebase project access here. | Use a Preview deployment with the existing Firebase config and a test account. | Sign-up, verification email, login, password reset |
@@ -37,7 +37,7 @@ Status labels used across all reports: **PASS** implemented and verified · **PA
 | M3U playlists | PARTIAL (security) | M3U URLs still live in the browser (the client fetches and parses them, as before). They are encrypted at rest in KV once B2 is set, but not hidden from the device. Moving M3U server-side would cost Cloudflare CPU on large playlists. |
 | Large channel lists | PARTIAL | Incremental rendering + `content-visibility`. Measured at 20 000 channels (extreme fling): phone p95 67 ms frame, desktop p95 33 ms. Not true windowing (rows are never unmounted). |
 | Multiple providers | PARTIAL | Up to 10 connections per account, stored and switchable (the most recently added, or the one picked with "Use this playlist", is active). One source is active at a time; there is no merged catalogue across providers. |
-| Unified search across VOD | NOT DONE | Search covers live channels; Movies/Series have their own search. |
+| Unified search across VOD | PASS (sim) | Search shows live channels plus the active provider's movies and series. |
 | Favourites for movies/series | NOT DONE | Favourites exist for live channels only. |
 | Custom channel groups, search history, EPG reminders, parental profiles with per-profile PIN | NOT DONE | Existing parental-control screen unchanged. |
 | Hebrew coverage | PARTIAL | All new screens are translated. Six older account screens, legal pages and admin remain English (pinned left-to-right). |

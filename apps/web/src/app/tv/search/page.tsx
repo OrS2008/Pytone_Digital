@@ -17,6 +17,8 @@ import { TvFocusProvider } from '@/components/tv/TvFocus';
 import { getCachedChannels, loadChannels } from '@/lib/channelCache';
 import type { M3UChannel } from '@/lib/m3u';
 import { useT } from '@/lib/i18n';
+import { activeProviderId, cachedCaps, getMovies, getSeriesList } from '@/lib/providersClient';
+import type { Movie, Series } from '@/lib/providers/types';
 
 interface SpeechRecognitionResult { transcript: string }
 interface SpeechRecognitionEvent { results: { 0: { 0: SpeechRecognitionResult } } & ArrayLike<unknown> }
@@ -37,6 +39,23 @@ declare global {
 export default function SearchHome() {
   const { t } = useT();
   const [q, setQ] = useState('');
+  // Unified search: when the active provider offers movies / series,
+  // their titles are searched too. Catalogues load on the first query.
+  const [vodPid, setVodPid] = useState<string | null>(null);
+  const [vod, setVod] = useState<{ movies: Movie[]; series: Series[] } | null>(null);
+  useEffect(() => {
+    const id = activeProviderId();
+    const caps = cachedCaps(id);
+    if (id && (caps?.vod || caps?.series)) setVodPid(id);
+  }, []);
+  useEffect(() => {
+    if (!vodPid || vod || q.trim().length < 2) return;
+    const caps = cachedCaps(vodPid);
+    Promise.all([
+      caps?.vod ? getMovies(vodPid).then((r) => r.movies).catch(() => [] as Movie[]) : Promise.resolve([] as Movie[]),
+      caps?.series ? getSeriesList(vodPid).then((r) => r.series).catch(() => [] as Series[]) : Promise.resolve([] as Series[]),
+    ]).then(([movies, series]) => setVod({ movies, series }));
+  }, [vodPid, vod, q]);
   // Hydrate synchronously from the shared cache so the channel grid
   // appears instantly when the user comes back from another tab.
   // Hydration-safe: start empty (matches the server HTML); the layout
@@ -93,6 +112,16 @@ export default function SearchHome() {
   const filtered = useMemo(() => matches.slice(0, q.trim() || cat ? 300 : 60), [matches, q, cat]);
 
   // ---- Voice ----------------------------------------------------------
+  const vodMatches = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!vod || needle.length < 2) return [];
+    const hit = (n: string) => n.toLowerCase().includes(needle);
+    return [
+      ...vod.movies.filter((m) => hit(m.name)).map((m) => ({ kind: 'movie' as const, id: m.id, name: m.name, poster: m.poster, year: m.year, ext: m.ext })),
+      ...vod.series.filter((s) => hit(s.name)).map((s) => ({ kind: 'series' as const, id: s.id, name: s.name, poster: s.poster, year: s.year, ext: '' })),
+    ];
+  }, [vod, q]);
+
   const recRef = useRef<SpeechRecognitionInstance | null>(null);
 
   function startVoice() {
@@ -220,6 +249,32 @@ export default function SearchHome() {
             </div>
           )}
         </div>
+
+        {/* Movies & series matches (unified search) */}
+        {vodPid && vodMatches.length > 0 && (
+          <div style={{ padding: '0 24px 8px', maxWidth: 1280, margin: '0 auto' }}>
+            <div style={{ fontSize: 13, color: '#6E7480', marginBottom: 10 }}>{t('search.vodHeading')} · {vodMatches.length}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(220px, 100%), 1fr))', gap: 12, marginBottom: 18 }}>
+              {vodMatches.slice(0, 24).map((m) => (
+                <Link
+                  key={m.kind + m.id}
+                  href={m.kind === 'movie'
+                    ? `/tv/watch?${new URLSearchParams({ p: vodPid, k: 'movie', id: m.id, ext: m.ext, t: m.name, img: m.poster })}`
+                    : `/tv/series/view?p=${vodPid}&id=${encodeURIComponent(m.id)}`}
+                  style={{ display: 'grid', gridTemplateColumns: '40px 1fr', gap: 12, alignItems: 'center', padding: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, textDecoration: 'none', color: '#E9EBF1' }}
+                >
+                  <div style={{ width: 40, height: 60, borderRadius: 6, overflow: 'hidden', background: '#161A22' }}>
+                    {m.poster ? <img src={m.poster} alt="" loading="lazy" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</div>
+                    <div style={{ fontSize: 12, color: '#8B95A7' }}>{m.kind === 'movie' ? t('nav.movies') : t('nav.series')}{m.year ? ` · ${m.year}` : ''}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Results */}
         <div style={{ padding: '0 24px 64px', maxWidth: 1280, margin: '0 auto' }}>

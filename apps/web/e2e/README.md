@@ -5,6 +5,7 @@ Two layers, both run with Node's built-in test runner (no extra framework):
 | Layer | Command | What it covers |
 | --- | --- | --- |
 | Unit | `npm run test:unit` | SSRF guard, Stripe subscription → access mapping, M3U parser, URL masking |
+| API integration + security | `npm run test:integration` | Real route handlers in Node (`integration/loader.mjs` maps `@/` and stubs the Cloudflare context), in-memory KV, scripted network: proxy access control, SSRF, stream tokens, encryption, settings, rate limits, Stripe webhook, Xtream/Stalker providers |
 | Browser | `npm run test:browser` | Every screen on phone + desktop in English + Hebrew, playback, failure reporting, Direct-streaming fallback, pinch-to-zoom gestures, playlist management, search, first-run and form validation |
 
 ## Running

@@ -202,3 +202,31 @@ test('the watch page reports an unplayable title instead of spinning', async () 
   assert.match(await page.textContent('.watch-card'), /not available/);
   await ctx.close();
 });
+
+test('unified search: live channels plus the provider’s movies and series', async () => {
+  const ctx = await newContext({ device: DESKTOP, signedIn: true });
+  await mockProviders(ctx);
+  await ctx.addInitScript((pid) => {
+    try {
+      const k = Object.keys(localStorage).find((x) => x.endsWith(':sources.live'));
+      if (k && !localStorage.getItem('__prov')) {
+        localStorage.setItem('__prov', '1');
+        localStorage.setItem(k, JSON.stringify([{ id: 'prov-' + pid, kind: 'XC', title: 'My IPTV', sub: 'provider:' + pid, stat: '' }]));
+        localStorage.setItem('ns.providerCaps', JSON.stringify({ [pid]: { live: true, vod: true, series: true, epg: true, catchup: true } }));
+      }
+    } catch { /* */ }
+  }, PID);
+  let { page } = await open(ctx, '/tv/home', { settle: 200 });
+  await page.close();
+  ({ page } = await open(ctx, '/tv/search'));
+  await page.fill('input[type=search]', 'series');
+  await page.waitForSelector('text=Movies & series');
+  const vodLinks = await page.$$eval('a[href^="/tv/series/view"]', (a) => a.map((x) => x.textContent));
+  assert.ok(vodLinks.some((x) => x.includes('A Series')), `series match missing: ${vodLinks}`);
+  await page.fill('input[type=search]', 'the movie');
+  await page.waitForSelector('a[href^="/tv/watch"]');
+  await page.fill('input[type=search]', 'provider news');
+  assert.equal(await page.$('a[href^="/tv/watch"]'), null, 'no stale VOD matches');
+  assert.ok(await page.$('a[href*="/tv/live?ch="]'), 'live channel match still shown');
+  await ctx.close();
+});
