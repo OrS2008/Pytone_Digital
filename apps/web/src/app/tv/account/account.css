@@ -961,3 +961,7 @@
 }
 .ac-chip-remove:disabled { opacity: 0.5; cursor: not-allowed; }
 .ac-chip-remove span { color: var(--ns-text-faint); }
+
+/* Legal pages (app/legal) */
+.legal h3 { margin-top: 28px; }
+.legal ul { padding-inline-start: 22px; }

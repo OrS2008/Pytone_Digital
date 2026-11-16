@@ -124,3 +124,21 @@ test('channel groups: create, add channels, filter the live list, rename, delete
   assert.deepEqual(problems, []);
   await ctx.close();
 });
+
+test('legal pages: Hebrew translation, RTL, language switch, no dynamic "last updated" date', async () => {
+  const ctx = await newContext({ locale: 'he' });
+  for (const [route, he, en] of [['/legal/privacy', 'מדיניות פרטיות', 'Privacy policy'], ['/legal/terms', 'תנאי שימוש', 'Terms of service']]) {
+    const { page, problems } = await open(ctx, route, { settle: 600 });
+    assert.equal(await page.textContent('h1'), he);
+    assert.equal(await page.getAttribute('main', 'dir'), 'rtl');
+    assert.ok((await page.textContent('main')).includes('הנוסח האנגלי הוא הקובע'), 'prevailing-language notice');
+    assert.ok((await page.textContent('main')).includes('16 בנובמבר 2026'));
+    await page.click('button:has-text("English")');
+    assert.equal(await page.textContent('h1'), en);
+    assert.equal(await page.getAttribute('main', 'dir'), 'ltr');
+    await page.click('button:has-text("עברית")');
+    assert.deepEqual(problems, []);
+    await page.close();
+  }
+  await ctx.close();
+});

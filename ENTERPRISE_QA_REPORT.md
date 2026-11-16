@@ -8,7 +8,7 @@
 |---|---|---:|---:|---:|---|
 | Unit | `npm run test:unit` | 6 | 6 | 0 | Pure modules (SSRF guard, billing mapping, M3U parser, URL masking) |
 | API integration + security | `npm run test:integration` | 48 | 48 | 0 | **Real route handlers** in Node, in-memory KV, scripted network |
-| Browser (Chromium) | `npm run test:browser` | 38 | 38 | 0 | Production build (`next start`), phone + desktop, en + he, mocked provider network |
+| Browser (Chromium) | `npm run test:browser` | 39 | 39 | 0 | Production build (`next start`), phone + desktop, en + he, mocked provider network |
 | Type-check, lint, `next build`, Cloudflare `next-on-pages` build | — | 4 | 4 | 0 | |
 | Dependency audit (prod) | `npm audit --omit=dev` | 1 | 1 | 0 | 0 vulnerabilities |
 | GitHub CI — all jobs (web, Go, proto, Flutter, 18 Docker images) | `ci.yml` | 22 | 22 | 0 | First fully green run since August 2026 |
@@ -30,7 +30,7 @@
 
 Mutation check: removing the gate from `/api/stream` made 3 of its tests fail (then restored).
 
-## 3. Browser tests (38)
+## 3. Browser tests (39)
 
 - **Every screen** (8 public + 6 app + 11 account routes) on phone and desktop, English and Hebrew: no uncaught errors, no content past the screen edge, RTL in Hebrew — 4 tests × 25 routes.
 - **Playback:** deep link plays (phone, desktop) · dead channel shows the real HTTP reason quickly (phone, desktop) · Direct-streaming falls back to the proxy (phone, desktop) · **raw MPEG-TS decodes via mpegts.js** (phone, desktop) · home → tap → plays · rapid channel switching.
@@ -38,6 +38,7 @@ Mutation check: removing the gate from `/api/stream` made 3 of its tests fail (t
 - **Playlists:** inline edit without native prompt · second playlist becomes active · old channels removed from search and Continue Watching.
 - **Providers UI:** connect Xtream (password never stored in the browser; source becomes active; its channels play) · rejected login shows reason, saves nothing · Movies catalogue → category filter → search → detail sheet → play → resume saved (phone, desktop) · Series → season tab → episode plays · capability-gated nav · empty state without provider · unplayable title shows an error card · unified search returns movies and series.
 - **Reminders, history, groups:** guide reminder → toast → Watch now (phone, desktop) · search history remembered / reused / removed / cleared / kept after reload · channel groups create → add channels → filter live list → play → rename → delete.
+- **Legal pages:** Hebrew title and RTL, prevailing-language notice, fixed date, switch to English and back.
 - **Forms & first run:** call-to-action with no playlist · account sign-in wall · login/sign-up validation without server calls · Hebrew landing in server HTML · playlist markup never injected (XSS).
 
 ## 4. Performance measurements (local Chromium, mocked network)
@@ -69,6 +70,7 @@ These describe the client only; real-world startup is dominated by the provider 
 | 11 | Intermittent "screens load" failure | Test flake | Captured log | Hidden snapshot `<video>` marked `aria-hidden`; check skips it |
 | 12 | Guide threw a hydration error (React #418) for every user with an EPG configured (storage read in state initialisers) | Medium | New reminder test | Neutral initial state, cache swapped in by a layout effect |
 | 13 | Live channel favourites never synced between devices | Low | Review | Added to the synced keys |
+| 14 | Privacy policy out of date: claimed we store password hashes (Firebase does), deletion "within 30 days" (immediate), omitted Google/Stripe as processors and the IP + user agent kept with sessions; "last updated" showed today's date | Medium (compliance) | Review | Rewritten from the code; terms aligned (7-day trial, yearly plans, immediate deletion) |
 
 ## 6. Not tested (with reason)
 

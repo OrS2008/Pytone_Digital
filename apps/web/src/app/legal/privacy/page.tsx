@@ -1,153 +1,161 @@
-// Privacy policy for Nova Stream.
+// Privacy policy — English and Hebrew.
 //
-// Aligned with GDPR Articles 13-22 (transparency, access, erasure,
-// portability), with explicit mention of Cloudflare as our
-// sub-processor since all server-side data lives in Cloudflare KV.
-// The data-rights buttons live in /tv/account/help → Danger zone and
-// call /api/privacy/export and /api/privacy/delete.
-//
-// Keep the language short and concrete. Boilerplate "we may collect
-// data" policies are useless under GDPR Art. 13 — the user has to be
-// able to tell, from this page, exactly what we hold.
+// Every statement here must match the code. Checked against the code on
+// 16 Nov 2026: Firebase Authentication holds passwords (lib/auth/users),
+// settings and provider connections are AES-256-GCM encrypted at rest
+// (lib/secretBox, settingsStore, providers/store), application logs carry
+// no IPs / emails / stream URLs (lib/log), session records keep the
+// user agent and sign-in IP until expiry, deletion is immediate
+// (api/privacy/delete), sessions last 30 days (auth/serverSession).
+// The Hebrew text is a translation awaiting legal review; the English
+// text prevails (stated on the page). Change both languages together.
 
 import Link from 'next/link';
-import '../../tv/account/account.css';
+import { headers } from 'next/headers';
+import LegalShell from '../LegalShell';
 
-export default function Privacy() {
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+
+const help = (label: string) => <Link href="/tv/account/help" className="ac-auth-link">{label}</Link>;
+
+const EN = (
+  <>
+    <h3>The short version</h3>
+    <p>
+      Nova Stream is a player. We do not host video, sell your data or use
+      advertising trackers. We keep only what is needed to give you an
+      account that follows you between devices, and we encrypt the
+      sensitive parts.
+    </p>
+
+    <h3>What we hold</h3>
+    <ul>
+      <li><b>Account:</b> your email address, an account identifier, the date you signed up, and your trial / subscription status. Sign-in is handled by Google Firebase Authentication: Firebase stores your password (or your Google sign-in), we do not. Accounts created before that change may still carry a salted password hash on our side until they are migrated.</li>
+      <li><b>Settings:</b> the playlist and programme-guide addresses you add, display and playback preferences, favourites, channel groups, programme reminders, recent searches, resume positions and parental-control settings. They synchronise across your devices and are stored encrypted (AES-256-GCM).</li>
+      <li><b>Provider connections:</b> the server address, username and password of an Xtream Codes account, or the portal address and MAC of a Stalker portal, if you connect one. Stored encrypted and never sent back to your device; the app uses them on the server to fetch lists and to create playback links.</li>
+      <li><b>Sessions:</b> a random token in an HTTP-only, Secure, SameSite=Strict cookie, valid for 30 days. With each session we store the browser description and the IP address used at sign-in, so you can recognise your devices and sign them out; they are deleted when the session ends.</li>
+      <li><b>Billing:</b> payments are processed by Stripe. We never see your card number; we keep the Stripe customer reference and the date your subscription runs until.</li>
+      <li><b>Technical logs:</b> when a request fails or is refused we log the event, the request path, the status and an identifier that cannot be turned back into your account. Our application logs do not contain your IP address, email address or the addresses of your streams.</li>
+    </ul>
+
+    <h3>What we do not collect</h3>
+    <p>
+      No microphone or camera recordings (voice search is processed by
+      your browser), no contacts, no browsing history outside the app, no
+      third-party analytics or advertising SDKs. When video passes through
+      our proxy it is relayed, not recorded.
+    </p>
+
+    <h3>Who processes it for us</h3>
+    <ul>
+      <li><b>Cloudflare, Inc.</b> — hosting and data storage (Cloudflare KV). As a network provider Cloudflare processes IP addresses to deliver the service, under its{' '}
+        <a className="ac-auth-link" href="https://www.cloudflare.com/cloudflare-customer-dpa/">Data Processing Addendum</a>.</li>
+      <li><b>Google (Firebase Authentication)</b> — account sign-in, password storage and verification emails.</li>
+      <li><b>Stripe, Inc.</b> — payment processing.</li>
+    </ul>
+
+    <h3>How long we keep it</h3>
+    <p>
+      Until you delete your account. Sessions expire after 30 days.
+      Stripe keeps payment records for as long as financial law requires.
+    </p>
+
+    <h3>Your rights</h3>
+    <ul>
+      <li><b>Access and portability:</b> {help('Settings → Help → Export my data')} downloads a file with everything we hold about you, immediately.</li>
+      <li><b>Erasure:</b> {help('Settings → Help → Delete my account')} deletes your account, settings, provider connections, sessions and history straight away, and your Firebase sign-in.</li>
+      <li><b>Correction:</b> change any setting in the app, or write to privacy@novastream.tv.</li>
+      <li><b>Complaint:</b> you may complain to your data-protection authority — in Israel the Privacy Protection Authority; in the EU your national supervisory authority.</li>
+    </ul>
+
+    <h3>Children</h3>
+    <p>
+      The service is not directed at children under 13 and we do not
+      knowingly collect their data. If you believe a child has created an
+      account, write to privacy@novastream.tv and we will delete it.
+    </p>
+
+    <h3>Changes</h3>
+    <p>We will tell you in the app at least 30 days before a material change takes effect.</p>
+
+    <h3>Contact</h3>
+    <p>privacy@novastream.tv</p>
+  </>
+);
+
+const HE = (
+  <>
+    <h3>בקצרה</h3>
+    <p>
+      Nova Stream הוא נגן. איננו מארחים וידאו, איננו מוכרים את המידע שלכם
+      ואיננו משתמשים במעקב פרסומי. אנחנו שומרים רק את מה שנדרש כדי לתת
+      לכם חשבון שעובר איתכם בין מכשירים, ומצפינים את החלקים הרגישים.
+    </p>
+
+    <h3>מה אנחנו שומרים</h3>
+    <ul>
+      <li><b>חשבון:</b> כתובת הדוא״ל, מזהה חשבון, תאריך ההרשמה ומצב תקופת הניסיון או המנוי. ההתחברות מתבצעת באמצעות Google Firebase Authentication: הסיסמה (או ההתחברות עם Google) נשמרת אצל Firebase, לא אצלנו. בחשבונות שנוצרו לפני המעבר עשוי עדיין להישמר אצלנו גיבוב סיסמה מומלח, עד שיועברו.</li>
+      <li><b>הגדרות:</b> כתובות הפלייליסטים ומדריכי השידורים שהוספתם, העדפות תצוגה וניגון, מועדפים, קבוצות ערוצים, תזכורות לתוכניות, חיפושים אחרונים, נקודות המשך צפייה והגדרות בקרת הורים. ההגדרות מסונכרנות בין המכשירים ונשמרות מוצפנות (AES-256-GCM).</li>
+      <li><b>חיבורי ספקים:</b> כתובת השרת, שם המשתמש והסיסמה של חשבון Xtream Codes, או כתובת הפורטל וה-MAC של פורטל Stalker, אם חיברתם כזה. נשמרים מוצפנים ולעולם אינם נשלחים חזרה למכשיר; האפליקציה משתמשת בהם בשרת כדי לטעון רשימות וליצור קישורי ניגון.</li>
+      <li><b>התחברויות:</b> אסימון אקראי בעוגייה מסוג HTTP-only, Secure, SameSite=Strict, בתוקף ל-30 יום. עם כל התחברות אנחנו שומרים את תיאור הדפדפן ואת כתובת ה-IP שממנה התחברתם, כדי שתוכלו לזהות את המכשירים שלכם ולנתק אותם; הם נמחקים כשההתחברות מסתיימת.</li>
+      <li><b>חיוב:</b> התשלומים מעובדים על ידי Stripe. איננו רואים את מספר הכרטיס; אנחנו שומרים את מזהה הלקוח ב-Stripe ואת התאריך שעד אליו המנוי בתוקף.</li>
+      <li><b>יומנים טכניים:</b> כשבקשה נכשלת או נדחית אנחנו רושמים את האירוע, נתיב הבקשה, הסטטוס ומזהה שאי אפשר לשחזר ממנו את החשבון שלכם. היומנים שלנו אינם כוללים כתובת IP, כתובת דוא״ל או כתובות של שידורים.</li>
+    </ul>
+
+    <h3>מה איננו אוספים</h3>
+    <p>
+      אין הקלטות מיקרופון או מצלמה (החיפוש הקולי מעובד בדפדפן שלכם), אין
+      אנשי קשר, אין היסטוריית גלישה מחוץ לאפליקציה ואין ערכות אנליטיקה או
+      פרסום של צד שלישי. וידאו שעובר דרך שרת התיווך שלנו מועבר הלאה ואינו
+      מוקלט.
+    </p>
+
+    <h3>מי מעבד את המידע עבורנו</h3>
+    <ul>
+      <li><b>Cloudflare, Inc.</b> — אירוח ואחסון נתונים (Cloudflare KV). כספקית רשת, Cloudflare מעבדת כתובות IP כדי לספק את השירות, בהתאם ל-{' '}
+        <a className="ac-auth-link" href="https://www.cloudflare.com/cloudflare-customer-dpa/">נספח עיבוד הנתונים</a> שלה.</li>
+      <li><b>Google (Firebase Authentication)</b> — התחברות לחשבון, שמירת סיסמאות ודוא״ל אימות.</li>
+      <li><b>Stripe, Inc.</b> — עיבוד תשלומים.</li>
+    </ul>
+
+    <h3>כמה זמן נשמר המידע</h3>
+    <p>
+      עד שתמחקו את החשבון. התחברויות פגות לאחר 30 יום. Stripe שומרת
+      רשומות תשלום ככל שדיני הכספים מחייבים.
+    </p>
+
+    <h3>הזכויות שלכם</h3>
+    <ul>
+      <li><b>עיון וניידות:</b> {help('הגדרות ← עזרה ← ייצוא הנתונים שלי')} מוריד מיד קובץ עם כל מה שאנחנו שומרים עליכם.</li>
+      <li><b>מחיקה:</b> {help('הגדרות ← עזרה ← מחיקת החשבון')} מוחק מיד את החשבון, ההגדרות, חיבורי הספקים, ההתחברויות וההיסטוריה, וגם את חשבון ההתחברות ב-Firebase.</li>
+      <li><b>תיקון:</b> שנו כל הגדרה באפליקציה, או כתבו אל privacy@novastream.tv.</li>
+      <li><b>תלונה:</b> באפשרותכם להתלונן בפני רשות הגנת המידע — בישראל הרשות להגנת הפרטיות; באיחוד האירופי רשות הפיקוח הלאומית.</li>
+    </ul>
+
+    <h3>ילדים</h3>
+    <p>
+      השירות אינו מיועד לילדים מתחת לגיל 13 ואיננו אוספים ביודעין מידע
+      עליהם. אם לדעתכם ילד פתח חשבון, כתבו אל privacy@novastream.tv ונמחק
+      אותו.
+    </p>
+
+    <h3>שינויים</h3>
+    <p>נודיע באפליקציה לפחות 30 יום לפני ששינוי מהותי ייכנס לתוקף.</p>
+
+    <h3>יצירת קשר</h3>
+    <p>privacy@novastream.tv</p>
+  </>
+);
+
+export default async function Privacy() {
+  const accept = (await headers()).get('accept-language') ?? '';
   return (
-    // The legal text is English-only. Pin it left-to-right so a Hebrew
-    // (RTL) visitor doesn't get English sentences with the punctuation
-    // flipped to the wrong end.
-    <main className="ac-auth" dir="ltr" lang="en" style={{ alignItems: 'flex-start', padding: '64px 24px' }}>
-      <div className="ac-auth-card" style={{ maxWidth: 760 }}>
-        <div className="ac-auth-wm">NOVA STREAM</div>
-        <h1 className="ac-auth-title" style={{ marginTop: 12 }}>Privacy policy</h1>
-        <p className="ac-auth-sub" style={{ marginBottom: 24 }}>
-          Last updated · {new Date().toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' })}
-        </p>
-
-        <section style={{ lineHeight: 1.7 }}>
-          <h3 style={{ marginTop: 28 }}>The short version</h3>
-          <p>
-            Nova Stream is a player. We do not host video. We do not
-            sell your data. We do not place advertising trackers. The
-            only personal data we hold is what we need to give you an
-            account that follows you between devices.
-          </p>
-
-          <h3 style={{ marginTop: 28 }}>What we collect — exhaustive list</h3>
-          <ul>
-            <li>
-              <b>Account:</b> email address and a salted PBKDF2 password
-              hash. We never see your plain-text password.
-            </li>
-            <li>
-              <b>Settings blob:</b> the M3U / EPG / Xtream URLs you typed
-              into the app, your display preferences, parental-control
-              settings, list of recently watched titles, and scheduled
-              recordings. This is the data that synchronises across your
-              devices.
-            </li>
-            <li>
-              <b>Session cookie:</b> a random 32-byte token that
-              identifies your device as signed in. HTTP-only, Secure,
-              SameSite=Strict. 30-day lifetime.
-            </li>
-            <li>
-              <b>Diagnostic logs:</b> when a request fails on the server,
-              we log the URL path, HTTP status, and IP address for up to
-              7 days so we can debug the issue. We do not log request
-              bodies.
-            </li>
-          </ul>
-
-          <h3 style={{ marginTop: 28 }}>What we don't collect</h3>
-          <p>
-            Microphone, camera, contacts, browsing history outside the
-            app, third-party analytics SDKs (no Google Analytics, no
-            Facebook Pixel, no Sentry user identifiers). We do not place
-            advertising trackers. We do not log the URLs of the video
-            segments your player fetches from your provider — those
-            requests, when going through the proxy, are streamed and
-            never written to disk on our side.
-          </p>
-
-          <h3 style={{ marginTop: 28 }}>Where it lives</h3>
-          <p>
-            All server-side data is stored in <b>Cloudflare KV</b>, a
-            globally replicated key-value store operated by Cloudflare,
-            Inc. on our behalf. Cloudflare is a sub-processor under
-            their{' '}
-            <a className="ac-auth-link" href="https://www.cloudflare.com/cloudflare-customer-dpa/">
-              Customer Data Processing Addendum
-            </a>
-            . If you are in the EU/EEA we can on request configure your
-            account to use a KV namespace pinned to EU jurisdiction.
-          </p>
-
-          <h3 style={{ marginTop: 28 }}>How long we keep it</h3>
-          <p>
-            Your account and settings stay until you delete them. Session
-            cookies expire after 30 days of inactivity. Diagnostic logs
-            roll off after 7 days.
-          </p>
-
-          <h3 style={{ marginTop: 28 }}>Your rights (GDPR Articles 15–22)</h3>
-          <ul>
-            <li>
-              <b>Access &amp; portability (Art. 15 / 20):</b> click{' '}
-              <Link href="/tv/account/help" className="ac-auth-link">
-                Settings → Help &amp; legal → Export my data
-              </Link>{' '}
-              to download a JSON file containing everything we hold on
-              you. Available immediately, not in 30 days.
-            </li>
-            <li>
-              <b>Erasure (Art. 17):</b> click{' '}
-              <Link href="/tv/account/help" className="ac-auth-link">
-                Settings → Help &amp; legal → Delete my account
-              </Link>
-              . Your account, settings, sessions, and all derived data
-              are removed within 30 days. Anonymised aggregate metrics
-              (e.g. total daily active users) are retained.
-            </li>
-            <li>
-              <b>Rectification (Art. 16):</b> edit any field directly in
-              Settings, or write to privacy@novastream.tv.
-            </li>
-            <li>
-              <b>Complaint (Art. 77):</b> you have the right to lodge a
-              complaint with your local data-protection authority. In
-              Israel that is the Privacy Protection Authority; in the EU
-              the relevant national supervisor.
-            </li>
-          </ul>
-
-          <h3 style={{ marginTop: 28 }}>Children</h3>
-          <p>
-            The service is not directed at children under 13. We do not
-            knowingly collect personal data from children under 13. If
-            you believe a child has created an account, write to
-            privacy@novastream.tv and we will delete it.
-          </p>
-
-          <h3 style={{ marginTop: 28 }}>Changes to this policy</h3>
-          <p>
-            If we change this policy materially we will notify you in
-            the app at least 30 days before the change takes effect.
-          </p>
-
-          <h3 style={{ marginTop: 28 }}>Contact</h3>
-          <p>
-            privacy@novastream.tv — for any question about this policy
-            or to exercise your rights.
-          </p>
-        </section>
-
-        <div className="ac-auth-bottom" style={{ marginTop: 40 }}>
-          <Link href="/tv/signup" className="ac-auth-link">← Back to sign-up</Link>
-        </div>
-      </div>
-    </main>
+    <LegalShell
+      initialLocale={/^\s*he\b/i.test(accept) ? 'he' : 'en'}
+      title={{ en: 'Privacy policy', he: 'מדיניות פרטיות' }}
+      en={EN}
+      he={HE}
+    />
   );
 }

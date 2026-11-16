@@ -36,7 +36,7 @@ Security moved from Not Ready to Conditionally Ready (proxies, credentials, depe
 | P0 | Items 2–6 above | Converts PARTIAL to PASS | 1–3 days with access |
 | P1 | OpenNext migration (staging first) | Supported adapter; future security patches | 3–5 days |
 | P1 | Stalker portal EPG and archive | Feature parity with Xtream | 3 days, needs a portal |
-| P1 | Hebrew legal pages (needs legal review of the translation) and admin panel | Complete RTL product | 1–2 days |
+| P1 | Legal review of the rewritten privacy policy / terms and their Hebrew translation (done in code, not reviewed by counsel); admin panel in Hebrew | Legal certainty | Owner + counsel |
 | P2 | True list windowing for the live rail | Smooth 20 000+ channel lists on low-end phones | 2–3 days |
 | P2 | Parental profiles; push reminders (needs a push service / native notifications in the APK) | Product depth | 1 week |
 | P2 | External error tracking / log shipping (structured logs + request ids are done) | Operability | 1–2 days, needs an owner account |
