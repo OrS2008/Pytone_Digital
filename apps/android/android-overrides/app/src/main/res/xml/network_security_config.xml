@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Nova Stream network policy.
+  * No cleartext (http) traffic from the app itself. The WebView loads the
+    https deployment; provider streams that are http-only are fetched by the
+    server-side proxy, never directly by the device.
+  * Trust only the system certificate store: user-installed CAs (which
+    enable TLS interception) are not trusted.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

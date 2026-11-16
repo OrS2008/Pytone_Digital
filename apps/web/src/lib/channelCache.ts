@@ -127,6 +127,8 @@ export function getUserSourceUrl(): { url: string; title: string } | null {
 // client), so we recognise the local: prefix here too.
 function isRealLiveSourceUrl(sub: string): boolean {
   if (!sub) return false;
+  // provider:<id> — an Xtream / Stalker connection held server-side.
+  if (/^provider:[a-z0-9]{8,32}$/.test(sub)) return true;
   if (/^local:[a-z0-9-]+$/i.test(sub)) return true;
   if (!/^https?:\/\//i.test(sub)) return false;
   if (/provider\.example/i.test(sub)) return false;
@@ -159,7 +161,29 @@ export interface LoadResult {
 // share a single in-flight promise.
 const INFLIGHT: Map<string, Promise<LoadResult>> = new Map();
 
+async function fetchProviderChannels(url: string): Promise<LoadResult> {
+  const id = url.slice('provider:'.length);
+  let r: Response;
+  try { r = await fetch(`/api/providers/${id}/live`, { credentials: 'include' }); }
+  catch (e) { return { channels: [], error: `Network error: ${(e as Error).message}` }; }
+  if (r.status === 401) return { channels: [], error: 'Sign in to load your channels.', code: 'auth' };
+  if (r.status === 402) return { channels: [], error: 'Your free trial has ended. Subscribe to keep watching.', code: 'expired' };
+  if (!r.ok) {
+    let message = `Provider request failed (${r.status})`;
+    try { const b = await r.json(); if (b.message) message = b.message; } catch { /* not JSON */ }
+    return { channels: [], error: message };
+  }
+  const body = await r.json() as { channels?: M3UChannel[] };
+  const channels = Array.isArray(body.channels) ? body.channels : [];
+  if (channels.length === 0) return { channels: [], error: 'This provider returned no live channels.' };
+  const entry: CacheEntry = { url, fetchedAt: Date.now(), channels, v: PARSE_VERSION };
+  MEM.set(memKey(), entry);
+  writeSessionCache(entry);
+  return { channels };
+}
+
 async function fetchAndParse(url: string): Promise<LoadResult> {
+  if (url.startsWith('provider:')) return fetchProviderChannels(url);
   let text: string;
 
   // local: handles point at a file the user uploaded — already on the

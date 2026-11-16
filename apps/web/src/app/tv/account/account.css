@@ -947,3 +947,9 @@
   border-radius: 12px;
   background: var(--ns-accent-soft, rgba(255, 27, 107, 0.06));
 }
+
+.ac-form-error {
+  margin: 10px 0 0; padding: 10px 12px; border-radius: 10px;
+  background: rgba(255, 90, 110, 0.10); border: 1px solid rgba(255, 90, 110, 0.35);
+  color: var(--ns-danger, #FF6B7B); font-size: 13px; font-weight: 600;
+}

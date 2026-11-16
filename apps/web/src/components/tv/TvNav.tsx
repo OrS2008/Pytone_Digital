@@ -6,10 +6,13 @@ import { usePathname } from 'next/navigation';
 import { useCurrentZone, useSetZone } from './TvFocus';
 import { getSessionEmail } from '@/lib/session';
 import { useT } from '@/lib/i18n';
+import { activeProviderId, cachedCaps } from '@/lib/providersClient';
 
-const ITEMS: { key: string; href: string }[] = [
+const ALL_ITEMS: { key: string; href: string; needs?: 'vod' | 'series' }[] = [
   { key: 'nav.home',     href: '/tv' },
   { key: 'nav.live',     href: '/tv/live' },
+  { key: 'nav.movies',   href: '/tv/movies', needs: 'vod' },
+  { key: 'nav.series',   href: '/tv/series', needs: 'series' },
   { key: 'nav.sports',   href: '/tv/sports' },
   { key: 'nav.guide',    href: '/tv/guide' },
   { key: 'nav.catchup',  href: '/tv/catchup' },
@@ -25,6 +28,11 @@ export default function TvNav() {
   const { t } = useT();
   const [idx, setIdx] = useState(0);
   const [email, setEmail] = useState<string | null>(null);
+  // Movies / Series appear only when the active source actually offers
+  // them (capabilities reported by the provider) — never as dead links.
+  const [caps, setCaps] = useState<{ vod: boolean; series: boolean } | null>(null);
+  useEffect(() => { setCaps(cachedCaps(activeProviderId())); }, []);
+  const ITEMS = ALL_ITEMS.filter((it) => !it.needs || (caps?.[it.needs] ?? false));
 
   useEffect(() => { setEmail(getSessionEmail()); }, []);
 

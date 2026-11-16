@@ -14,12 +14,14 @@ import Shell from '../Shell';
 import usePersisted from '@/lib/usePersisted';
 import { fetchAndCache, getUserSourceUrl, invalidateCache, localM3UKey } from '@/lib/channelCache';
 import { useT } from '@/lib/i18n';
+import ProviderForm from '@/components/tv/ProviderForm';
+import { removeProvider, rememberCaps, type PublicProvider } from '@/lib/providersClient';
 import { maskSourceUrl } from '@/lib/maskUrl';
 
 type Tab = 'live' | 'epg';
-type AddTab = 'm3u' | 'upload';
+type AddTab = 'm3u' | 'upload' | 'xtream' | 'stalker';
 
-interface Source { id: string; kind: 'M3U' | 'XML'; title: string; sub: string; stat: string; }
+interface Source { id: string; kind: 'M3U' | 'XML' | 'XC' | 'MAG'; title: string; sub: string; stat: string; }
 
 // No seed sources. We used to ship a placeholder "My provider" row with
 // a masked URL, but users kept clicking Edit on it to paste their real
@@ -148,9 +150,41 @@ export default function Sources() {
     else               flash(`${t('src.reachable')} ${result.channels.length} ${t('src.detected')}`);
   }
 
+  // A provider connection was verified and stored server-side; reference
+  // it from the source list (it becomes the active source) and, when it
+  // ships a guide, from the EPG list too.
+  function onProviderAdded(p: PublicProvider) {
+    const sub = `provider:${p.id}`;
+    rememberCaps(p.id, p.capabilities);
+    setLive((prev: Source[]) => [...prev.filter((s) => s.sub !== sub), {
+      id: `prov-${p.id}`, kind: p.type === 'xtream' ? 'XC' : 'MAG', title: p.name, sub, stat: accountLine(p),
+    }]);
+    if (p.capabilities.epg) {
+      setEpg((prev: Source[]) => [...prev.filter((s) => s.sub !== sub), {
+        id: `epg-prov-${p.id}`, kind: 'XML', title: `${p.name} · ${t('prov.guide')}`, sub, stat: '',
+      }]);
+    }
+    invalidateCache();
+    flash(`"${p.name}" ${t('prov.added')}`);
+  }
+
+  function accountLine(p: PublicProvider): string {
+    const a = p.account;
+    const exp = a?.expiresAt ? `${t('prov.expires')} ${new Date(a.expiresAt).toLocaleDateString()}` : t('prov.noExpiry');
+    const cons = a?.maxConnections ? ` · ${a.activeConnections ?? 0}/${a.maxConnections}` : '';
+    return `${p.label} · ${a?.status ?? ''} · ${exp}${cons}`;
+  }
+
   const removeFrom = (list: Source[], setList: (s: Source[]) => void) => (id: string) => {
     const removed = list.find((s) => s.id === id);
     setList(list.filter((s) => s.id !== id));
+    // Provider connection: delete the server-side record (and its
+    // encrypted credentials) and any guide entry pointing at it.
+    if (removed?.sub.startsWith('provider:')) {
+      const pid = removed.sub.slice('provider:'.length);
+      removeProvider(pid).catch(() => flash(t('src.failed')));
+      setEpg((prev: Source[]) => prev.filter((s) => s.sub !== removed.sub));
+    }
     // If it was an uploaded file, drop the cached text too so we don't
     // leak ~MB into localStorage on every remove + re-upload cycle.
     if (removed?.sub.startsWith('local:')) {
@@ -169,6 +203,7 @@ export default function Sources() {
   // field, so there was nowhere to type the new URL.
   function startEdit(kind: 'live' | 'epg', s: Source) {
     if (s.sub.startsWith('local:')) { flash(t('src.editUploaded')); return; }
+    if (s.sub.startsWith('provider:')) { flash(t('prov.editProvider')); return; }
     setEditing({ kind, id: s.id, url: s.sub, name: s.title });
   }
 
@@ -211,7 +246,7 @@ export default function Sources() {
     flash(`"${s.title}" ${t('src.nowActive')}`);
   }
 
-  const activeId = [...live].reverse().find((x) => /^(https?:\/\/|local:)/i.test(x.sub))?.id;
+  const activeId = [...live].reverse().find((x) => /^(https?:\/\/|local:|provider:)/i.test(x.sub))?.id;
 
   const editForm = (kind: 'live' | 'epg') => editing && editing.kind === kind && (
     <form
@@ -317,17 +352,21 @@ export default function Sources() {
             <div className="ac-card-title" style={{ marginBottom: 12 }}>{t('src.addNew')}</div>
 
             <div className="ac-source-tabs" style={{ marginBottom: 18 }}>
-              {(['m3u', 'upload'] as AddTab[]).map((id) => (
+              {(['m3u', 'upload', 'xtream', 'stalker'] as AddTab[]).map((id) => (
                 <button
                   key={id}
                   onClick={() => setAddTab(id)}
                   className={`ac-source-tab ${addTab === id ? 'ac-source-tab-active' : ''}`}
                 >
-                  {id === 'm3u' ? t('src.pasteUrl') : t('src.uploadFile')}
+                  {({ m3u: t('src.pasteUrl'), upload: t('src.uploadFile'), xtream: t('prov.xtream'), stalker: t('prov.stalker') } as Record<AddTab, string>)[id]}
                 </button>
               ))}
             </div>
 
+            {(addTab === 'xtream' || addTab === 'stalker') && (
+              <ProviderForm key={addTab} type={addTab} onAdded={onProviderAdded} />
+            )}
+            {(addTab === 'm3u' || addTab === 'upload') && (
             <form onSubmit={(e) => { e.preventDefault(); addLive(); }}>
               <div className="ac-field">
                 <label className="ac-field-label">{t('src.friendly')}</label>
@@ -382,6 +421,7 @@ export default function Sources() {
                 <button type="button" className="ac-btn ac-btn-ghost" onClick={testUrl}>{t('src.testOnly')}</button>
               </div>
             </form>
+            )}
           </div>
         </div>
       )}

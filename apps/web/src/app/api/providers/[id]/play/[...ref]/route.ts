@@ -53,9 +53,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const target = await clientFor(owned.record).resolve(playRef);
     const token = await sealStreamTarget(target, owned.viewer.userId);
+    const location = `/api/stream?t=${encodeURIComponent(token)}`;
+    // ?json=1 — for players that must know the container before loading
+    // (a Stalker link's type is only known once the portal returns it).
+    if (req.nextUrl.searchParams.get('json') === '1') {
+      let hls = false;
+      try { hls = /\.m3u8$/i.test(new URL(target.url).pathname); } catch { /* keep false */ }
+      return NextResponse.json({ url: location, hls }, { headers: { 'cache-control': 'no-store' } });
+    }
     return new Response(null, {
       status: 302,
-      headers: { location: `/api/stream?t=${encodeURIComponent(token)}`, 'cache-control': 'no-store' },
+      headers: { location, 'cache-control': 'no-store' },
     });
   } catch (e) { return errorResponse(e); }
 }

@@ -103,6 +103,7 @@ export function getUserEpgUrl(): string | null {
 
 function isRealEpgUrl(sub: string): boolean {
   if (!sub) return false;
+  if (/^provider:[a-z0-9]{8,32}$/.test(sub)) return true;
   if (!/^https?:\/\//i.test(sub)) return false;
   if (/provider\.example/i.test(sub)) return false;
   if (/•/.test(sub)) return false;
@@ -124,7 +125,10 @@ export async function loadEpgIndex(): Promise<EpgIndex | null> {
 
   inflight = (async () => {
     try {
-      const r = await fetch('/api/epg?url=' + encodeURIComponent(url));
+      // provider:<id> guides are fetched by id — their URL carries credentials.
+      const r = url.startsWith('provider:')
+        ? await fetch(`/api/providers/${url.slice('provider:'.length)}/epg`, { credentials: 'include' })
+        : await fetch('/api/epg?url=' + encodeURIComponent(url));
       if (!r.ok) return null;
       const xml = await r.text();
       const byId   = indexProgrammes(xml);

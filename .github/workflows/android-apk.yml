@@ -113,8 +113,10 @@ jobs:
           # `versionCode rootProject.ext.versionCode` into
           # `versionCode 1rootProject.ext.versionCode`. Capacitor's
           # template uses literal digits here, but be defensive.
-          sed -i 's|versionCode [0-9]\+|versionCode 1|'                         "$BG"
-          sed -i 's|versionName ".*"|versionName "1.0.0"|'                      "$BG"
+          # versionCode must increase with every build or Android refuses
+          # to install the new APK over the old one.
+          sed -i 's|versionCode [0-9]\+|versionCode ${{ github.run_number }}|'  "$BG"
+          sed -i 's|versionName ".*"|versionName "1.0.${{ github.run_number }}"|' "$BG"
           # minSdk lives in android/variables.gradle in Capacitor 6
           # (referenced from app/build.gradle as `rootProject.ext.minSdkVersion`).
           # Patching app/build.gradle would corrupt that reference, so
@@ -132,38 +134,87 @@ jobs:
         working-directory: apps/android
         run: npx cap sync android
 
-      - name: Generate debug keystore
-        working-directory: apps/android
+      # ── Signing ────────────────────────────────────────────────────────
+      # Release builds are signed with the OWNER's permanent keystore,
+      # supplied as repository secrets (never committed):
+      #   ANDROID_KEYSTORE_B64       base64 of the .jks / .keystore file
+      #   ANDROID_KEYSTORE_PASSWORD  store password
+      #   ANDROID_KEY_ALIAS          key alias
+      #   ANDROID_KEY_PASSWORD       key password
+      # Same key every build → each APK installs as an UPDATE over the
+      # previous one. Without the secrets the workflow falls back to a
+      # debug build and says so loudly: debug APKs get a fresh throw-away
+      # signature per run and cannot update an installed copy.
+      - name: Decide build type
+        id: mode
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
         run: |
-          set -euxo pipefail
-          # A throwaway keystore so the APK is installable. NOT for
-          # Play Store — for that, drop a real keystore into a secret
-          # named ANDROID_KEYSTORE_B64 and switch to the release path
-          # in the next step.
-          keytool -genkey -v \
-            -keystore android/app/debug.keystore \
-            -storepass android -keypass android \
-            -alias androiddebugkey \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Nova Stream, OU=Mobile, O=Nova Stream, L=Tel Aviv, ST=Israel, C=IL"
+          if [ -n "$KS" ]; then echo "release=true" >> "$GITHUB_OUTPUT"; else echo "release=false" >> "$GITHUB_OUTPUT"; fi
 
-      - name: Build debug APK
+      - name: Install release keystore and signing config
+        if: steps.mode.outputs.release == 'true'
         working-directory: apps/android/android
         env:
-          # Headroom for the Capacitor + AndroidX + WebView build.
+          KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          echo "$KS" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          # A second android {} block merges with the scaffolded one.
+          # Passwords are read from the environment at build time and
+          # never written to disk.
+          cat >> app/build.gradle <<'GRADLE'
+
+          android {
+              signingConfigs {
+                  novaRelease {
+                      storeFile file(System.getenv("NOVA_KEYSTORE_FILE"))
+                      storePassword System.getenv("NOVA_KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("NOVA_KEY_ALIAS")
+                      keyPassword System.getenv("NOVA_KEY_PASSWORD")
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.novaRelease
+                      minifyEnabled false
+                      debuggable false
+                  }
+              }
+          }
+          GRADLE
+
+      - name: Build signed release APK
+        if: steps.mode.outputs.release == 'true'
+        working-directory: apps/android/android
+        env:
+          GRADLE_OPTS: -Xmx4g -Dorg.gradle.jvmargs=-Xmx4g
+          NOVA_KEYSTORE_FILE: ${{ runner.temp }}/release.keystore
+          NOVA_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          NOVA_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          NOVA_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleRelease
+          mkdir -p ../dist
+          cp app/build/outputs/apk/release/app-release.apk ../dist/nova-stream-${{ github.run_number }}.apk
+          # Prove it is signed with the owner key, not a debug key.
+          "$ANDROID_HOME"/build-tools/34.0.0/apksigner verify --print-certs ../dist/*.apk | grep -v "Android Debug"
+          rm -f "$RUNNER_TEMP/release.keystore"
+
+      - name: Build debug APK (no release keystore configured)
+        if: steps.mode.outputs.release != 'true'
+        working-directory: apps/android/android
+        env:
           GRADLE_OPTS: -Xmx4g -Dorg.gradle.jvmargs=-Xmx4g
         run: |
           set -euxo pipefail
+          echo "::warning title=Debug build::ANDROID_KEYSTORE_B64 is not set. This APK is a DEBUG build with a one-off signature: it cannot be installed over a previous Nova Stream APK and must not be distributed. See ARCHITECTURE_AND_DEPLOYMENT_CHANGES.md → Android signing."
           chmod +x ./gradlew
           ./gradlew --no-daemon assembleDebug
-
-      - name: Rename APK
-        working-directory: apps/android/android
-        run: |
-          set -euxo pipefail
           mkdir -p ../dist
-          cp app/build/outputs/apk/debug/app-debug.apk \
-             ../dist/nova-stream-${{ github.run_number }}.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ../dist/nova-stream-${{ github.run_number }}-debug.apk
           ls -la ../dist
 
       - name: Upload APK artifact
@@ -207,8 +258,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euxo pipefail
-          cp apps/android/dist/nova-stream-${{ github.run_number }}.apk \
-             apps/android/dist/nova-stream.apk
+          # Release builds publish under the stable name. A debug build
+          # (no owner keystore) keeps its -debug suffix too, so nobody
+          # mistakes it for a signed release.
+          src=$(ls apps/android/dist/nova-stream-${{ github.run_number }}*.apk | head -1)
+          cp "$src" apps/android/dist/nova-stream.apk
           gh release upload apk-latest apps/android/dist/nova-stream.apk \
             --clobber --repo "${{ github.repository }}"
 

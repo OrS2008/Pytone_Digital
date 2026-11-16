@@ -22,6 +22,7 @@ import { getHistoryFor, type WatchEntry } from '@/lib/watchHistory';
 import { loadEpgIndex, programmesFor, getUserEpgUrl, type EpgIndex } from '@/lib/epgCache';
 import { getFavorites, onFavoritesChange } from '@/lib/favorites';
 import { useT } from '@/lib/i18n';
+import { activeProviderId, cachedCaps } from '@/lib/providersClient';
 import './home.css';
 
 const SKIP = /(test|placeholder|24\/?7 vod|info channel|backup|adult|xxx)/i;
@@ -228,8 +229,11 @@ export default function TvMobileHome() {
     if (!isPhone) router.replace('/tv');
   }, [router]);
 
+  // Movies / Series tiles only when the active provider offers them.
+  const [caps, setCaps] = useState<{ vod: boolean; series: boolean } | null>(null);
   useEffect(() => {
     setEmail(getSessionEmail());
+    setCaps(cachedCaps(activeProviderId()));
   }, []);
   // True until the first loadChannels() resolves — drives the skeleton
   // hero/rail so the page never flashes empty while the playlist loads.
@@ -496,6 +500,26 @@ export default function TvMobileHome() {
             <span className="nshome-genre-tile-label">{t('home.cat.guide')}</span>
             <span className="nshome-genre-tile-count">{t('home.today')}</span>
           </Link>
+          {caps?.vod && (
+            <Link href="/tv/movies" className="nshome-genre-tile">
+              <span className="nshome-genre-ic nshome-ic-guide" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 4v16M17 4v16M2 9h5M2 15h5M17 9h5M17 15h5"/>
+                </svg>
+              </span>
+              <span className="nshome-genre-tile-label">{t('nav.movies')}</span>
+            </Link>
+          )}
+          {caps?.series && (
+            <Link href="/tv/series" className="nshome-genre-tile">
+              <span className="nshome-genre-ic nshome-ic-sports" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="6" width="18" height="13" rx="2"/><path d="M8 2l4 4 4-4"/>
+                </svg>
+              </span>
+              <span className="nshome-genre-tile-label">{t('nav.series')}</span>
+            </Link>
+          )}
         </div>
       </section>
 
