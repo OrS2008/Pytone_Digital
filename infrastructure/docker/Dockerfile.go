@@ -8,7 +8,8 @@
 #   docker build -f infrastructure/docker/Dockerfile.go \
 #                --build-arg SERVICE=gateway -t novastream/gateway .
 
-ARG GO_VERSION=1.23
+# Must satisfy go.work (go 1.24): the official images do not download newer toolchains.
+ARG GO_VERSION=1.24
 
 # --- builder ------------------------------------------------------------
 FROM golang:${GO_VERSION}-alpine AS builder
