@@ -14,7 +14,7 @@ const APP_ROUTES = ['/tv/home', '/tv/live', '/tv/search', '/tv/guide', '/tv/catc
 const ACCOUNT_ROUTES = [
   '/tv/account', '/tv/account/subscription', '/tv/account/plans', '/tv/account/sources',
   '/tv/account/devices', '/tv/account/appearance', '/tv/account/help',
-  '/tv/account/preferences', '/tv/account/security', '/tv/account/parental', '/tv/account/notifications',
+  '/tv/account/preferences', '/tv/account/security', '/tv/account/parental', '/tv/account/notifications', '/tv/account/groups',
 ];
 const PUBLIC_ROUTES = ['/', '/tv/login', '/tv/signup', '/tv/forgot-password', '/tv/check-email', '/legal/terms', '/legal/privacy', '/admin/login'];
 
@@ -332,7 +332,7 @@ test('Hebrew account screens contain no untranslated English prose', async () =>
   const ctx = await newContext({ locale: 'he', signedIn: true });
   const offenders = [];
   for (const route of ['/tv/account', '/tv/account/subscription', '/tv/account/plans', '/tv/account/sources', '/tv/account/devices',
-    '/tv/account/appearance', '/tv/account/help', '/tv/account/preferences', '/tv/account/security', '/tv/account/parental', '/tv/account/notifications']) {
+    '/tv/account/appearance', '/tv/account/help', '/tv/account/groups', '/tv/account/preferences', '/tv/account/security', '/tv/account/parental', '/tv/account/notifications']) {
     const { page } = await open(ctx, route, { settle: 600 });
     const text = await page.evaluate(() => document.querySelector('.ac-panel')?.innerText || '');
     // Three or more consecutive English words = a sentence that was not translated.

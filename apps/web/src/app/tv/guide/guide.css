@@ -84,3 +84,9 @@
   animation: guide-spin 0.9s linear infinite;
 }
 @keyframes guide-spin { to { transform: rotate(360deg); } }
+
+/* Future programme = reminder toggle */
+.guide-remind > div { transition: box-shadow 120ms; }
+.guide-remind:hover > div, .guide-remind:focus-visible > div { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35); }
+.guide-remind.is-on > div { box-shadow: inset 0 0 0 2px var(--ns-accent, #FF3B6E); }
+.guide-remind:focus-visible { outline: none; }

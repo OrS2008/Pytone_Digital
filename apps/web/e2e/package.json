@@ -7,7 +7,7 @@
     "test": "npm run test:unit && npm run test:integration && npm run test:browser",
     "test:unit": "node --test unit/lib.test.mjs",
     "test:integration": "node --import ./integration/register.mjs --test --test-concurrency=1 integration/security.test.mjs integration/billing.test.mjs integration/providers.test.mjs integration/ops.test.mjs",
-    "test:browser": "node --test --test-concurrency=1 app.test.mjs providers.test.mjs"
+    "test:browser": "node --test --test-concurrency=1 app.test.mjs providers.test.mjs features.test.mjs"
   },
   "devDependencies": {
     "playwright": "^1.63.0"

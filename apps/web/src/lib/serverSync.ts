@@ -27,6 +27,10 @@ export const SYNCED_KEYS: readonly string[] = [
   'sources.live',           // M3U source list
   'vod.progress',           // movie / episode resume positions (lib/vodProgress)
   'vod.favorites',          // My list for movies / series (lib/vodFavorites)
+  'favorites',              // live channel My list (lib/favorites)
+  'epg.reminders',          // guide reminders (lib/reminders)
+  'search.history',         // recent searches (lib/searchHistory)
+  'channels.groups',        // custom channel groups (lib/channelGroups)
   'sources.epg',            // XMLTV source URL list
   'prefs.prefetchNeighbours', // neighbour-prefetch toggle
   'prefs.parental',         // parental-controls config (legacy)

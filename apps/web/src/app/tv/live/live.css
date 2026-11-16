@@ -1024,7 +1024,7 @@
     letter-spacing: 1.5px; text-transform: uppercase;
     color: #7A8499;
   }
-  .rail-divider:first-child { padding-top: 2px; }
+  .rail-divider:first-child, .rail-groups + .rail-divider { padding-top: 2px; }
 
   /* Each channel = a vertical card. */
   .rail-row {
@@ -1199,4 +1199,29 @@
   min-height: 44px; padding: 0 22px; border-radius: 999px;
   background: var(--ns-accent, #FF3B6E); color: #fff; font-weight: 800; text-decoration: none;
   pointer-events: auto;
+}
+
+/* --- Group filter chips (ChannelRail) -------------------------------- */
+.rail-groups {
+  grid-column: 1 / -1;
+  display: flex; gap: 8px;
+  padding: 4px 18px 10px;
+  overflow-x: auto; scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.rail-groups::-webkit-scrollbar { display: none; }
+.rail-group {
+  flex: 0 0 auto;
+  padding: 7px 13px; border-radius: 999px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #B7BEC9; font: inherit; font-size: 13px; font-weight: 500;
+  cursor: pointer; white-space: nowrap; text-decoration: none;
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+}
+.rail-group.is-on { background: var(--ns-accent, #FF3B6E); border-color: transparent; color: #fff; font-weight: 700; }
+.rail-group-edit { color: var(--ns-accent, #FF3B6E); background: transparent; border-style: dashed; }
+.rail-empty { grid-column: 1 / -1; padding: 18px; color: #8B95A7; font-size: 14px; }
+@media (max-width: 819px) {
+  .rail-groups { padding: 0 0 4px; }
 }

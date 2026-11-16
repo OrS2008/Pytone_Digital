@@ -3,7 +3,10 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Channel } from './types';
 import { userKey } from '@/lib/session';
+import Link from 'next/link';
 import { getFavorites, onFavoritesChange, toggleFavorite } from '@/lib/favorites';
+import { getGroups, onGroupsChange, type ChannelGroup } from '@/lib/channelGroups';
+import { useT } from '@/lib/i18n';
 
 interface Props {
   channels: Channel[];
@@ -60,25 +63,57 @@ export default function ChannelRail({ channels, activeIdx, onTune, onPlay }: Pro
     setFavs(getFavorites());
     return onFavoritesChange(() => setFavs(getFavorites()));
   }, []);
+  const { t } = useT();
+  // Group filter: '' = all channels, 'fav' = My list, else a custom
+  // group id. Rows keep their index in the full list, so tuning,
+  // deep links and the player are unaffected by the filter.
+  const [groups, setGroups] = useState<ChannelGroup[]>([]);
+  const [group, setGroup] = useState('');
+  useEffect(() => {
+    const sync = () => setGroups(getGroups());
+    sync();
+    return onGroupsChange(sync);
+  }, []);
+  const filterIds = useMemo<Set<string> | null>(() => {
+    if (group === 'fav') return favs;
+    const g = groups.find((x) => x.id === group);
+    return g ? new Set(g.channels) : null;
+  }, [group, groups, favs]);
+  // A group that was deleted (here or on another device) resets the filter.
+  useEffect(() => {
+    if (group && group !== 'fav' && !groups.some((g) => g.id === group)) setGroup('');
+  }, [group, groups]);
+  // Indices (into `channels`) the rail shows.
+  const shown = useMemo(() => {
+    if (!filterIds) return null;
+    const out: number[] = [];
+    channels.forEach((c, i) => { if (filterIds.has(c.id)) out.push(i); });
+    return out;
+  }, [channels, filterIds]);
+  const shownRef = useRef(shown);
+  shownRef.current = shown;
+  const total = shown ? shown.length : channels.length;
   // Number of channels currently rendered. Starts at one window, but
   // always includes the active channel (deep-links can target a channel
   // thousands deep) plus a small buffer so auto-scroll-to-active works.
   const [visible, setVisible] = useState(() =>
     Math.min(channels.length, Math.max(WINDOW_STEP, activeIdx + 20)),
   );
+  // Position of the active channel within what the rail shows.
+  const activePos = shown ? shown.indexOf(activeIdx) : activeIdx;
 
-  // Reset the window when the playlist itself changes.
+  // Reset the window when the playlist or the group filter changes.
   useEffect(() => {
-    setVisible(Math.min(channels.length, Math.max(WINDOW_STEP, activeIdx + 20)));
+    setVisible(Math.min(total, Math.max(WINDOW_STEP, activePos + 20)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channels]);
+  }, [channels, shown]);
 
   // Make sure the active channel is always within the rendered window
   // (e.g. arrow-key navigation walking past the current bottom edge, or
   // a deep-link to a far channel).
   useEffect(() => {
-    setVisible((v) => Math.min(channels.length, Math.max(v, activeIdx + 20)));
-  }, [activeIdx, channels.length]);
+    setVisible((v) => Math.min(total, Math.max(v, activePos + 20)));
+  }, [activePos, total]);
 
   // Grow the window as a sentinel near the bottom scrolls into view.
   // rootMargin pre-loads the next chunk ~2 screens early so the user
@@ -87,18 +122,18 @@ export default function ChannelRail({ channels, activeIdx, onTune, onPlay }: Pro
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
-    if (visible >= channels.length) return;
+    if (visible >= total) return;
     const io = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) {
-          setVisible((v) => Math.min(channels.length, v + WINDOW_STEP));
+          setVisible((v) => Math.min(total, v + WINDOW_STEP));
         }
       },
       { rootMargin: '1200px 0px' },
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [visible, channels.length]);
+  }, [visible, total]);
 
   // Read the spoiler-protection preference. Updates if the user flips
   // it in the preferences screen and comes back to /tv/live.
@@ -127,6 +162,17 @@ export default function ChannelRail({ channels, activeIdx, onTune, onPlay }: Pro
   // Up/Down/OK at the layout level.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      const list = shownRef.current;
+      if (list && list.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+        // Step within the filtered group.
+        const pos = list.indexOf(focusedRef.current);
+        const next = e.key === 'ArrowDown'
+          ? list[Math.min(pos + 1, list.length - 1)]
+          : list[Math.max(pos < 0 ? 0 : pos - 1, 0)];
+        onTune(next);
+        e.preventDefault();
+        return;
+      }
       if (e.key === 'ArrowDown') { onTune(Math.min(focusedRef.current + 1, channels.length - 1)); e.preventDefault(); }
       if (e.key === 'ArrowUp')   { onTune(Math.max(focusedRef.current - 1, 0));                   e.preventDefault(); }
       // OK on the focused row is just a "re-tune" — useful if the rail is
@@ -148,8 +194,9 @@ export default function ChannelRail({ channels, activeIdx, onTune, onPlay }: Pro
   // added as the sentinel scrolls into view.
   const rows: React.ReactNode[] = [];
   let lastCat = '';
-  const upTo = Math.min(visible, channels.length);
-  for (let i = 0; i < upTo; i++) {
+  const upTo = Math.min(visible, total);
+  for (let k = 0; k < upTo; k++) {
+    const i = shown ? shown[k] : k;
     const ch = channels[i];
     if (ch.category !== lastCat) {
       rows.push(<div key={`d-${i}-${ch.category}`} className="rail-divider">{ch.category}</div>);
@@ -168,10 +215,34 @@ export default function ChannelRail({ channels, activeIdx, onTune, onPlay }: Pro
     );
   }
 
+  const chips: { id: string; label: string }[] = [
+    { id: '', label: t('groups.all') },
+    ...(favs.size > 0 || group === 'fav' ? [{ id: 'fav', label: `♥ ${t('groups.myList')}` }] : []),
+    ...groups.map((g) => ({ id: g.id, label: g.name })),
+  ];
+
   return (
     <div ref={railRef} className="rail">
+      <div className="rail-groups" role="tablist" aria-label={t('groups.filter')}>
+        {chips.map((c) => (
+          <button
+            key={c.id || '__all'}
+            type="button"
+            role="tab"
+            aria-selected={group === c.id}
+            className={`rail-group ${group === c.id ? 'is-on' : ''}`}
+            onClick={() => setGroup(c.id)}
+          ><bdi>{c.label}</bdi></button>
+        ))}
+        <Link href="/tv/account/groups" className="rail-group rail-group-edit">
+          {groups.length ? t('groups.edit') : `+ ${t('groups.new')}`}
+        </Link>
+      </div>
+      {shown && shown.length === 0 && (
+        <div className="rail-empty">{group === 'fav' ? t('groups.emptyFav') : t('groups.emptyGroup')}</div>
+      )}
       {rows}
-      {visible < channels.length && (
+      {visible < total && (
         <div ref={sentinelRef} className="rail-sentinel" aria-hidden="true" />
       )}
     </div>

@@ -19,6 +19,7 @@ import type { M3UChannel } from '@/lib/m3u';
 import { useT } from '@/lib/i18n';
 import { activeProviderId, cachedCaps, getMovies, getSeriesList } from '@/lib/providersClient';
 import type { Movie, Series } from '@/lib/providers/types';
+import { addSearch, clearSearchHistory, getSearchHistory, removeSearch } from '@/lib/searchHistory';
 
 interface SpeechRecognitionResult { transcript: string }
 interface SpeechRecognitionEvent { results: { 0: { 0: SpeechRecognitionResult } } & ArrayLike<unknown> }
@@ -67,6 +68,21 @@ export default function SearchHome() {
     const cached = getCachedChannels();
     if (cached && cached.length > 0) { setChannels(cached); setLoading(false); }
   }, []);
+  // Recent searches: a query is remembered once the user pauses typing
+  // for 1.5 s with results on screen, or opens a result.
+  const [history, setHistory] = useState<string[]>([]);
+  useEffect(() => {
+    const sync = () => setHistory(getSearchHistory());
+    sync();
+    window.addEventListener('ns-settings-synced', sync);
+    return () => window.removeEventListener('ns-settings-synced', sync);
+  }, []);
+  const remember = () => { if (q.trim().length >= 2) setHistory(addSearch(q)); };
+  useEffect(() => {
+    if (q.trim().length < 2) return;
+    const id = setTimeout(() => setHistory(addSearch(q)), 1500);
+    return () => clearTimeout(id);
+  }, [q]);
   const [listening, setListening] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
 
@@ -127,7 +143,7 @@ export default function SearchHome() {
   function startVoice() {
     setVoiceError(null);
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Ctor) { setVoiceError('Voice search is not supported on this browser.'); return; }
+    if (!Ctor) { setVoiceError(t('search.voiceUnsupported')); return; }
     try {
       const r = new Ctor();
       r.lang = (typeof navigator !== 'undefined' ? navigator.language : 'en-US');
@@ -138,15 +154,15 @@ export default function SearchHome() {
         setQ(transcript);
       };
       r.onerror = (e) => {
-        if (e.error === 'not-allowed') setVoiceError('Microphone permission was denied.');
-        else if (e.error === 'no-speech') setVoiceError('No speech detected. Try again.');
-        else setVoiceError('Voice search failed.');
+        if (e.error === 'not-allowed') setVoiceError(t('search.voiceDenied'));
+        else if (e.error === 'no-speech') setVoiceError(t('search.voiceNoSpeech'));
+        else setVoiceError(t('search.voiceFailed'));
       };
       r.onend = () => setListening(false);
       r.start();
       recRef.current = r;
       setListening(true);
-    } catch { setVoiceError('Voice search unavailable.'); }
+    } catch { setVoiceError(t('search.voiceFailed')); }
   }
   function stopVoice() { recRef.current?.stop(); setListening(false); }
 
@@ -162,6 +178,7 @@ export default function SearchHome() {
               autoFocus
               value={q}
               onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') remember(); }}
               placeholder={t('search.ph')}
               style={{
                 width: '100%',
@@ -178,8 +195,8 @@ export default function SearchHome() {
             <button
               type="button"
               onClick={listening ? stopVoice : startVoice}
-              title={listening ? 'Stop listening' : 'Search by voice'}
-              aria-label={listening ? 'Stop voice search' : 'Start voice search'}
+              title={listening ? t('search.voiceStop') : t('search.voiceStart')}
+              aria-label={listening ? t('search.voiceStop') : t('search.voiceStart')}
               style={{
                 position: 'absolute',
                 right: 10, top: '50%', transform: 'translateY(-50%)',
@@ -205,6 +222,36 @@ export default function SearchHome() {
               )}
             </button>
           </div>
+
+          {!q.trim() && history.length > 0 && (
+            <div className="search-history" style={{ marginTop: 14, fontFamily: 'Inter, system-ui, sans-serif' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: 13, color: '#6E7480' }}>{t('search.recent')}</span>
+                <button
+                  type="button"
+                  onClick={() => { clearSearchHistory(); setHistory([]); }}
+                  style={{ background: 'none', border: 0, color: 'var(--ns-accent, #FF3B6E)', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}
+                >{t('search.clearRecent')}</button>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {history.map((h) => (
+                  <span key={h} style={{ display: 'inline-flex', alignItems: 'center', borderRadius: 999, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', maxWidth: '100%' }}>
+                    <button
+                      type="button"
+                      onClick={() => setQ(h)}
+                      style={{ background: 'none', border: 0, color: '#E9EBF1', padding: '8px 4px 8px 14px', cursor: 'pointer', fontSize: 14, fontFamily: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}
+                    >{h}</button>
+                    <button
+                      type="button"
+                      aria-label={`${t('search.removeRecent')}: ${h}`}
+                      onClick={() => setHistory(removeSearch(h))}
+                      style={{ background: 'none', border: 0, color: '#8B95A7', padding: '8px 12px 8px 6px', cursor: 'pointer', fontSize: 13 }}
+                    >✕</button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {voiceError && (
             <div style={{ marginTop: 10, fontSize: 13, color: 'var(--ns-danger, #FF6B7B)' }}>{voiceError}</div>
@@ -258,6 +305,7 @@ export default function SearchHome() {
               {vodMatches.slice(0, 24).map((m) => (
                 <Link
                   key={m.kind + m.id}
+                  onClick={remember}
                   href={m.kind === 'movie'
                     ? `/tv/watch?${new URLSearchParams({ p: vodPid, k: 'movie', id: m.id, ext: m.ext, t: m.name, img: m.poster })}`
                     : `/tv/series/view?p=${vodPid}&id=${encodeURIComponent(m.id)}`}
@@ -309,6 +357,7 @@ export default function SearchHome() {
                   // explicitly clicks ⛶ Fullscreen when they want it.
                   <Link
                     key={c.id + '-' + c.number}
+                    onClick={remember}
                     href={`/tv/live?ch=${encodeURIComponent(String(c.number))}&preview=1`}
                     style={{
                       display: 'grid',

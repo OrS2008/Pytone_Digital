@@ -64,6 +64,14 @@ const Icons = {
       <path d="m9 12 2 2 4-4"/>
     </svg>
   ),
+  groups: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="7" height="7" rx="1.5"/>
+      <rect x="14" y="4" width="7" height="7" rx="1.5"/>
+      <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+      <path d="M17.5 14v7M14 17.5h7"/>
+    </svg>
+  ),
   appearance: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 12.8A9 9 0 1 1 12 3v0a4 4 0 0 0 0 8 4 4 0 0 1 0 8 9 9 0 0 0 9-6.2z"/>
@@ -96,6 +104,7 @@ const NAV: Section[] = [
     { id: 'overview',     href: '/tv/account',              labelKey: 'ac.nav.overview',     icon: Icons.overview },
     { id: 'subscription', href: '/tv/account/subscription', labelKey: 'ac.nav.subscription', icon: Icons.subscription },
     { id: 'sources',      href: '/tv/account/sources',      labelKey: 'ac.nav.sources',      icon: Icons.sources },
+    { id: 'groups',       href: '/tv/account/groups',       labelKey: 'ac.nav.groups',       icon: Icons.groups },
     { id: 'devices',      href: '/tv/account/devices',      labelKey: 'ac.nav.devices',      icon: Icons.devices },
     { id: 'appearance',   href: '/tv/account/appearance',   labelKey: 'ac.nav.appearance',   icon: Icons.appearance },
     { id: 'help',         href: '/tv/account/help',         labelKey: 'ac.nav.help',         icon: Icons.help },

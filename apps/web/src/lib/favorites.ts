@@ -50,5 +50,11 @@ export function toggleFavorite(channelId: string): boolean {
 /** Re-run `fn` whenever favorites change (returns an unsubscribe). */
 export function onFavoritesChange(fn: Listener): () => void {
   listeners.add(fn);
-  return () => listeners.delete(fn);
+  // Favourites ride the settings sync; another device's change lands here.
+  const synced = () => fn();
+  if (typeof window !== 'undefined') window.addEventListener('ns-settings-synced', synced);
+  return () => {
+    listeners.delete(fn);
+    if (typeof window !== 'undefined') window.removeEventListener('ns-settings-synced', synced);
+  };
 }

@@ -26,7 +26,7 @@
  *     or just ?ch=N for current/future programmes.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import TvNav from '@/components/tv/TvNav';
 import { TvFocusProvider } from '@/components/tv/TvFocus';
@@ -38,6 +38,7 @@ import type { M3UChannel } from '@/lib/m3u';
 import type { DigestChannel } from '@/lib/digest';
 import './guide.css';
 import { useT } from '@/lib/i18n';
+import { listReminders, onRemindersChange, reminderKey, toggleReminder } from '@/lib/reminders';
 
 // Default dimensions for desktop / TV. The component reads viewport
 // width on mount and shrinks them on phones (see useLayout below) so
@@ -125,17 +126,29 @@ export default function GuidePage() {
   const RAIL_WIDTH   = layout.railWidth;
   const HEADER_HEIGHT = layout.headerHeight;
 
-  const [channels, setChannels] = useState<M3UChannel[]>(
-    (typeof window !== 'undefined' ? getCachedChannels() : null) ?? [],
-  );
+  // Hydration-safe: the server cannot see localStorage, so both renders
+  // start empty / 'loading' and the layout effect below swaps in the
+  // cache before first paint. Reading storage in the initializers made
+  // the server and client HTML differ (React #418) for every user with
+  // an EPG configured.
+  const [channels, setChannels] = useState<M3UChannel[]>([]);
   const [epgIndex, setEpgIndex] = useState<EpgIndex | null>(null);
   const [digestRows, setDigestRows] = useState<RowData[] | null>(null);
-  const [epgState, setEpgState] = useState<'idle' | 'loading' | 'ready' | 'none'>(
-    typeof window !== 'undefined' && getUserEpgUrl() ? 'idle' : 'none',
-  );
+  const [epgState, setEpgState] = useState<'idle' | 'loading' | 'ready' | 'none'>('loading');
+  useLayoutEffect(() => {
+    const cached = getCachedChannels();
+    if (cached && cached.length) setChannels(cached);
+  }, []);
   const [dayOffset, setDayOffset] = useState(0);
   const [q, setQ] = useState('');
   const [now, setNow] = useState(Date.now());
+  // Keys of programmes the user asked to be reminded about.
+  const [reminders, setReminders] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    const sync = () => setReminders(new Set(listReminders().map((r) => r.key)));
+    sync();
+    return onRemindersChange(sync);
+  }, []);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
 
   // Refresh "now" every minute so the now-line tracks live time even
@@ -407,6 +420,7 @@ export default function GuidePage() {
                 dayEnd={dayEnd}
                 now={now}
                 layout={layout}
+                reminders={reminders}
               />
             ))}
           </div>
@@ -416,13 +430,15 @@ export default function GuidePage() {
   );
 }
 
-function GuideRow({ row, dayStart, dayEnd, now, layout }: {
+function GuideRow({ row, dayStart, dayEnd, now, layout, reminders }: {
   row: RowData;
   dayStart: number;
   dayEnd: number;
   now: number;
   layout: typeof DESKTOP_LAYOUT;
+  reminders: Set<string>;
 }) {
+  const { t } = useT();
   const PX_PER_MIN = layout.pxPerMin;
   const ROW_HEIGHT = layout.rowHeight;
   const RAIL_WIDTH = layout.railWidth;
@@ -496,6 +512,9 @@ function GuideRow({ row, dayStart, dayEnd, now, layout }: {
               : 'rgba(255,255,255,0.08)';
           const fg = isCurrent ? '#fff' : '#E9EBF1';
           const opacity = inPast && !reachable ? 0.45 : 1;
+          const isFuture = p.start > now;
+          const rKey = reminderKey(channel.number, p.start);
+          const reminded = isFuture && reminders.has(rKey);
 
           const inner = (
             <div style={{
@@ -511,6 +530,7 @@ function GuideRow({ row, dayStart, dayEnd, now, layout }: {
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}>{p.title}</div>
               <div style={{ fontSize: 10, opacity: 0.75 }}>
+                {reminded ? <span aria-hidden="true">🔔 </span> : null}
                 {fmtClock(p.start)}–{fmtClock(p.stop)}
               </div>
             </div>
@@ -519,8 +539,37 @@ function GuideRow({ row, dayStart, dayEnd, now, layout }: {
           const style = {
             position: 'absolute' as const,
             left, width, top: 4,
-            cursor: canPlay ? 'pointer' : 'default',
+            cursor: canPlay || isFuture ? 'pointer' : 'default',
           };
+
+          // Future programme: tap toggles a reminder (fired by
+          // ReminderWatcher a minute before it starts).
+          if (isFuture) {
+            return (
+              <button
+                key={p.start + '|' + p.title}
+                type="button"
+                className={'guide-remind' + (reminded ? ' is-on' : '')}
+                aria-pressed={reminded}
+                aria-label={`${p.title} · ${fmtClock(p.start)}–${fmtClock(p.stop)} · ${reminded ? t('reminders.cancel') : t('reminders.remindMe')}`}
+                title={reminded ? t('reminders.cancel') : t('reminders.remindMe')}
+                style={{ ...style, padding: 0, border: 0, background: 'none', font: 'inherit', textAlign: 'start' }}
+                onClick={() => {
+                  const on = toggleReminder({
+                    ch: String(channel.number), channel: channel.name,
+                    title: p.title, start: p.start, stop: p.stop,
+                  });
+                  try {
+                    if (on && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+                      void Notification.requestPermission();
+                    }
+                  } catch { /* unsupported */ }
+                }}
+              >
+                {inner}
+              </button>
+            );
+          }
 
           return canPlay ? (
             <Link
@@ -535,9 +584,7 @@ function GuideRow({ row, dayStart, dayEnd, now, layout }: {
             <div
               key={p.start + '|' + p.title}
               style={style}
-              title={p.start >= now
-                ? 'Future programme — switch to live to wait for it'
-                : 'This programme is older than the catch-up window'}
+              title={t('guide.tooOld')}
             >
               {inner}
             </div>
