@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Channel } from './types';
 import { userKey } from '@/lib/session';
 import { getFavorites, onFavoritesChange, toggleFavorite } from '@/lib/favorites';
@@ -137,6 +137,12 @@ export default function ChannelRail({ channels, activeIdx, onTune, onPlay }: Pro
     return () => window.removeEventListener('keydown', onKey);
   }, [channels.length, onTune]);
 
+  // Stable callback for the memoised rows (see RailRow): a new function
+  // per render would make every row re-render whenever the list grows.
+  const playRef = useRef(play);
+  playRef.current = play;
+  const playStable = useCallback((i: number) => playRef.current(i), []);
+
   // Render with category dividers when the category changes between rows.
   // Only the first `visible` channels are materialised — the rest are
   // added as the sentinel scrolls into view.
@@ -149,40 +155,16 @@ export default function ChannelRail({ channels, activeIdx, onTune, onPlay }: Pro
       rows.push(<div key={`d-${i}-${ch.category}`} className="rail-divider">{ch.category}</div>);
       lastCat = ch.category;
     }
-    const isFav = favs.has(ch.id);
     rows.push(
-      <div
+      <RailRow
         key={ch.id}
-        data-idx={i}
-        className={`rail-row ${i === activeIdx ? 'active focused' : ''}`}
-        onClick={() => play(i)}
-      >
-        <div className="rail-num">{ch.number}</div>
-        <button
-          type="button"
-          className={`rail-fav ${isFav ? 'is-fav' : ''}`}
-          aria-label={isFav ? 'Remove from My list' : 'Add to My list'}
-          aria-pressed={isFav}
-          onClick={(e) => { e.stopPropagation(); toggleFavorite(ch.id); }}
-        >
-          <svg viewBox="0 0 24 24"
-               fill={isFav ? 'currentColor' : 'none'}
-               stroke="currentColor" strokeWidth="2"
-               strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>
-          </svg>
-        </button>
-        <div className="rail-logo">
-          {ch.logoUrl
-            ? <img src={ch.logoUrl} alt="" loading="lazy" decoding="async" />
-            : <span style={{ color: '#5A6070', fontSize: 12, fontWeight: 700 }}>{ch.name.slice(0, 3)}</span>}
-        </div>
-        <div className="rail-meta">
-          <div className="rail-name">{ch.name}</div>
-          {ch.now  && <div className="rail-now">{fmt(ch.now.start)}  ·  {maskFor(ch) ? '— spoiler hidden —' : ch.now.title}</div>}
-          {ch.next1 && <div className="rail-next">{fmt(ch.next1.start)}  ·  {maskFor(ch) ? '— spoiler hidden —' : ch.next1.title}</div>}
-        </div>
-      </div>,
+        ch={ch}
+        idx={i}
+        active={i === activeIdx}
+        isFav={favs.has(ch.id)}
+        masked={maskFor(ch)}
+        onPlay={playStable}
+      />,
     );
   }
 
@@ -201,3 +183,45 @@ function fmt(d: Date) {
   const m = String(d.getMinutes()).padStart(2, '0');
   return `${h}:${m}`;
 }
+
+// One channel row. Memoised: when the window grows by another chunk, or
+// the active channel changes, only rows whose props changed re-render.
+// Before this, every append re-rendered every row already on screen —
+// thousands of rows deep that was the main source of scroll jank.
+const RailRow = memo(function RailRow({ ch, idx, active, isFav, masked, onPlay }: {
+  ch: Channel; idx: number; active: boolean; isFav: boolean; masked: boolean; onPlay: (i: number) => void;
+}) {
+  return (
+    <div
+      data-idx={idx}
+      className={`rail-row ${active ? 'active focused' : ''}`}
+      onClick={() => onPlay(idx)}
+    >
+      <div className="rail-num">{ch.number}</div>
+      <button
+        type="button"
+        className={`rail-fav ${isFav ? 'is-fav' : ''}`}
+        aria-label={isFav ? 'Remove from My list' : 'Add to My list'}
+        aria-pressed={isFav}
+        onClick={(e) => { e.stopPropagation(); toggleFavorite(ch.id); }}
+      >
+        <svg viewBox="0 0 24 24"
+             fill={isFav ? 'currentColor' : 'none'}
+             stroke="currentColor" strokeWidth="2"
+             strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>
+        </svg>
+      </button>
+      <div className="rail-logo">
+        {ch.logoUrl
+          ? <img src={ch.logoUrl} alt="" loading="lazy" decoding="async" />
+          : <span style={{ color: '#5A6070', fontSize: 12, fontWeight: 700 }}>{ch.name.slice(0, 3)}</span>}
+      </div>
+      <div className="rail-meta">
+        <div className="rail-name">{ch.name}</div>
+        {ch.now  && <div className="rail-now">{fmt(ch.now.start)}  ·  {masked ? '— spoiler hidden —' : ch.now.title}</div>}
+        {ch.next1 && <div className="rail-next">{fmt(ch.next1.start)}  ·  {masked ? '— spoiler hidden —' : ch.next1.title}</div>}
+      </div>
+    </div>
+  );
+});
