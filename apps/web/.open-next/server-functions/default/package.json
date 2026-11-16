@@ -1,0 +1,44 @@
+{
+  "name": "nova-stream-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "build:cf": "opennextjs-cloudflare build",
+    "preview:cf": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy:cf": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
+  },
+  "dependencies": {
+    "@apollo/client": "^3.10.8",
+    "graphql": "^16.9.0",
+    "hls.js": "^1.5.13",
+    "mpegts.js": "^1.8.0",
+    "next": "15.5.29",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "shaka-player": "^4.10.7",
+    "stripe": "^22.1.1",
+    "zustand": "^4.5.4"
+  },
+  "devDependencies": {
+    "@opennextjs/cloudflare": "1.20.14",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.7.0",
+    "eslint-config-next": "15.5.29",
+    "typescript": "^5.5.3",
+    "vercel": "^37.0.0",
+    "wrangler": "4.155.0"
+  },
+  "overrides": {
+    "postcss": "^8.5.23",
+    "sharp": "^0.35.5",
+    "nanoid": "^3.3.18",
+    "source-map-js": "^1.2.2"
+  }
+}

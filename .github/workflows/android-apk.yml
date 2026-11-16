@@ -6,10 +6,12 @@ name: android-apk
 # loads https://nova-stream-cce.pages.dev/tv inside a fully native
 # Activity with our splash + status-bar + theme.
 #
-# The APK is signed with a generated debug keystore (deterministic per
-# run, but valid Android signature) so the user can install it
-# directly. For Play Store / production we'd swap in a real keystore
-# from secrets — see the commented `releaseKeystore` block.
+# Signing: when the repository secrets ANDROID_KEYSTORE_B64,
+# ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD
+# are set, the job builds a RELEASE APK signed with the owner's keystore
+# and verifies it with apksigner. Without them it publishes a debug
+# build (installable, but each build may need an uninstall to update)
+# and prints a warning.
 #
 # Trigger:
 #   - Manually via `workflow_dispatch` (most common — fire from the
