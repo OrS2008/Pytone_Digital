@@ -13,6 +13,8 @@
 //   Account        type=account_info&action=get_main_info
 //   Live           type=itv&action=get_genres / get_all_channels
 //                  type=itv&action=create_link&cmd=…   → js.cmd "ffmpeg http://…"
+//   Guide          type=itv&action=get_epg_info&period=<hours> → js.data { <ch_id>: [programmes] }
+//                  converted to XMLTV so the app's guide pipeline is unchanged
 //   VOD / series   type=vod&action=get_categories / get_ordered_list&category=&p=
 //                  series: get_ordered_list&movie_id=X&season_id=0 → seasons,
 //                  each season carries `cmd` and `series` (episode numbers);
@@ -20,8 +22,8 @@
 //
 // Tokens expire; on an authorisation failure the client re-handshakes once.
 // Not implemented (documented in IPTV_PROVIDER_INTEGRATION_REPORT.md):
-// the portal's own EPG and archive (catch-up) APIs — capabilities report
-// them as unavailable rather than pretending.
+// the portal's archive (catch-up) API — capabilities report it as
+// unavailable rather than pretending.
 
 import {
   ProviderError,
@@ -160,7 +162,9 @@ export class StalkerClient implements ProviderClient {
       this.liveChannels().catch(() => [] as LiveChannel[]),
       this.vodCategories().catch(() => [] as Category[]),
     ]);
-    return { live: live.length > 0, vod: vod.length > 0, series: vod.length > 0, epg: false, catchup: false };
+    // The guide is offered only if the portal actually returns programmes.
+    const epg = await this.epgPrograms(3).then((d) => Object.values(d).some((l) => l.length > 0)).catch(() => false);
+    return { live: live.length > 0, vod: vod.length > 0, series: vod.length > 0, epg, catchup: false };
   }
 
   async liveCategories(): Promise<Category[]> {
@@ -179,7 +183,7 @@ export class StalkerClient implements ProviderClient {
       name: str(c.name) || `Channel ${i + 1}`,
       logo: imageUrl(c.logo),
       categoryId: str(c.tv_genre_id),
-      epgId: str(c.xmltv_id),
+      epgId: stalkerEpgId(c),
       catchupDays: 0,   // portal archive API not implemented — see header
     }));
   }
@@ -281,6 +285,39 @@ export class StalkerClient implements ProviderClient {
   }
 
   epgUrl(): null { return null; }
+
+  private async epgPrograms(hours: number): Promise<Record<string, Record<string, unknown>[]>> {
+    await this.ensureLogin();
+    const r = await this.call<{ data?: unknown }>({ type: 'itv', action: 'get_epg_info', period: String(hours) });
+    const data = r && typeof r === 'object' ? (r as { data?: unknown }).data : null;
+    if (!data || typeof data !== 'object') return {};
+    const out: Record<string, Record<string, unknown>[]> = {};
+    for (const [ch, list] of Object.entries(data as Record<string, unknown>)) out[ch] = asArray<Record<string, unknown>>(list);
+    return out;
+  }
+
+  async epgXml(hours = 24): Promise<string> {
+    const [programs, channels] = await Promise.all([this.epgPrograms(Math.max(1, Math.min(72, hours))), this.liveChannelsRaw()]);
+    const idFor = new Map(channels.map((c) => [str(c.id), stalkerEpgId(c)]));
+    const parts: string[] = ['<?xml version="1.0" encoding="UTF-8"?>\n<tv generator-info-name="nova-stream-stalker">'];
+    for (const c of channels) {
+      parts.push(`<channel id="${xml(stalkerEpgId(c))}"><display-name>${xml(str(c.name))}</display-name></channel>`);
+    }
+    let count = 0;
+    for (const [ch, list] of Object.entries(programs)) {
+      const id = idFor.get(ch);
+      if (!id) continue;
+      for (const p of list) {
+        const start = num(p.start_timestamp), stop = num(p.stop_timestamp);
+        if (!start || !stop || stop <= start) continue;
+        parts.push(`<programme start="${xmltvTime(start)}" stop="${xmltvTime(stop)}" channel="${xml(id)}"><title>${xml(str(p.name))}</title>${str(p.descr) ? `<desc>${xml(str(p.descr))}</desc>` : ''}</programme>`);
+        count++;
+      }
+    }
+    if (count === 0) throw new ProviderError('unsupported', 'This portal returned no programme guide.');
+    parts.push('</tv>');
+    return parts.join('\n');
+  }
 }
 
 function vodToMovie(v: Record<string, unknown>, categoryId?: string): Movie {
@@ -304,4 +341,21 @@ function encodeB64(s: string): string {
 }
 function decodeB64(s: string): string {
   try { return decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/')))); } catch { return ''; }
+}
+
+/** Guide id for a portal channel: its XMLTV id if it has one, else a
+ *  stable id derived from the portal's channel id (used in epgXml too). */
+function stalkerEpgId(c: Record<string, unknown>): string {
+  return str(c.xmltv_id) || `stalker.${str(c.id)}`;
+}
+
+function xml(s: string): string {
+  return s.replace(/[<>&"']/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[ch] as string));
+}
+
+/** XMLTV timestamp in UTC: YYYYMMDDHHMMSS +0000 */
+function xmltvTime(sec: number): string {
+  const d = new Date(sec * 1000);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())} +0000`;
 }

@@ -10,6 +10,7 @@ import { TvFocusProvider } from '@/components/tv/TvFocus';
 import { useT } from '@/lib/i18n';
 import { getSeries } from '@/lib/providersClient';
 import { getProgress, progressKey } from '@/lib/vodProgress';
+import FavButton from '@/components/tv/vod/FavButton';
 import type { SeriesDetail } from '@/lib/providers/types';
 import '@/components/tv/vod/vod.css';
 
@@ -73,6 +74,11 @@ export default function SeriesView() {
                 </div>
               </div>
             </div>
+            {params && (
+              <div className="vod-actions" style={{ padding: '4px 22px 0' }}>
+                <FavButton item={{ provider: params.p, kind: 'series', id: params.id, name: s.name, poster: s.poster }} />
+              </div>
+            )}
             {s.plot ? <p className="vod-plot" style={{ padding: '0 22px', maxWidth: 900 }}>{s.plot}</p> : null}
             {data.seasons.length > 1 && (
               <div className="vod-seasons" role="tablist" aria-label={t('vod.season')}>

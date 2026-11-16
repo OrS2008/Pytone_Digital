@@ -52,7 +52,8 @@ Known variance not covered: panels that return `exp_date` as a date string, non-
 | Live genres / channels / `create_link` | `itv.*` | PARTIAL |
 | VOD categories / paginated list (≤ 25 pages) / `create_link` | `vod.*` | PARTIAL |
 | Series (seasons via `movie_id`, episode via `series=<n>`) | `vod.get_ordered_list`, `vod.create_link` | PARTIAL |
-| EPG, catch-up | portal APIs | **NOT DONE** — reported as unavailable |
+| EPG | `itv.get_epg_info` (24 h) converted server-side to XMLTV (`/api/providers/:id/epg`); offered only if the portal returns programmes | PARTIAL (mock-verified) |
+| Catch-up | portal archive API | **NOT DONE** — reported as unavailable |
 
 **Authorisation:** the client uses only the MAC the provider registered for the user. It does not generate, scan or rotate MACs, and never bypasses portal access controls.
 

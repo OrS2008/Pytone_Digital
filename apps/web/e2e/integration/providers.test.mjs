@@ -134,7 +134,16 @@ test('stalker client: handshake → bearer token → profile → channels → cr
   assert.deepEqual(sd.seasons.map((s) => [s.number, s.episodes.length]), [[1, 3], [2, 1]]);
   const ep = await c.resolve({ kind: 'episode', id: sd.seasons[0].episodes[1].id, ext: 'stalker' });
   assert.equal(ep.url, 'http://cdn.stalker.example.com/vod/ep2.mp4?t=xyz');
-  assert.deepEqual(await c.capabilities(), { live: true, vod: true, series: true, epg: false, catchup: false });
+  assert.deepEqual(await c.capabilities(), { live: true, vod: true, series: true, epg: true, catchup: false });
+
+  // Guide built from itv.get_epg_info as XMLTV
+  const guide = await c.epgXml(24);
+  assert.ok(guide.includes('<channel id="p1">'), 'xmltv_id used when the portal provides one');
+  assert.ok(guide.includes('<channel id="stalker.3002">'), 'stable derived id otherwise');
+  assert.ok(guide.includes('<programme start="20261116080000 +0000" stop="20261116090000 +0000" channel="p1"><title>Morning &lt;News&gt; &amp; Co</title><desc>Headlines</desc></programme>'));
+  assert.ok(!guide.includes('Bad row'), 'zero-length programmes dropped');
+  assert.ok(!guide.includes('Unknown channel'), 'programmes for unknown channels dropped');
+  assert.deepEqual(ch.map((x) => x.epgId), ['p1', 'stalker.3002'], 'channel guide ids match the generated XMLTV');
   await assert.rejects(c.resolve({ kind: 'catchup', id: '3001', startSec: 1, durationMin: 1 }), { code: 'unsupported' });
 });
 
@@ -286,4 +295,7 @@ test('stalker through the API: add, live list, play resolves create_link server-
   const play = await (await routes.play()).GET(await request('/x', { cookie: u.cookie }), ctx({ id: provider.id, ref: ['live', '3001.m3u8'] }));
   assert.equal(play.status, 302);
   assert.ok(!play.headers.get('location').includes('play_token'), 'the portal token stays sealed');
+  const epg = await (await routes.epg()).GET(await request('/x', { cookie: u.cookie }), ctx({ id: provider.id }));
+  assert.equal(epg.status, 200);
+  assert.match(await epg.text(), /<programme [^>]*channel="p1"/);
 });

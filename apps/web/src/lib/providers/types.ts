@@ -111,6 +111,9 @@ export interface ProviderClient {
   resolve(ref: PlayRef): Promise<ResolvedStream>;
   /** Upstream XMLTV URL (may carry credentials — server-side only). */
   epgUrl(): string | null;
+  /** Guide built from the provider's own API, as XMLTV, when it has no
+   *  XMLTV URL (Stalker portals). */
+  epgXml?(hours?: number): Promise<string>;
 }
 
 export type ProviderErrorCode =

@@ -765,5 +765,10 @@ const en: Record<string, string> = {
   "app.motionDesc": "Turns off fade and scale animations. Helps with motion sensitivity and saves power on TVs.",
   "app.bigger": "Bigger text",
   "app.biggerDesc": "Increases body text by 15 %. Useful when watching from the couch.",
+
+  // --- VOD favourites ---
+  "vod.addMyList": "My list",
+  "vod.inMyList": "In my list",
+  "vod.myList": "My list",
 };
 export default en;

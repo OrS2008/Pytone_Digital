@@ -765,5 +765,10 @@ const he: Record<string, string> = {
   "app.motionDesc": "מבטל אנימציות של דהייה והגדלה. עוזר לרגישות לתנועה וחוסך חשמל בטלוויזיות.",
   "app.bigger": "טקסט גדול יותר",
   "app.biggerDesc": "מגדיל את טקסט הגוף ב‑15%. שימושי כשצופים מהספה.",
+
+  // --- VOD favourites ---
+  "vod.addMyList": "לרשימה שלי",
+  "vod.inMyList": "ברשימה שלי",
+  "vod.myList": "הרשימה שלי",
 };
 export default he;

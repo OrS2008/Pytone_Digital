@@ -26,6 +26,7 @@ import { userKey } from './session';
 export const SYNCED_KEYS: readonly string[] = [
   'sources.live',           // M3U source list
   'vod.progress',           // movie / episode resume positions (lib/vodProgress)
+  'vod.favorites',          // My list for movies / series (lib/vodFavorites)
   'sources.epg',            // XMLTV source URL list
   'prefs.prefetchNeighbours', // neighbour-prefetch toggle
   'prefs.parental',         // parental-controls config (legacy)

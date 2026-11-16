@@ -230,3 +230,39 @@ test('unified search: live channels plus the provider’s movies and series', as
   assert.ok(await page.$('a[href*="/tv/live?ch="]'), 'live channel match still shown');
   await ctx.close();
 });
+
+test('My list: add a movie and a series, they appear in their rails and persist on the synced key', async () => {
+  const ctx = await newContext({ device: DESKTOP, signedIn: true });
+  await mockProviders(ctx);
+  await ctx.addInitScript((pid) => {
+    try {
+      const k = Object.keys(localStorage).find((x) => x.endsWith(':sources.live'));
+      if (k && !localStorage.getItem('__prov')) {
+        localStorage.setItem('__prov', '1');
+        localStorage.setItem(k, JSON.stringify([{ id: 'prov-' + pid, kind: 'XC', title: 'My IPTV', sub: 'provider:' + pid, stat: '' }]));
+        localStorage.setItem('ns.providerCaps', JSON.stringify({ [pid]: { live: true, vod: true, series: true, epg: true, catchup: true } }));
+      }
+    } catch { /* */ }
+  }, PID);
+  let { page } = await open(ctx, '/tv/home', { settle: 200 });
+  await page.close();
+  ({ page } = await open(ctx, '/tv/movies'));
+  assert.equal(await page.$('text=My list'), null, 'no rail before anything is added');
+  await page.click('.vod-grid .vod-card');
+  await page.click('.vod-sheet button[aria-pressed]');
+  assert.equal(await page.getAttribute('.vod-sheet button[aria-pressed]', 'aria-pressed'), 'true');
+  await page.click('.vod-close');
+  await page.waitForSelector('.vod-section:has-text("My list")');
+  await page.close();
+
+  ({ page } = await open(ctx, `/tv/series/view?p=${PID}&id=900`));
+  await page.waitForSelector('button[aria-pressed]');
+  await page.click('button[aria-pressed]');
+  await page.close();
+  ({ page } = await open(ctx, '/tv/series'));
+  await page.waitForSelector('.vod-section:has-text("My list")');
+  const saved = await page.evaluate(() => Object.entries(localStorage).find(([k]) => k.endsWith(':vod.favorites'))?.[1] || '');
+  assert.match(saved, /"kind":"movie"/);
+  assert.match(saved, /"kind":"series"/);
+  await ctx.close();
+});

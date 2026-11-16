@@ -14,8 +14,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const owned = await loadOwned(req, id);
   if (owned instanceof Response) return owned;
-  const url = clientFor(owned.record).epgUrl();
-  if (!url) return NextResponse.json({ error: 'unsupported', message: 'This provider has no XMLTV guide.' }, { status: 404 });
+  const client = clientFor(owned.record);
+  const url = client.epgUrl();
+  if (!url) {
+    // No XMLTV URL: build the guide from the provider's own API (Stalker).
+    if (!client.epgXml) return NextResponse.json({ error: 'unsupported', message: 'This provider has no programme guide.' }, { status: 404 });
+    try {
+      const body = await client.epgXml(24);
+      return new Response(body, { headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'private, max-age=900' } });
+    } catch (e) { return errorResponse(e); }
+  }
   let upstream: Response;
   try {
     const ac = new AbortController();

@@ -8,6 +8,8 @@ import TvNav from '@/components/tv/TvNav';
 import { TvFocusProvider } from '@/components/tv/TvFocus';
 import Catalog, { Poster, type CatalogItem } from '@/components/tv/vod/Catalog';
 import NoProvider from '@/components/tv/vod/NoProvider';
+import FavButton from '@/components/tv/vod/FavButton';
+import { listFavorites, onFavoritesChange, type VodFavorite } from '@/lib/vodFavorites';
 import { useT } from '@/lib/i18n';
 import { activeProviderId, getMovie, getMovies, type ProviderApiError } from '@/lib/providersClient';
 import { continueWatching, getProgress, progressKey, type Progress } from '@/lib/vodProgress';
@@ -26,6 +28,13 @@ export default function MoviesPage() {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<Movie | null>(null);
   const [cw, setCw] = useState<Progress[]>([]);
+  const [favs, setFavs] = useState<VodFavorite[]>([]);
+  useEffect(() => {
+    const id = activeProviderId();
+    const load = () => setFavs(listFavorites(id, 'movie'));
+    load();
+    return onFavoritesChange(load);
+  }, []);
 
   useEffect(() => {
     const id = activeProviderId();
@@ -69,6 +78,17 @@ export default function MoviesPage() {
                         item={{ id: p.id, name: p.title, poster: p.poster, categoryId: '', rating: null, year: null, progress: p.duration ? p.position / p.duration : 0 }}
                         onOpen={() => play({ id: p.id, ext: p.ext, name: p.title, poster: p.poster })}
                       />
+                    ))}
+                  </div>
+                </>
+              )}
+              {favs.length > 0 && (
+                <>
+                  <div className="vod-section">{t('vod.myList')}</div>
+                  <div className="vod-rail">
+                    {favs.map((f) => (
+                      <Poster key={f.key} item={{ id: f.id, name: f.name, poster: f.poster, categoryId: '', rating: null, year: null }}
+                        onOpen={() => setOpen(movies.find((m) => m.id === f.id) ?? { id: f.id, name: f.name, poster: f.poster, categoryId: '', rating: null, year: null, added: null, ext: f.ext || 'mp4' })} />
                     ))}
                   </div>
                 </>
@@ -127,6 +147,7 @@ function MovieSheet({ pid, movie, onClose, onPlay }: {
             <button type="button" className="vod-btn" autoFocus onClick={() => onPlay({ id: m.id, ext: m.ext, name: m.name, poster: m.poster })}>
               ▶ {resume ? t('vod.resume') : t('vod.play')}
             </button>
+            <FavButton item={{ provider: pid, kind: 'movie', id: m.id, name: m.name, poster: m.poster, ext: m.ext }} />
           </div>
           {err && <div className="vod-error" style={{ margin: '12px 0 0' }}>{err}</div>}
           {m.plot ? <p className="vod-plot">{m.plot}</p> : null}

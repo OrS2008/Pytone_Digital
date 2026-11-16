@@ -8,6 +8,7 @@ import TvNav from '@/components/tv/TvNav';
 import { TvFocusProvider } from '@/components/tv/TvFocus';
 import Catalog, { Poster, type CatalogItem } from '@/components/tv/vod/Catalog';
 import NoProvider from '@/components/tv/vod/NoProvider';
+import { listFavorites, onFavoritesChange, type VodFavorite } from '@/lib/vodFavorites';
 import { useT } from '@/lib/i18n';
 import { activeProviderId, getSeriesList, type ProviderApiError } from '@/lib/providersClient';
 import { continueWatching, type Progress } from '@/lib/vodProgress';
@@ -23,6 +24,13 @@ export default function SeriesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cw, setCw] = useState<Progress[]>([]);
+  const [favs, setFavs] = useState<VodFavorite[]>([]);
+  useEffect(() => {
+    const id = activeProviderId();
+    const load = () => setFavs(listFavorites(id, 'series'));
+    load();
+    return onFavoritesChange(load);
+  }, []);
 
   useEffect(() => {
     const id = activeProviderId();
@@ -58,6 +66,16 @@ export default function SeriesPage() {
                         item={{ id: p.seriesId!, name: p.title, poster: p.poster, categoryId: '', rating: null, year: null, progress: p.duration ? p.position / p.duration : 0 }}
                         onOpen={() => openSeries(p.seriesId!)}
                       />
+                    ))}
+                  </div>
+                </>
+              )}
+              {favs.length > 0 && (
+                <>
+                  <div className="vod-section">{t('vod.myList')}</div>
+                  <div className="vod-rail">
+                    {favs.map((f) => (
+                      <Poster key={f.key} item={{ id: f.id, name: f.name, poster: f.poster, categoryId: '', rating: null, year: null }} onOpen={() => openSeries(f.id)} />
                     ))}
                   </div>
                 </>

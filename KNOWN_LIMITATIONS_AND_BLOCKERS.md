@@ -29,7 +29,7 @@ Status labels used across all reports: **PASS** implemented and verified · **PA
 
 | Area | Status | Detail |
 |---|---|---|
-| Stalker portal EPG | NOT DONE | The portal's own EPG API is not implemented; capabilities report `epg: false`. |
+| Stalker portal EPG | PARTIAL | Built from `itv.get_epg_info` and served as XMLTV; mock-verified only. Portals without that action report `epg: false`. |
 | Stalker catch-up | NOT DONE | The portal archive API is not implemented; capability `catchup: false`, play route returns "unsupported". |
 | Stalker portal variants | PARTIAL | Middleware differs between vendors (endpoint, series layout, account fields). Implemented against the common Stalker/Ministra protocol; untested against a real portal. |
 | Raw MPEG-TS live streams | PARTIAL | Played via mpegts.js (client-side remux to fragmented MP4 through Media Source Extensions) for `.ts` URLs, incl. TS-only Xtream panels. Verified in Chromium (phone + desktop profiles) with a test file. **Not available where MSE is missing (iPhone Safari)** — the player says so. Server-side remuxing was rejected: Cloudflare functions have per-request CPU limits. Long-running live TS through the proxy is untested against a real provider. |
@@ -38,7 +38,7 @@ Status labels used across all reports: **PASS** implemented and verified · **PA
 | Large channel lists | PARTIAL | Incremental rendering + `content-visibility`. Measured at 20 000 channels (extreme fling): phone p95 67 ms frame, desktop p95 33 ms. Not true windowing (rows are never unmounted). |
 | Multiple providers | PARTIAL | Up to 10 connections per account, stored and switchable (the most recently added, or the one picked with "Use this playlist", is active). One source is active at a time; there is no merged catalogue across providers. |
 | Unified search across VOD | PASS (sim) | Search shows live channels plus the active provider's movies and series. |
-| Favourites for movies/series | NOT DONE | Favourites exist for live channels only. |
+| Favourites for movies/series | PASS (sim) | "My list" for movies and series, synced across devices (`vod.favorites`). |
 | Parental controls | PASS (sim) | Block list (name contains / category equals) enforced wherever channels are listed; per-device 4-digit PIN locks the list and gates showing blocked channels (1-hour unlock). A household lock in the browser, not a security boundary. Rating cap and profiles were removed (could not be enforced). |
 | Custom channel groups, search history, EPG reminders, per-profile parental settings | NOT DONE | |
 | Hebrew coverage | PARTIAL | All app and account screens are translated (checked by a parity test and a no-English-prose browser test). Legal pages and the admin panel remain English, pinned left-to-right. |

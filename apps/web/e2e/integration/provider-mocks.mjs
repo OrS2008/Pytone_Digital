@@ -95,6 +95,14 @@ export function stalkerRoutes({ expireAfter = Infinity, knownMac = ST.mac, log =
           { id: '600', name: 'Portal Film', year: '2020', description: 'desc', genres_str: 'Drama', screenshot_uri: 'http://img.example.com/f.jpg', cmd: '/media/600.mpg', is_series: '0', time: '95', category_id: '8' },
           { id: '700', name: 'Portal Show', year: '2018', screenshot_uri: '', cmd: '', is_series: '1', category_id: '8' },
         ] } });
+      case 'itv.get_epg_info': return Response.json({ js: { data: {
+        '3001': [
+          { id: 'e1', ch_id: '3001', name: 'Morning <News> & Co', descr: 'Headlines', start_timestamp: 1794816000, stop_timestamp: 1794819600 },
+          { id: 'e2', ch_id: '3001', name: 'Bad row', start_timestamp: 1794819600, stop_timestamp: 1794819600 },
+        ],
+        '3002': [{ id: 'e3', ch_id: '3002', name: 'Film', start_timestamp: 1794816000, stop_timestamp: 1794823200 }],
+        '9999': [{ id: 'e4', ch_id: '9999', name: 'Unknown channel', start_timestamp: 1794816000, stop_timestamp: 1794819600 }],
+      } } });
       case 'vod.create_link': return Response.json({ js: { cmd: 'ffmpeg http://cdn.stalker.example.com/vod/' + (q.get('series') ? 'ep' + q.get('series') : 'film') + '.mp4?t=xyz' } });
       default: return Response.json({ js: [] });
     }
