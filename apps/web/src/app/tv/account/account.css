@@ -953,3 +953,11 @@
   background: rgba(255, 90, 110, 0.10); border: 1px solid rgba(255, 90, 110, 0.35);
   color: var(--ns-danger, #FF6B7B); font-size: 13px; font-weight: 600;
 }
+
+.ac-chip-remove {
+  padding: 6px 12px; min-height: 36px; border-radius: 999px; cursor: pointer;
+  background: var(--ns-bg-hover); border: 1px solid var(--ns-border); color: var(--ns-text);
+  font: inherit; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;
+}
+.ac-chip-remove:disabled { opacity: 0.5; cursor: not-allowed; }
+.ac-chip-remove span { color: var(--ns-text-faint); }

@@ -23,6 +23,7 @@
 // Settings → Security.
 
 import { readSettingsText } from '@/lib/settingsStore';
+import { listProviders, publicView } from '@/lib/providers/store';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireKV } from '@/lib/cfEnv';
 import { readSession, readSessionCookie, SESSION_DAYS } from '@/lib/auth/serverSession';
@@ -51,6 +52,13 @@ export async function GET(req: NextRequest) {
 
   const sessionTtlMs = SESSION_DAYS * 24 * 60 * 60 * 1000;
 
+  // Provider connections: listed without their secrets (host + masked
+  // user/MAC). The export file is often stored or emailed around; the
+  // user can still see and remove each connection in the app.
+  let providers: unknown[] = [];
+  try { providers = (await listProviders(kv, user.userId)).map(publicView); }
+  catch { providers = [{ error: 'provider store could not be decrypted' }]; }
+
   const dump = {
     exportedAt: new Date().toISOString(),
     format: 'nova-stream/v1',
@@ -61,6 +69,7 @@ export async function GET(req: NextRequest) {
       lastLoginAt: user.lastLoginAt ? new Date(user.lastLoginAt).toISOString() : null,
     },
     settings,
+    providers,
     session: {
       startedAt: new Date(session.createdAt).toISOString(),
       expiresAt: new Date(session.createdAt + sessionTtlMs).toISOString(),

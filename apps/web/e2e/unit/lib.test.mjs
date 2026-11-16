@@ -73,3 +73,12 @@ test('playlist URLs are masked before display', () => {
   const masked = maskSourceUrl('http://provider.tv/get.php?username=alice&password=s3cret&type=m3u');
   assert.ok(!masked.includes('s3cret') && !masked.includes('alice'), masked);
 });
+
+test('every English UI string has a Hebrew translation (and vice versa)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const keys = (f) => new Set([...readFileSync(new URL(`../../src/lib/locales/${f}.ts`, import.meta.url), 'utf8').matchAll(/^\s*['"]([\w.]+)['"]\s*:/gm)].map((m) => m[1]));
+  const en = keys('en'), he = keys('he');
+  assert.ok(en.size > 400, `expected a full dictionary, got ${en.size}`);
+  assert.deepEqual([...en].filter((k) => !he.has(k)), [], 'missing in he');
+  assert.deepEqual([...he].filter((k) => !en.has(k)), [], 'missing in en');
+});

@@ -21,18 +21,16 @@ import Link from 'next/link';
 import Shell from '../Shell';
 import Toggle from '@/components/ui/Toggle';
 import SubtitleControls from '@/components/ui/SubtitleControls';
+import { useT } from '@/lib/i18n';
 import usePersisted from '@/lib/usePersisted';
 
-const ROADMAP = [
-  'Auto-play next episode (waiting on episode metadata in M3U)',
-];
 
 // Common ISO-639-1 languages first, plus "off" for subtitles. The
 // player matches the M3U manifest's audio / subtitle track names
 // against this code; if no match we fall through to whatever the
 // stream defaults to.
 const AUDIO_LANGS = [
-  { value: '', label: 'Auto (stream default)' },
+  { value: '', label: 'pref.auto' },
   { value: 'en', label: 'English' },
   { value: 'he', label: 'Hebrew · עברית' },
   { value: 'ar', label: 'Arabic · العربية' },
@@ -45,8 +43,8 @@ const AUDIO_LANGS = [
   { value: 'tr', label: 'Turkish · Türkçe' },
 ];
 const SUBTITLE_LANGS = [
-  { value: 'off', label: 'Off' },
-  { value: '',    label: 'Auto (match audio)' },
+  { value: 'off', label: 'pref.subsOff' },
+  { value: '',    label: 'pref.subsAuto' },
   { value: 'en', label: 'English' },
   { value: 'he', label: 'Hebrew · עברית' },
   { value: 'ar', label: 'Arabic · العربية' },
@@ -55,14 +53,19 @@ const SUBTITLE_LANGS = [
   { value: 'es', label: 'Spanish · Español' },
 ];
 const QUALITY_OPTIONS = [
-  { value: 'auto',   label: 'Auto (adaptive)' },
-  { value: '1080',   label: '1080p — high bandwidth' },
-  { value: '720',    label: '720p — balanced' },
-  { value: '480',    label: '480p — data saver' },
-  { value: 'audio',  label: 'Audio only — cellular fallback' },
+  { value: 'auto',   label: 'pref.q.auto' },
+  { value: '1080',   label: 'pref.q.1080' },
+  { value: '720',    label: 'pref.q.720' },
+  { value: '480',    label: 'pref.q.480' },
+  { value: 'audio',  label: 'pref.q.audio' },
 ];
 
+// Option labels that start with 'pref.' are i18n keys; language names
+// are shown in their own script and stay as written.
+const label = (t: (k: string) => string, l: string) => (l.startsWith('pref.') ? t(l) : l);
+
 export default function Preferences() {
+  const { t } = useT();
   const [audioLang,    setAudioLang]    = usePersisted<string>('prefs.audioLang',    '');
   const [subtitleLang, setSubtitleLang] = usePersisted<string>('prefs.subtitleLang', 'off');
   const [maxQuality,   setMaxQuality]   = usePersisted<string>('prefs.maxQuality',   'auto');
@@ -70,49 +73,38 @@ export default function Preferences() {
   return (
     <Shell active="preferences">
       <header className="ac-panel-head">
-        <div className="ac-panel-eyebrow">Playback</div>
-        <h1 className="ac-panel-title">How you watch</h1>
+        <div className="ac-panel-eyebrow">{t('pref.eyebrow')}</div>
+        <h1 className="ac-panel-title">{t('pref.title')}</h1>
         <p className="ac-panel-sub">
-          Settings that actually affect the player. Every control on this
-          screen is read by the live / catch-up player at the next channel
-          tune.
+          {t('pref.sub')}
         </p>
       </header>
 
       <div className="ac-card">
-        <div className="ac-card-title">Live TV</div>
+        <div className="ac-card-title">{t('pref.live')}</div>
         <div className="ac-toggle-row">
           <div>
-            <div className="ac-toggle-title">Pre-warm neighbouring channels</div>
+            <div className="ac-toggle-title">{t('pref.prewarm')}</div>
             <div className="ac-toggle-desc">
-              Loads the manifest for the channel above and below the current
-              one so zapping with the remote feels instant. Uses a little
-              extra bandwidth.
+              {t('pref.prewarmDesc')}
             </div>
           </div>
           <Toggle persistKey="prefs.prefetchNeighbours" initialOn />
         </div>
         <div className="ac-toggle-row">
           <div>
-            <div className="ac-toggle-title">Hide channels that don&apos;t play</div>
+            <div className="ac-toggle-title">{t('pref.hideDead')}</div>
             <div className="ac-toggle-desc">
-              Off by default, and worth knowing why: this checks each
-              channel in the background and hides the ones that fail, but
-              it has been wrong often enough to hide channels that do
-              broadcast. Nothing is ever deleted — the live screen shows
-              the count and restores everything in one click — but leave
-              it off unless you want to try it. While it is off nothing is
-              hidden and no background checking runs.
+              {t('pref.hideDeadDesc')}
             </div>
           </div>
           <Toggle persistKey="prefs.autoHideDead" />
         </div>
         <div className="ac-toggle-row">
           <div>
-            <div className="ac-toggle-title">Spoiler protection for sport</div>
+            <div className="ac-toggle-title">{t('pref.spoiler')}</div>
             <div className="ac-toggle-desc">
-              Hides live scores and result-bearing programme titles in the
-              channel rail and EPG until you actually open the channel.
+              {t('pref.spoilerDesc')}
             </div>
           </div>
           <Toggle persistKey="prefs.spoilerProtection" />
@@ -120,89 +112,68 @@ export default function Preferences() {
       </div>
 
       <div className="ac-card">
-        <div className="ac-card-title">Languages</div>
+        <div className="ac-card-title">{t('pref.languages')}</div>
         <div className="ac-field">
-          <label className="ac-field-label">Preferred audio language</label>
+          <label className="ac-field-label">{t('pref.audio')}</label>
           <select
             className="ac-input"
             value={audioLang}
             onChange={(e) => setAudioLang(e.target.value)}
           >
-            {AUDIO_LANGS.map((o) => <option key={o.value || 'auto'} value={o.value}>{o.label}</option>)}
+            {AUDIO_LANGS.map((o) => <option key={o.value || 'auto'} value={o.value}>{label(t, o.label)}</option>)}
           </select>
           <div className="ac-field-help">
-            Used when a stream carries multiple audio tracks (e.g. English &amp;
-            Hebrew on the same channel). Auto means &quot;whatever the manifest
-            picks first&quot;.
+            {t('pref.audioHelp')}
           </div>
         </div>
         <div className="ac-field">
-          <label className="ac-field-label">Subtitle language</label>
+          <label className="ac-field-label">{t('pref.subs')}</label>
           <select
             className="ac-input"
             value={subtitleLang}
             onChange={(e) => setSubtitleLang(e.target.value)}
           >
-            {SUBTITLE_LANGS.map((o) => <option key={o.value || 'auto'} value={o.value}>{o.label}</option>)}
+            {SUBTITLE_LANGS.map((o) => <option key={o.value || 'auto'} value={o.value}>{label(t, o.label)}</option>)}
           </select>
           <div className="ac-field-help">
-            Only applied when the stream actually carries that subtitle
-            track — most live channels don&apos;t.
+            {t('pref.subsHelp')}
           </div>
         </div>
       </div>
 
       <div className="ac-card">
-        <div className="ac-card-title">Bandwidth</div>
+        <div className="ac-card-title">{t('pref.bandwidth')}</div>
         <div className="ac-field">
-          <label className="ac-field-label">Maximum quality</label>
+          <label className="ac-field-label">{t('pref.maxQuality')}</label>
           <select
             className="ac-input"
             value={maxQuality}
             onChange={(e) => setMaxQuality(e.target.value)}
           >
-            {QUALITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {QUALITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{label(t, o.label)}</option>)}
           </select>
           <div className="ac-field-help">
-            Caps the bitrate hls.js is allowed to climb to. Useful on mobile
-            data, weak Wi-Fi, or when sharing the line with other devices.
+            {t('pref.maxQualityHelp')}
           </div>
         </div>
       </div>
 
       <div className="ac-card">
-        <div className="ac-card-title">Subtitle look</div>
+        <div className="ac-card-title">{t('pref.subLook')}</div>
         <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, marginTop: 0 }}>
-          Font, size, colour and background applied to every subtitle track,
-          on every device you sign in to.
+          {t('pref.subLookBody')}
         </p>
         <SubtitleControls />
       </div>
 
       <div className="ac-card">
-        <div className="ac-card-title">Streaming mode</div>
+        <div className="ac-card-title">{t('pref.streamMode')}</div>
         <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, margin: '0 0 6px' }}>
-          Choose whether the player fetches video segments directly from
-          your provider&apos;s CDN or routes them through our proxy. The
-          control lives next to your playlists on the{' '}
-          <Link href="/tv/account/sources" className="ac-auth-link">Sources</Link>{' '}
-          page so the choice is right next to the M3U it applies to.
+          {t('pref.streamModeBody')}{' '}
+          <Link href="/tv/account/sources" className="ac-auth-link">{t('pref.sourcesLink')}</Link>{t('pref.page') === '.' ? '.' : ` ${t('pref.page')}`}
         </p>
       </div>
 
-      <div className="ac-card">
-        <div className="ac-card-title">On the roadmap</div>
-        <p style={{ color: 'var(--ns-text-muted)', fontSize: 13.5, margin: '0 0 12px' }}>
-          Features we plan to add to this screen once they exist in the
-          player. Until then we don&apos;t put a switch here that does
-          nothing.
-        </p>
-        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, color: 'var(--ns-text-muted)', lineHeight: 1.8 }}>
-          {ROADMAP.map((label) => (
-            <li key={label}>{label}</li>
-          ))}
-        </ul>
-      </div>
     </Shell>
   );
 }

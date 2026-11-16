@@ -102,6 +102,7 @@ export async function POST(req: NextRequest) {
   await Promise.allSettled([
     kv.delete(`user:${emailKey}`),
     kv.delete(`settings:${session.userId}`),
+    kv.delete(`providers:${session.userId}`),   // encrypted provider connections
     kv.delete(`history:${session.userId}`),
     ...allSessionIds.map((id) => destroySession(kv, id)),
   ]);

@@ -14,10 +14,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import Shell from '../Shell';
 import { signOut } from '@/lib/session';
 import { useAccess } from '@/lib/useAccess';
+import { useT, getLocale } from '@/lib/i18n';
 
 interface SessionRow {
   sid:       string;
@@ -28,31 +28,31 @@ interface SessionRow {
 }
 interface SessionsResp { current: string; sessions: SessionRow[] }
 
-function relativeTime(ms: number): string {
+function relativeTime(ms: number, t: (k: string) => string): string {
   const secs = Math.max(0, Math.floor((Date.now() - ms) / 1000));
-  if (secs < 60)             return `${secs}s ago`;
-  if (secs < 3600)           return `${Math.floor(secs / 60)} min ago`;
-  if (secs < 24 * 3600)      return `${Math.floor(secs / 3600)} h ago`;
-  return new Date(ms).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  if (secs < 60)             return `${secs}${t('dev.sAgo')}`;
+  if (secs < 3600)           return `${Math.floor(secs / 60)} ${t('dev.minAgo').trim()}`;
+  if (secs < 24 * 3600)      return `${Math.floor(secs / 3600)} ${t('dev.hAgo').trim()}`;
+  return new Date(ms).toLocaleDateString(getLocale() === 'he' ? 'he-IL' : 'en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 // Map common User-Agent strings to a friendlier label + a single-char
 // glyph for the device icon. Anything we don't recognise becomes a
 // generic "Browser" — far better than parading the raw UA string.
 function describeUA(ua: string | null): { icon: string; name: string } {
-  if (!ua) return { icon: '◍', name: 'Unknown device' };
-  if (/webOS|Web0S/i.test(ua))             return { icon: '◳', name: 'LG webOS TV' };
-  if (/Tizen/i.test(ua))                   return { icon: '◳', name: 'Samsung Tizen TV' };
-  if (/SmartTV|HbbTV|AppleTV/i.test(ua))   return { icon: '◳', name: 'Smart TV' };
-  if (/CrKey/i.test(ua))                   return { icon: '◳', name: 'Chromecast' };
-  if (/iPhone|iPod/i.test(ua))             return { icon: '◰', name: 'iPhone' };
-  if (/iPad/i.test(ua))                    return { icon: '◰', name: 'iPad' };
-  if (/Android.*Mobile/i.test(ua))         return { icon: '◰', name: 'Android phone' };
-  if (/Android/i.test(ua))                 return { icon: '◰', name: 'Android tablet' };
-  if (/Macintosh/i.test(ua))               return { icon: '◬', name: 'Mac' };
-  if (/Windows/i.test(ua))                 return { icon: '◬', name: 'Windows PC' };
-  if (/Linux/i.test(ua))                   return { icon: '◬', name: 'Linux desktop' };
-  return { icon: '◍', name: 'Browser' };
+  if (!ua) return { icon: '◍', name: 'dev.n.unknown' };
+  if (/webOS|Web0S/i.test(ua))             return { icon: '◳', name: 'dev.n.webos' };
+  if (/Tizen/i.test(ua))                   return { icon: '◳', name: 'dev.n.tizen' };
+  if (/SmartTV|HbbTV|AppleTV/i.test(ua))   return { icon: '◳', name: 'dev.n.smarttv' };
+  if (/CrKey/i.test(ua))                   return { icon: '◳', name: 'dev.n.chromecast' };
+  if (/iPhone|iPod/i.test(ua))             return { icon: '◰', name: 'dev.n.iphone' };
+  if (/iPad/i.test(ua))                    return { icon: '◰', name: 'dev.n.ipad' };
+  if (/Android.*Mobile/i.test(ua))         return { icon: '◰', name: 'dev.n.androidPhone' };
+  if (/Android/i.test(ua))                 return { icon: '◰', name: 'dev.n.androidTablet' };
+  if (/Macintosh/i.test(ua))               return { icon: '◬', name: 'dev.n.mac' };
+  if (/Windows/i.test(ua))                 return { icon: '◬', name: 'dev.n.windows' };
+  if (/Linux/i.test(ua))                   return { icon: '◬', name: 'dev.n.linux' };
+  return { icon: '◍', name: 'dev.n.browser' };
 }
 
 function browserLabel(ua: string | null): string {
@@ -67,6 +67,11 @@ function browserLabel(ua: string | null): string {
 
 export default function Devices() {
   const access = useAccess();
+  const { t } = useT();
+  // Two-step confirmation in the page itself. window.confirm()/alert()
+  // are unreliable inside the Android WebView (the same family of
+  // dialogs as prompt(), which rendered without an input field there).
+  const [armed, setArmed] = useState<string | null>(null);
   const [sessions, setSessions]   = useState<SessionRow[] | null>(null);
   const [error,    setError]      = useState<string | null>(null);
   const [busy,     setBusy]       = useState<string | null>(null);
@@ -75,28 +80,28 @@ export default function Devices() {
     setError(null);
     try {
       const r = await fetch('/api/auth/sessions', { credentials: 'include', cache: 'no-store' });
-      if (r.status === 401) { setError('Sign in to see your devices.');               return; }
-      if (r.status === 503) { setError('Server storage is not configured yet.');       return; }
-      if (!r.ok)            { setError(`Failed to load devices (${r.status}).`);      return; }
+      if (r.status === 401) { setError(t('dev.errSignIn'));               return; }
+      if (r.status === 503) { setError(t('dev.errStorage'));       return; }
+      if (!r.ok)            { setError(`${t('dev.errLoad')} (${r.status}).`);      return; }
       const body = await r.json() as SessionsResp;
       setSessions(body.sessions);
     } catch (e) {
-      setError(`Network error: ${(e as Error).message}`);
+      setError(`${t('auth.errNetwork')}: ${(e as Error).message}`);
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
   async function revoke(sid: string, isCurrent: boolean) {
-    const what = isCurrent ? 'this device' : 'that device';
-    if (!confirm(`Sign out ${what}?`)) return;
+    if (armed !== sid) { setArmed(sid); return; }
+    setArmed(null);
     setBusy(sid);
     try {
       const r = await fetch(`/api/auth/sessions/${encodeURIComponent(sid)}`, {
         method: 'DELETE',
         credentials: 'include',
       });
-      if (!r.ok) { alert(`Failed to revoke (${r.status}).`); return; }
+      if (!r.ok) { setError(`${t('dev.errRevoke')} (${r.status}).`); return; }
       if (isCurrent) {
         // Server cleared the cookie; navigate to login so this tab
         // doesn't keep rendering protected screens off stale state.
@@ -111,7 +116,8 @@ export default function Devices() {
     if (!sessions) return;
     const others = sessions.filter((s) => !s.isCurrent);
     if (others.length === 0) return;
-    if (!confirm(`Sign out ${others.length} other device${others.length === 1 ? '' : 's'}?`)) return;
+    if (armed !== 'all') { setArmed('all'); return; }
+    setArmed(null);
     setBusy('all');
     try {
       await Promise.all(others.map((s) =>
@@ -125,29 +131,25 @@ export default function Devices() {
   }
 
   const planLabel =
-    access.status === 'subscribed' ? 'your subscription' :
-    access.status === 'trial'      ? 'your free trial' :
-    access.status === 'expired'    ? 'your expired trial' :
-                                     'your account';
+    access.status === 'subscribed' ? t('dev.planSub') :
+    access.status === 'trial'      ? t('dev.planTrial') :
+    access.status === 'expired'    ? t('dev.planExpired') :
+                                     t('dev.planAccount');
 
   return (
     <Shell active="devices">
       <header className="ac-panel-head">
-        <div className="ac-panel-eyebrow">Devices</div>
-        <h1 className="ac-panel-title">Signed-in devices</h1>
+        <div className="ac-panel-eyebrow">{t('dev.eyebrow')}</div>
+        <h1 className="ac-panel-title">{t('dev.title')}</h1>
         <p className="ac-panel-sub">
-          Every browser or TV currently signed into {planLabel}. Sign in on a
-          new device from <Link href="/tv/login" className="ac-auth-link">/tv/login</Link>{' '}
-          and it appears here automatically. Revoking a device signs it out
-          immediately — the next request from that browser will see a fresh
-          login screen.
+          {t('dev.sub1')} {planLabel}{t('dev.sub2')}
         </p>
       </header>
 
       <div className="ac-card">
         <div className="ac-card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <span>Active sessions {sessions ? `· ${sessions.length}` : ''}</span>
-          <button className="ac-btn ac-btn-sm" onClick={load}>↻ Refresh</button>
+          <span>{t('dev.active')} {sessions ? `· ${sessions.length}` : ''}</span>
+          <button className="ac-btn ac-btn-sm" onClick={load}>{t('dev.refresh')}</button>
         </div>
 
         {error && (
@@ -157,7 +159,7 @@ export default function Devices() {
         )}
 
         {sessions === null && !error && (
-          <div style={{ color: 'var(--ns-text-faint)', fontSize: 14 }}>Loading…</div>
+          <div style={{ color: 'var(--ns-text-faint)', fontSize: 14 }}>{t('acc.loading')}</div>
         )}
 
         {sessions?.map((s) => {
@@ -168,11 +170,11 @@ export default function Devices() {
               <div className="ac-device-icon">{ua.icon}</div>
               <div className="ac-device-meta">
                 <div className="ac-device-name">
-                  {ua.name}{browser ? ` · ${browser}` : ''}
-                  {s.isCurrent && <span className="ac-device-tag">THIS DEVICE</span>}
+                  {t(ua.name)}{browser ? ` · ${browser}` : ''}
+                  {s.isCurrent && <span className="ac-device-tag">{t('dev.thisDevice')}</span>}
                 </div>
                 <div className="ac-device-sub">
-                  {s.ip ?? '—'} · signed in {relativeTime(s.createdAt)}
+                  <bdi>{s.ip ?? '—'}</bdi> · {t('dev.signedIn')} {relativeTime(s.createdAt, t)}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
@@ -181,7 +183,7 @@ export default function Devices() {
                   disabled={busy === s.sid || busy === 'all'}
                   onClick={() => revoke(s.sid, s.isCurrent)}
                 >
-                  {busy === s.sid ? 'Signing out…' : 'Sign out'}
+                  {busy === s.sid ? t('dev.signingOut') : armed === s.sid ? t('dev.confirm') : t('dev.signOut')}
                 </button>
               </div>
             </div>
@@ -190,18 +192,16 @@ export default function Devices() {
 
         {sessions !== null && sessions.length === 0 && !error && (
           <p style={{ color: 'var(--ns-text-muted)', fontSize: 14 }}>
-            No active sessions for this account.
+            {t('dev.none')}
           </p>
         )}
       </div>
 
       {sessions && sessions.length > 1 && (
         <div className="ac-card">
-          <div className="ac-card-title">Sign out everywhere else</div>
+          <div className="ac-card-title">{t('dev.everywhere')}</div>
           <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, margin: '0 0 14px' }}>
-            Revokes every session except the one you&apos;re using right now.
-            Useful if you signed in on a public device and forgot to sign
-            out.
+            {t('dev.everywhereBody')}
           </p>
           <button
             className="ac-btn ac-btn-danger"
@@ -209,8 +209,10 @@ export default function Devices() {
             onClick={revokeAllOthers}
           >
             {busy === 'all'
-              ? 'Signing out other devices…'
-              : `Sign out ${sessions.filter((s) => !s.isCurrent).length} other device(s)`}
+              ? t('dev.signingOutOthers')
+              : armed === 'all'
+                ? t('dev.confirm')
+                : `${t('dev.signOutOthers')} · ${sessions.filter((s) => !s.isCurrent).length}`}
           </button>
         </div>
       )}

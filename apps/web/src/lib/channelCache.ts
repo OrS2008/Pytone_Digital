@@ -20,6 +20,7 @@
 import type { M3UChannel } from './m3u';
 import { parseM3U, lastParseStats, type ParseStats } from './m3u';
 import { userKey } from './session';
+import { applyParental } from './parental';
 
 interface StoredSource { id: string; kind: string; title: string; sub: string; stat: string }
 
@@ -86,6 +87,12 @@ function writeSessionCache(entry: CacheEntry) {
 // paint synchronously before the async reload lands.
 // loadEpgIndex has always compared its stored url this way.
 export function getCachedChannels(forUrl?: string): M3UChannel[] | null {
+  const raw = getCachedChannelsUnfiltered(forUrl);
+  // Parental block list applies to every list the app shows.
+  return raw ? applyParental(raw) : raw;
+}
+
+function getCachedChannelsUnfiltered(forUrl?: string): M3UChannel[] | null {
   const wanted = forUrl ?? getUserSourceUrl()?.url;
   const fresh = (e: CacheEntry) =>
     (e.v === PARSE_VERSION && (wanted == null || e.url === wanted)) ? e.channels : null;
@@ -250,6 +257,11 @@ async function fetchAndParse(url: string): Promise<LoadResult> {
 // rich result so callers can surface fetch / parse errors instead of
 // swallowing them as "no channels".
 export async function loadChannelsResult(): Promise<LoadResult> {
+  const r = await loadChannelsResultUnfiltered();
+  return r.channels.length ? { ...r, channels: applyParental(r.channels) } : r;
+}
+
+async function loadChannelsResultUnfiltered(): Promise<LoadResult> {
   // Resolve the configured source before consulting the cache, so a
   // cache entry parsed from a different playlist is rejected rather
   // than served.

@@ -50,12 +50,10 @@ export default function Appearance() {
   return (
     <Shell active="appearance">
       <header className="ac-panel-head">
-        <div className="ac-panel-eyebrow">Appearance</div>
-        <h1 className="ac-panel-title">Pick a theme</h1>
+        <div className="ac-panel-eyebrow">{t('app.eyebrow')}</div>
+        <h1 className="ac-panel-title">{t('app.title')}</h1>
         <p className="ac-panel-sub">
-          The theme is a per-device preference — pick the one that fits the
-          screen you&apos;re looking at. Your interface language, on the
-          other hand, follows your account.
+          {t('app.sub')}
         </p>
       </header>
 
@@ -70,7 +68,7 @@ export default function Appearance() {
             <div className={`ac-theme-preview ${tile.preview}`} />
             <div className="ac-theme-meta">
               <div className="ac-theme-name">{tile.name}</div>
-              <div className="ac-theme-tag">{tile.tag}</div>
+              <div className="ac-theme-tag">{t(`app.tag.${tile.id}`)}</div>
             </div>
             {active === tile.id && <div className="ac-theme-check">✓</div>}
           </button>
@@ -83,8 +81,7 @@ export default function Appearance() {
           <div style={{ minWidth: 240 }}>
             <div className="ac-toggle-title">{t('pref.language')}</div>
             <div className="ac-toggle-desc">
-              Interface language. Hebrew automatically switches the app to
-              right-to-left.
+              {t('app.langDesc')}
             </div>
           </div>
           <select
@@ -99,7 +96,7 @@ export default function Appearance() {
       </div>
 
       <div className="ac-card" style={{ marginTop: 22 }}>
-        <div className="ac-card-title">Accessibility</div>
+        <div className="ac-card-title">{t('app.a11y')}</div>
         <AccessibilityControls />
       </div>
     </Shell>
@@ -111,6 +108,7 @@ export default function Appearance() {
 // selectors. Persisted globally (not per-user) because the access
 // preferences belong to whoever is sitting in front of the device.
 function AccessibilityControls() {
+  const { t } = useT();
   const [reduceMotion, setReduceMotion] = useState(false);
   const [biggerText,   setBiggerText]   = useState(false);
   const [followSystem, setFollowSystem] = useState(false);
@@ -153,10 +151,9 @@ function AccessibilityControls() {
     <>
       <div className="ac-toggle-row">
         <div>
-          <div className="ac-toggle-title">Follow system dark / light</div>
+          <div className="ac-toggle-title">{t('app.follow')}</div>
           <div className="ac-toggle-desc">
-            Switch theme automatically to match the OS preference. Overrides
-            the picker above while turned on.
+            {t('app.followDesc')}
           </div>
         </div>
         <label className="ac-toggle-switch">
@@ -166,10 +163,9 @@ function AccessibilityControls() {
       </div>
       <div className="ac-toggle-row">
         <div>
-          <div className="ac-toggle-title">Reduce motion</div>
+          <div className="ac-toggle-title">{t('app.motion')}</div>
           <div className="ac-toggle-desc">
-            Disables fade and scale animations across the app. Helps with
-            motion-sensitivity and saves a sliver of GPU on low-power TVs.
+            {t('app.motionDesc')}
           </div>
         </div>
         <label className="ac-toggle-switch">
@@ -179,10 +175,9 @@ function AccessibilityControls() {
       </div>
       <div className="ac-toggle-row">
         <div>
-          <div className="ac-toggle-title">Bigger text</div>
+          <div className="ac-toggle-title">{t('app.bigger')}</div>
           <div className="ac-toggle-desc">
-            Bumps body text size by 15 %. Useful when watching from the
-            couch on a wall-mounted TV.
+            {t('app.biggerDesc')}
           </div>
         </div>
         <label className="ac-toggle-switch">

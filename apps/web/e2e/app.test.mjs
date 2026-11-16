@@ -292,3 +292,55 @@ test('Hebrew: landing page is translated in the first paint', async () => {
   assert.ok((await res.text()).includes('יצירת חשבון'), 'server HTML should already be Hebrew');
   await ctx.close();
 });
+
+test('parental block list hides channels everywhere; PIN unlock shows them again', async () => {
+  const ctx = await newContext({ signedIn: true, names: ['News One', 'Adult Movies HD', 'Kids Fun', 'Sport Max'] });
+  let { page } = await open(ctx, '/tv/account/parental');
+  await page.fill('input[placeholder*="block"]', 'adult');
+  await page.press('input[placeholder*="block"]', 'Enter');
+  await page.waitForSelector('.ac-chip-remove');
+  // set a PIN
+  await page.fill('#par-new', '1234');
+  await page.fill('#par-confirm', '1234');
+  await page.click('button:has-text("Set PIN")');
+  await page.waitForSelector('text=Locked');
+  assert.equal(await page.isDisabled('input[placeholder*="block"]'), true, 'list locked behind the PIN');
+  await page.close();
+
+  for (const route of ['/tv/live', '/tv/search', '/tv/home']) {
+    ({ page } = await open(ctx, route));
+    const text = await page.evaluate(() => document.body.innerText);
+    assert.ok(!/Adult Movies HD/.test(text), `${route}: blocked channel visible`);
+    assert.ok(/News One|Kids Fun|Sport Max/.test(text), `${route}: other channels missing`);
+    await page.close();
+  }
+
+  ({ page } = await open(ctx, '/tv/account/parental'));
+  await page.fill('#par-unlock', '0000');
+  await page.click('button:has-text("Unlock")');
+  await page.waitForSelector('text=Wrong PIN');
+  await page.fill('#par-unlock', '1234');
+  await page.click('button:has-text("Unlock")');
+  await page.waitForSelector('text=Unlocked');
+  await page.close();
+  ({ page } = await open(ctx, '/tv/search'));
+  assert.ok((await page.evaluate(() => document.body.innerText)).includes('Adult Movies HD'), 'unlocked: blocked channel visible again');
+  await ctx.close();
+});
+
+test('Hebrew account screens contain no untranslated English prose', async () => {
+  const ctx = await newContext({ locale: 'he', signedIn: true });
+  const offenders = [];
+  for (const route of ['/tv/account', '/tv/account/subscription', '/tv/account/plans', '/tv/account/sources', '/tv/account/devices',
+    '/tv/account/appearance', '/tv/account/help', '/tv/account/preferences', '/tv/account/security', '/tv/account/parental', '/tv/account/notifications']) {
+    const { page } = await open(ctx, route, { settle: 600 });
+    const text = await page.evaluate(() => document.querySelector('.ac-panel')?.innerText || '');
+    // Three or more consecutive English words = a sentence that was not translated.
+    // Brand / technical names (Nova Stream, Xtream Codes, Stripe…) are short and allowed.
+    const hits = (text.match(/\b[A-Za-z][a-z]+(?:[ ,][a-z]+){3,}\b/g) || []).filter((s) => !/stream|codes|portal/i.test(s));
+    if (hits.length) offenders.push(`${route}: ${hits.slice(0, 2).join(' | ')}`);
+    await page.close();
+  }
+  await ctx.close();
+  assert.deepEqual(offenders, []);
+});

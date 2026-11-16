@@ -22,8 +22,10 @@
 import { useEffect, useState } from 'react';
 import Shell from '../Shell';
 import { getCurrentDevice } from '@/lib/deviceFingerprint';
+import { useT } from '@/lib/i18n';
 
 export default function Security() {
+  const { t } = useT();
   const [current, setCurrent] = useState('');
   const [next, setNext]       = useState('');
   const [confirm, setConfirm] = useState('');
@@ -36,10 +38,10 @@ export default function Security() {
   async function updatePassword(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
-    if (current.length < 1) return setMsg({ ok: false, text: 'Enter your current password.' });
-    if (next.length < 8)    return setMsg({ ok: false, text: 'New password must be at least 8 characters.' });
-    if (next !== confirm)   return setMsg({ ok: false, text: 'New passwords do not match.' });
-    if (current === next)   return setMsg({ ok: false, text: 'New password must differ from the current one.' });
+    if (current.length < 1) return setMsg({ ok: false, text: t('sec.errCurrent') });
+    if (next.length < 8)    return setMsg({ ok: false, text: t('sec.errLength') });
+    if (next !== confirm)   return setMsg({ ok: false, text: t('sec.errMatch') });
+    if (current === next)   return setMsg({ ok: false, text: t('sec.errSame') });
 
     setBusy(true);
     try {
@@ -49,38 +51,37 @@ export default function Security() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ currentPassword: current, newPassword: next }),
       });
-      if (r.status === 401) { setMsg({ ok: false, text: 'You need to sign in again to change your password.' }); return; }
-      if (r.status === 403) { setMsg({ ok: false, text: 'Current password is wrong.' }); return; }
+      if (r.status === 401) { setMsg({ ok: false, text: t('sec.errSignIn') }); return; }
+      if (r.status === 403) { setMsg({ ok: false, text: t('sec.errWrong') }); return; }
       if (r.status === 422) {
         const body = await r.json().catch(() => ({} as { error?: string }));
-        setMsg({ ok: false, text: body.error === 'same_password' ? 'New password must differ from the current one.' : 'Password is too weak (8+ characters).' });
+        setMsg({ ok: false, text: body.error === 'same_password' ? t('sec.errSame') : t('sec.errWeak') });
         return;
       }
-      if (r.status === 503) { setMsg({ ok: false, text: 'Server storage is not configured.' }); return; }
-      if (!r.ok)            { setMsg({ ok: false, text: `Password change failed (${r.status}).` }); return; }
-      setMsg({ ok: true, text: 'Password updated.' });
+      if (r.status === 503) { setMsg({ ok: false, text: t('sec.errStorage') }); return; }
+      if (!r.ok)            { setMsg({ ok: false, text: `${t('sec.errFailed')} (${r.status}).` }); return; }
+      setMsg({ ok: true, text: t('sec.ok') });
       setCurrent(''); setNext(''); setConfirm('');
     } catch (err) {
-      setMsg({ ok: false, text: `Network error: ${(err as Error).message}` });
+      setMsg({ ok: false, text: `${t('auth.errNetwork')}: ${(err as Error).message}` });
     } finally { setBusy(false); }
   }
 
   return (
     <Shell active="security">
       <header className="ac-panel-head">
-        <div className="ac-panel-eyebrow">Security</div>
-        <h1 className="ac-panel-title">Sign-in &amp; password</h1>
+        <div className="ac-panel-eyebrow">{t('sec.eyebrow')}</div>
+        <h1 className="ac-panel-title">{t('sec.title')}</h1>
         <p className="ac-panel-sub">
-          A strong password (8+ characters) is your account&apos;s primary defence. Your
-          password is hashed with PBKDF2-SHA256 and never stored or transmitted in plain text.
+          {t('sec.sub')}
         </p>
       </header>
 
       <div className="ac-card" style={{ maxWidth: 520 }}>
-        <div className="ac-card-title">Change password</div>
+        <div className="ac-card-title">{t('sec.change')}</div>
         <form onSubmit={updatePassword}>
           <div className="ac-field">
-            <label className="ac-field-label">Current password</label>
+            <label className="ac-field-label">{t('sec.current')}</label>
             <input
               type="password" className="ac-input"
               placeholder="••••••••"
@@ -89,23 +90,22 @@ export default function Security() {
             />
           </div>
           <div className="ac-field">
-            <label className="ac-field-label">New password</label>
+            <label className="ac-field-label">{t('sec.new')}</label>
             <input
               type="password" className="ac-input"
-              placeholder="At least 8 characters"
+              placeholder={t('sec.newPh')}
               value={next} onChange={(e) => setNext(e.target.value)}
               autoComplete="new-password"
             />
             <div className="ac-field-help">
-              Long passphrases beat short complex ones. 12+ characters from a mix
-              of words is stronger than &quot;P@ssw0rd!&quot;.
+              {t('sec.newHelp')}
             </div>
           </div>
           <div className="ac-field">
-            <label className="ac-field-label">Confirm new password</label>
+            <label className="ac-field-label">{t('sec.confirm')}</label>
             <input
               type="password" className="ac-input"
-              placeholder="Re-type the new password"
+              placeholder={t('sec.confirmPh')}
               value={confirm} onChange={(e) => setConfirm(e.target.value)}
               autoComplete="new-password"
             />
@@ -117,13 +117,13 @@ export default function Security() {
             }}>{msg.text}</div>
           )}
           <button type="submit" className="ac-btn ac-btn-primary" disabled={busy}>
-            {busy ? 'Updating…' : 'Update password'}
+            {busy ? t('sec.updating') : t('sec.update')}
           </button>
         </form>
       </div>
 
       <div className="ac-card">
-        <div className="ac-card-title">Recent activity</div>
+        <div className="ac-card-title">{t('sec.activity')}</div>
         <div style={{
           display: 'grid',
           gridTemplateColumns: '24px 1fr auto 80px',
@@ -132,21 +132,17 @@ export default function Security() {
         }}>
           <span style={{ color: 'var(--ns-text-faint)' }}>◯</span>
           <div>
-            <div style={{ color: 'var(--ns-text)' }}>Signed in</div>
+            <div style={{ color: 'var(--ns-text)' }}>{t('sec.signedIn')}</div>
             <div style={{ color: 'var(--ns-text-faint)', fontSize: 12 }}>{deviceLabel}</div>
           </div>
-          <div style={{ color: 'var(--ns-text-muted)', fontSize: 13 }}>This session</div>
+          <div style={{ color: 'var(--ns-text-muted)', fontSize: 13 }}>{t('sec.thisSession')}</div>
           <div style={{
             fontSize: 11, fontWeight: 700, letterSpacing: 1,
             color: 'var(--ns-ok)',
-          }}>SUCCESS</div>
+          }}>{t('sec.success')}</div>
         </div>
         <p style={{ marginTop: 14, color: 'var(--ns-text-faint)', fontSize: 12, lineHeight: 1.5 }}>
-          We only know about the device you are signed in on right now. Listing
-          activity for other devices and failed sign-ins requires a per-user
-          session index, which is on the roadmap; until it lands this page
-          shows the current session and nothing else (rather than fabricating
-          history).
+          {t('sec.activityNote')}
         </p>
       </div>
     </Shell>

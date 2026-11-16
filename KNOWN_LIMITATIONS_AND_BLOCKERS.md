@@ -39,8 +39,9 @@ Status labels used across all reports: **PASS** implemented and verified · **PA
 | Multiple providers | PARTIAL | Up to 10 connections per account, stored and switchable (the most recently added, or the one picked with "Use this playlist", is active). One source is active at a time; there is no merged catalogue across providers. |
 | Unified search across VOD | PASS (sim) | Search shows live channels plus the active provider's movies and series. |
 | Favourites for movies/series | NOT DONE | Favourites exist for live channels only. |
-| Custom channel groups, search history, EPG reminders, parental profiles with per-profile PIN | NOT DONE | Existing parental-control screen unchanged. |
-| Hebrew coverage | PARTIAL | All new screens are translated. Six older account screens, legal pages and admin remain English (pinned left-to-right). |
+| Parental controls | PASS (sim) | Block list (name contains / category equals) enforced wherever channels are listed; per-device 4-digit PIN locks the list and gates showing blocked channels (1-hour unlock). A household lock in the browser, not a security boundary. Rating cap and profiles were removed (could not be enforced). |
+| Custom channel groups, search history, EPG reminders, per-profile parental settings | NOT DONE | |
+| Hebrew coverage | PARTIAL | All app and account screens are translated (checked by a parity test and a no-English-prose browser test). Legal pages and the admin panel remain English, pinned left-to-right. |
 | Admin dashboard upgrade, usage metrics, security event log UI | NOT DONE | Admin API remains server-guarded as before. |
 | Observability (structured logs, correlation IDs, dashboards) | NOT DONE | Security-relevant events are logged without secrets; no correlation IDs or error tracking service. |
 | OpenNext migration | NOT DONE | Next.js was upgraded to a patched release on the existing adapter (verified working). OpenNext moves the deployment from Pages to Workers and needs owner action. |

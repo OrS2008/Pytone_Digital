@@ -32,6 +32,7 @@ export async function DELETE(
   await Promise.allSettled([
     kv.delete(`user:${email}`),
     kv.delete(`settings:${user.userId}`),
+    kv.delete(`providers:${user.userId}`),   // encrypted provider connections
   ]);
   return NextResponse.json({ ok: true, deletedAt: new Date().toISOString() });
 }

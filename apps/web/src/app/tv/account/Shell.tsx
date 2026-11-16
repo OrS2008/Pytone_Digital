@@ -112,7 +112,7 @@ function subscriptionBadge(t: (k: string) => string, status: string): string | n
 // Screens whose copy is still English-only. Until they are translated
 // their panel is pinned left-to-right (see .ac-panel-ltr) so a Hebrew
 // session shows clean English instead of English laid out RTL.
-const ENGLISH_ONLY = new Set(['devices', 'help', 'notifications', 'parental', 'preferences', 'security']);
+const ENGLISH_ONLY = new Set<string>([]);   // all account screens are translated now
 
 export default function Shell({ active, children }: { active: string; children: ReactNode }) {
   const access = useAccess();

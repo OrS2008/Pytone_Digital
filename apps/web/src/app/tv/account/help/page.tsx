@@ -1,17 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Shell from '../Shell';
 import ActionButton from '@/components/ui/ActionButton';
 import { signOut } from '@/lib/session';
+import { useT } from '@/lib/i18n';
+import { getCurrentDevice } from '@/lib/deviceFingerprint';
 
 const LEGAL = [
-  { label: 'Terms of service',     href: '/legal/terms'   },
-  { label: 'Privacy policy',       href: '/legal/privacy' },
+  { label: 'help.terms',   href: '/legal/terms'   },
+  { label: 'help.privacy', href: '/legal/privacy' },
 ];
 
+const BUILD = process.env.NEXT_PUBLIC_BUILD_ID || 'dev';
+
 export default function Help() {
+  const { t } = useT();
+  const [diag, setDiag] = useState({ device: '—', screen: '—' });
+  useEffect(() => { setDiag({ device: getCurrentDevice().name, screen: `${window.innerWidth}×${window.innerHeight}` }); }, []);
   const [confirming, setConfirming] = useState(false);
   const [deleted,    setDeleted]    = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
@@ -31,15 +38,15 @@ export default function Help() {
     try {
       const r = await fetch('/api/privacy/export', { credentials: 'include' });
       if (r.status === 401) {
-        setExportError('You need to sign in again to export your data.');
+        setExportError(t('help.errExportSignIn'));
         return;
       }
       if (r.status === 503) {
-        setExportError('Server storage is not configured yet. Ask the admin to bind the NOVA_KV namespace.');
+        setExportError(t('help.errUnavailable'));
         return;
       }
       if (!r.ok) {
-        setExportError(`Export failed (${r.status}).`);
+        setExportError(`${t('help.errExport')} (${r.status}).`);
         return;
       }
       const blob = await r.blob();
@@ -53,7 +60,7 @@ export default function Help() {
       // Revoke after the browser has a chance to start the download.
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err) {
-      setExportError(`Export failed: ${(err as Error).message}`);
+      setExportError(`${t('help.errExport')}: ${(err as Error).message}`);
     } finally {
       setExporting(false);
     }
@@ -67,7 +74,7 @@ export default function Help() {
   async function handleDelete() {
     setDeleteError(null);
     if (deletePassword.length < 8) {
-      setDeleteError('Enter your current password to confirm.');
+      setDeleteError(t('help.errPassword'));
       return;
     }
     setDeleting(true);
@@ -81,17 +88,17 @@ export default function Help() {
       if (r.status === 401) {
         const body = await r.json().catch(() => ({})) as { error?: string };
         setDeleteError(body.error === 'wrong_password'
-          ? 'That password doesn\'t match — try again.'
-          : 'You need to sign in again before deleting your account.');
+          ? t('help.errWrongPassword')
+          : t('help.errDeleteSignIn'));
         return;
       }
       if (r.status === 503) {
-        setDeleteError('Server storage is not configured yet. Ask the admin to bind the NOVA_KV namespace.');
+        setDeleteError(t('help.errUnavailable'));
         return;
       }
       if (!r.ok) {
         const body = await r.json().catch(() => ({})) as { detail?: string };
-        setDeleteError(`Delete failed (${r.status})${body.detail ? `: ${body.detail}` : '.'}`);
+        setDeleteError(`${t('help.errDelete')} (${r.status})${body.detail ? `: ${body.detail}` : '.'}`);
         return;
       }
       setDeleted(true);
@@ -101,7 +108,7 @@ export default function Help() {
       // Fire after a short pause so the user sees the DELETED chip.
       setTimeout(() => { signOut(); }, 1200);
     } catch (err) {
-      setDeleteError(`Delete failed: ${(err as Error).message}`);
+      setDeleteError(`${t('help.errDelete')}: ${(err as Error).message}`);
     } finally {
       setDeleting(false);
     }
@@ -110,62 +117,53 @@ export default function Help() {
   return (
     <Shell active="help">
       <header className="ac-panel-head">
-        <div className="ac-panel-eyebrow">Help &amp; legal</div>
-        <h1 className="ac-panel-title">We're here when you need us</h1>
+        <div className="ac-panel-eyebrow">{t('help.eyebrow')}</div>
+        <h1 className="ac-panel-title">{t('help.title')}</h1>
       </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }} className="ac-help-grid">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 18 }} className="ac-help-grid">
         <div className="ac-card">
-          <div className="ac-card-title">Get support</div>
-          <div style={{ display: 'grid', gap: 10 }}>
-            <ActionButton className="ac-btn" doneLabel="Opening help centre…">📚  Help centre &amp; FAQs</ActionButton>
-            <ActionButton className="ac-btn" doneLabel="Connecting to chat…">💬  Live chat (24/7)</ActionButton>
-            <a className="ac-btn" href="mailto:support@novastream.tv">✉️  support@novastream.tv</a>
-            <ActionButton className="ac-btn" doneLabel="Opening X…">🐦  @NovaStreamHelp on X</ActionButton>
-          </div>
+          <div className="ac-card-title">{t('help.support')}</div>
+          <p style={{ color: 'var(--ns-text-muted)', fontSize: 14, marginTop: 0 }}>{t('help.supportBody')}</p>
+          <a className="ac-btn" href="mailto:support@novastream.tv"><bdi>✉️  support@novastream.tv</bdi></a>
         </div>
         <div className="ac-card">
-          <div className="ac-card-title">Diagnostics</div>
+          <div className="ac-card-title">{t('help.diag')}</div>
           <dl className="ac-detail">
-            <dt>App version</dt><dd>1.0.0</dd>
-            <dt>Device</dt><dd>Web browser</dd>
-            <dt>Region</dt><dd>Auto</dd>
+            <dt>{t('help.version')}</dt><dd dir="ltr">{BUILD}</dd>
+            <dt>{t('help.device')}</dt><dd>{diag.device}</dd>
+            <dt>{t('help.screen')}</dt><dd dir="ltr">{diag.screen}</dd>
           </dl>
           <ActionButton
             className="ac-btn ac-btn-sm"
             style={{ marginTop: 14 }}
-            doneLabel="Copied ✓"
-            onAction={() => {
-              navigator.clipboard?.writeText(
-                `Nova Stream · 1.0.0\nUser agent: ${typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown'}\nViewport: ${typeof window !== 'undefined' ? window.innerWidth + 'x' + window.innerHeight : 'unknown'}`,
-              );
-            }}
-          >Copy diagnostics</ActionButton>
+            doneLabel={t('help.copied')}
+            onAction={() => { navigator.clipboard?.writeText(`Nova Stream ${BUILD}\nUser agent: ${navigator.userAgent}\nScreen: ${diag.screen}`); }}
+          >{t('help.copy')}</ActionButton>
         </div>
       </div>
 
       <div className="ac-card">
-        <div className="ac-card-title">Legal</div>
+        <div className="ac-card-title">{t('help.legal')}</div>
         {LEGAL.map((it, i) => (
           <Link key={it.label} href={it.href} style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             padding: '14px 0', borderTop: i === 0 ? '0' : '1px solid var(--ns-hairline)',
             color: 'var(--ns-text)', textDecoration: 'none',
           }}>
-            <span>{it.label}</span>
-            <span style={{ color: 'var(--ns-text-faint)' }}>›</span>
+            <span>{t(it.label)}</span>
+            <span style={{ color: 'var(--ns-text-faint)' }} aria-hidden="true">›</span>
           </Link>
         ))}
       </div>
 
       <div className="ac-card ac-btn-danger" style={{ borderRadius: 14 }}>
-        <div className="ac-card-title" style={{ color: 'inherit' }}>Danger zone</div>
+        <div className="ac-card-title" style={{ color: 'inherit' }}>{t('help.danger')}</div>
         <div className="ac-toggle-row">
           <div>
-            <div className="ac-toggle-title">Export my data</div>
+            <div className="ac-toggle-title">{t('help.export')}</div>
             <div className="ac-toggle-desc">
-              Downloads a JSON file with every piece of personal data we hold on you —
-              account, settings, watch history, recordings index. GDPR Articles 15 &amp; 20.
+              {t('help.exportBody')}
             </div>
             {exportError && (
               <div style={{ color: 'var(--ns-danger, #FF6B7B)', fontSize: 12, marginTop: 6 }}>
@@ -179,16 +177,16 @@ export default function Help() {
             disabled={exporting}
             onClick={handleExport}
           >
-            {exporting ? 'Preparing…' : 'Download export'}
+            {exporting ? t('help.preparing') : t('help.download')}
           </button>
         </div>
         <div className="ac-toggle-row">
           <div>
-            <div className="ac-toggle-title">Delete my account</div>
+            <div className="ac-toggle-title">{t('help.delete')}</div>
             <div className="ac-toggle-desc">
               {deleted
-                ? 'Account deleted. You will be signed out in a moment.'
-                : 'Permanently removes your account, settings, and recordings. Cannot be undone.'}
+                ? t('help.deleted')
+                : t('help.deleteBody')}
             </div>
             {deleteError && (
               <div style={{ color: 'var(--ns-danger, #FF6B7B)', fontSize: 12, marginTop: 6 }}>
@@ -197,13 +195,14 @@ export default function Help() {
             )}
           </div>
           {deleted ? (
-            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: 'var(--ns-text-faint)' }}>DELETED</span>
+            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: 'var(--ns-text-faint)' }}>{t('help.deletedPill')}</span>
           ) : confirming ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
               <input
                 type="password"
                 autoComplete="current-password"
-                placeholder="Confirm with your password"
+                placeholder={t('help.confirmPh')}
+                aria-label={t('help.confirmPh')}
                 value={deletePassword}
                 onChange={(e) => setDeletePassword(e.target.value)}
                 disabled={deleting}
@@ -222,17 +221,17 @@ export default function Help() {
                   className="ac-btn ac-btn-sm"
                   onClick={() => { setConfirming(false); setDeletePassword(''); setDeleteError(null); }}
                   disabled={deleting}
-                >Cancel</button>
+                >{t('src.cancel')}</button>
                 <button
                   className="ac-btn ac-btn-sm ac-btn-danger"
                   onClick={handleDelete}
                   disabled={deleting}
-                >{deleting ? 'Deleting…' : 'Yes, delete'}</button>
+                >{deleting ? t('help.deleting') : t('help.yesDelete')}</button>
               </div>
             </div>
           ) : (
             <button className="ac-btn ac-btn-sm ac-btn-danger" onClick={() => setConfirming(true)}>
-              Start deletion
+              {t('help.startDelete')}
             </button>
           )}
         </div>
