@@ -20,7 +20,6 @@ import {
   FirebaseNotConfiguredError,
 } from '@/lib/firebaseAuth';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

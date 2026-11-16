@@ -6,7 +6,6 @@ import { loadOwned, clientFor, errorResponse } from '@/lib/providers/http';
 import { listProviders, saveProviders, publicView } from '@/lib/providers/store';
 import { ProviderError } from '@/lib/providers';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 type Ctx = { params: Promise<{ id: string }> };

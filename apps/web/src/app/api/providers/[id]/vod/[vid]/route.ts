@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadOwned, clientFor, errorResponse, cacheable } from '@/lib/providers/http';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string; vid: string }> }) {

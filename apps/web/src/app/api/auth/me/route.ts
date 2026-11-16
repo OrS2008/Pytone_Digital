@@ -16,7 +16,6 @@ import { getKV } from '@/lib/cfEnv';
 import { readSession, readSessionCookie } from '@/lib/auth/serverSession';
 import { accessState, findUserByEmail } from '@/lib/auth/users';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {

@@ -12,7 +12,6 @@ import { errorResponse } from '@/lib/providers/http';
 import { randomId } from '@/lib/auth/password';
 import { isEncryptionConfigured } from '@/lib/secretBox';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const MAX_BODY = 4096;

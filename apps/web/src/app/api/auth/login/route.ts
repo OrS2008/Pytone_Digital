@@ -40,7 +40,6 @@ import {
 
 import { rateLimit, callerIp, tooManyRequests } from '@/lib/rateLimit';
 
-export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
   const kv = requireKV();

@@ -27,7 +27,6 @@ import {
   FirebaseNotConfiguredError,
 } from '@/lib/firebaseAuth';
 
-export const runtime = 'edge';
 
 const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

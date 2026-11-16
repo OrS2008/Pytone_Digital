@@ -12,7 +12,6 @@ import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import WelcomeLanding from './welcome/WelcomeLanding';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export default async function Root() {

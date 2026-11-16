@@ -20,7 +20,6 @@ import {
 
 import { rateLimit, tooManyRequests } from '@/lib/rateLimit';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {

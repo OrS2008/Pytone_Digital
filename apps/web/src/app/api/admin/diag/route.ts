@@ -13,7 +13,6 @@ import { getKV } from '@/lib/cfEnv';
 import { requireAdmin } from '@/lib/adminGuard';
 import { checkKV, checkEncryption, configChecks } from '@/lib/health';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
@@ -34,7 +33,7 @@ export async function GET(req: NextRequest) {
     },
     app: {
       version: process.env.NEXT_PUBLIC_BUILD_ID || 'dev',
-      commit:  process.env.CF_PAGES_COMMIT_SHA ?? null,
+      commit:  process.env.CF_PAGES_COMMIT_SHA ?? process.env.NEXT_PUBLIC_BUILD_ID ?? null,
     },
   }, { headers: { 'cache-control': 'no-store' } });
 }

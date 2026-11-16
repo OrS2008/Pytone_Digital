@@ -10,7 +10,6 @@ import {
   readSessionCookie,
 } from '@/lib/auth/serverSession';
 
-export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
   const kv = getKV();

@@ -19,7 +19,6 @@ import { getKV } from '@/lib/cfEnv';
 import { requireAdmin } from '@/lib/adminGuard';
 import { accessState, type UserRecord } from '@/lib/auth/users';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 100;

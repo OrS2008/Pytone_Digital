@@ -29,7 +29,6 @@ import { requireKV } from '@/lib/cfEnv';
 import { readSession, readSessionCookie, SESSION_DAYS } from '@/lib/auth/serverSession';
 import { findUserByEmail } from '@/lib/auth/users';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {

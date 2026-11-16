@@ -22,7 +22,6 @@ import { getKV } from '@/lib/cfEnv';
 import { requireAdmin } from '@/lib/adminGuard';
 import { accessState, findUserByEmail, normaliseEmail, type UserRecord } from '@/lib/auth/users';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const DAY = 24 * 60 * 60 * 1000;

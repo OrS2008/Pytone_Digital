@@ -20,7 +20,6 @@ import { getKV } from '@/lib/cfEnv';
 import { requireAdmin } from '@/lib/adminGuard';
 import { accessState, type UserRecord } from '@/lib/auth/users';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 // Cap so a single Workers invocation never spends an unbounded amount

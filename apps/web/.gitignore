@@ -4,3 +4,8 @@ out/
 .vercel/
 tsconfig.tsbuildinfo
 next-env.d.ts
+
+# OpenNext / wrangler build output
+.open-next/
+.wrangler/
+.dev.vars

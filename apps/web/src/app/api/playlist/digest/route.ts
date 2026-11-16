@@ -21,7 +21,6 @@ import { buildDigest, digestCacheKey, type PlaylistDigest } from '@/lib/digest';
 import { validateUpstreamUrl, safeFetch } from '@/lib/ssrfGuard';
 import { requireViewer } from '@/lib/viewerAuth';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const MAX_M3U_BYTES = 16 * 1024 * 1024;

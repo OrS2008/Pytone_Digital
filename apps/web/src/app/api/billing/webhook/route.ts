@@ -38,7 +38,6 @@ import { subscribedUntilFor } from '@/lib/billingAccess';
 // comparison runs against SubtleCrypto instead of Node's crypto module.
 const cryptoProvider = StripeSdk.createSubtleCryptoProvider();
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 // Stripe's signature verification needs the raw body bytes, not the

@@ -3,7 +3,6 @@
 import { NextResponse } from 'next/server';
 import { ADMIN_COOKIE } from '@/lib/adminSession';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export async function POST() {

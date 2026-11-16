@@ -23,7 +23,6 @@ import { requireKV } from '@/lib/cfEnv';
 import { requireActiveAccess } from '@/lib/accessGuard';
 import { readSession, readSessionCookie } from '@/lib/auth/serverSession';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const MAX_BLOB_BYTES = 256 * 1024;

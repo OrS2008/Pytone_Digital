@@ -11,7 +11,6 @@ import { getKV } from '@/lib/cfEnv';
 import { requireAdmin } from '@/lib/adminGuard';
 import { findUserByEmail, normaliseEmail } from '@/lib/auth/users';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export async function DELETE(

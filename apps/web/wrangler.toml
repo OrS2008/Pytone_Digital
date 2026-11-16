@@ -1,7 +1,27 @@
+# Cloudflare Worker built by the OpenNext adapter (@opennextjs/cloudflare).
+#   npm run build:cf     → .open-next/
+#   npm run preview:cf   → local Worker (wrangler dev) with these bindings
+#   npm run deploy:cf    → deploys the Worker (needs `wrangler login` or
+#                          CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID)
+# Secrets are NOT in this file: `wrangler secret put <NAME>` (see
+# OPENNEXT_MIGRATION.md for the list).
 name = "nova-stream"
-compatibility_date = "2024-09-23"
-compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = ".vercel/output/static"
+main = ".open-next/worker.js"
+compatibility_date = "2025-09-01"
+# global_fetch_strictly_public: fetch() cannot reach private / internal
+# addresses — a platform-level backstop behind lib/ssrfGuard.
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[[services]]
+binding = "WORKER_SELF_REFERENCE"
+service = "nova-stream"
+
+[observability]
+enabled = true
 
 # Firebase Authentication — Firebase is the source of truth for
 # email/password auth (signup, login, password reset, email
@@ -26,7 +46,7 @@ FIREBASE_PROJECT_ID  = "nova-stream-4ee03"
 PUBLIC_BASE_URL = "https://nova-stream-cce.pages.dev"
 
 # Admin panel identity. The password hash + session secret are stored
-# in the Cloudflare Pages dashboard as encrypted Secrets (not here)
+# as Worker secrets (`wrangler secret put`) (not here)
 # because wrangler.toml is committed to the repo. Only the public
 # username — which is just an identifier the operator types into the
 # /admin/login form — lives in plaintext.
@@ -36,9 +56,7 @@ ADMIN_USERNAME = "admin@novastream.tv"
 # Keys are prefixed (user: / session: / settings: / history:) so one
 # namespace serves all roles.
 #
-# Cloudflare Pages reads bindings from this file as the source of truth
-# when wrangler.toml is present (the dashboard's "+ Add" button on the
-# Bindings page is disabled in that mode). To rotate to a new
+# The Worker reads bindings from this file. To rotate to a new
 # namespace, replace the id below and redeploy.
 #
 # Without a valid binding the auth + settings + privacy API routes

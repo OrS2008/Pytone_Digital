@@ -31,7 +31,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateUpstreamUrl, safeFetch, SsrfBlocked } from '@/lib/ssrfGuard';
 import { requireViewer } from '@/lib/viewerAuth';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 // Per-request ceiling.

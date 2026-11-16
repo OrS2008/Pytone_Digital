@@ -31,7 +31,6 @@ import { requireViewer } from '@/lib/viewerAuth';
 import { corsFor } from '@/lib/cors';
 import { sealStreamTarget, openStreamTarget } from '@/lib/streamToken';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const TIMEOUT_MS = 30_000;

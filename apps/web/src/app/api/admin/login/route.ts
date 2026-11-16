@@ -21,7 +21,6 @@ import { signAdminToken, ADMIN_COOKIE } from '@/lib/adminSession';
 import { getKV } from '@/lib/cfEnv';
 import { rateLimit, callerIp } from '@/lib/rateLimit';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 interface Body { username?: string; password?: string }

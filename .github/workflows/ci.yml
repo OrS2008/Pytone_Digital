@@ -121,9 +121,10 @@ jobs:
         working-directory: apps/web
       - run: npm run build
         working-directory: apps/web
-      # The Cloudflare Pages output is what actually deploys — build it too.
-      - name: Cloudflare Pages build
-        run: npx @cloudflare/next-on-pages@1
+      # The Cloudflare Worker bundle (OpenNext) is what actually deploys —
+      # build it too.
+      - name: Cloudflare Worker build (OpenNext)
+        run: npx opennextjs-cloudflare build
         working-directory: apps/web
       - name: Install test tooling
         working-directory: apps/web/e2e

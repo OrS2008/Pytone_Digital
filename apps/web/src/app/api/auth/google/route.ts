@@ -22,7 +22,6 @@ import { getKV } from '@/lib/cfEnv';
 import { findUserByEmail, createUserFromFirebase, normaliseEmail, touchLastLogin } from '@/lib/auth/users';
 import { createSession, setSessionCookieHeader } from '@/lib/auth/serverSession';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 interface GoogleTokenInfo {

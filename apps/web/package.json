@@ -5,10 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:cf": "next build && npx @cloudflare/next-on-pages@1",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:cf": "opennextjs-cloudflare build",
+    "preview:cf": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy:cf": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },
   "dependencies": {
     "@apollo/client": "^3.10.8",
@@ -23,19 +25,17 @@
     "zustand": "^4.5.4"
   },
   "devDependencies": {
-    "@cloudflare/next-on-pages": "^1.13.7",
+    "@opennextjs/cloudflare": "1.20.14",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.7.0",
     "eslint-config-next": "15.5.29",
     "typescript": "^5.5.3",
-    "vercel": "^37.0.0"
+    "vercel": "^37.0.0",
+    "wrangler": "4.155.0"
   },
   "overrides": {
-    "@cloudflare/next-on-pages": {
-      "next": "$next"
-    },
     "postcss": "^8.5.23",
     "sharp": "^0.35.5",
     "nanoid": "^3.3.18",

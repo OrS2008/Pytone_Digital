@@ -8,7 +8,6 @@ import { validateUpstreamUrl, safeFetch, SsrfBlocked } from '@/lib/ssrfGuard';
 import { requireViewer } from '@/lib/viewerAuth';
 import { corsFor } from '@/lib/cors';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const MAX_BYTES = 96 * 1024 * 1024; // 96 MB — large country guides exist

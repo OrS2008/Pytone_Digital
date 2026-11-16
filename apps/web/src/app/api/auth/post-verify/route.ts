@@ -36,7 +36,6 @@ import {
   FirebaseNotConfiguredError,
 } from '@/lib/firebaseAuth';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {

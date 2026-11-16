@@ -15,7 +15,6 @@ import { stripe, baseUrl, BillingNotConfiguredError } from '@/lib/stripe';
 import { getKV } from '@/lib/cfEnv';
 import { readSession, readSessionCookie } from '@/lib/auth/serverSession';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {

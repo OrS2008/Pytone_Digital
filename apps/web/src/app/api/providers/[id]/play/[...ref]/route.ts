@@ -16,7 +16,6 @@ import { loadOwned, clientFor, errorResponse } from '@/lib/providers/http';
 import { sealStreamTarget } from '@/lib/streamToken';
 import type { PlayRef } from '@/lib/providers';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const ID = /^[\w~-]{1,512}$/;

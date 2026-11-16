@@ -5,7 +5,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { loadOwned, clientFor, errorResponse } from '@/lib/providers/http';
 import { safeFetch, SsrfBlocked } from '@/lib/ssrfGuard';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const MAX_BYTES = 96 * 1024 * 1024;

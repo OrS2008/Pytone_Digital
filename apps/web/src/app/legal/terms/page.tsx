@@ -17,7 +17,6 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import LegalShell from '../LegalShell';
 
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const EN = (
